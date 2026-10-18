@@ -15,10 +15,25 @@ export function mergeStaleCryptoList(
   incoming: CoinMarket[],
   at: string
 ): CoinMarket[] | null {
-  const bySymbol = new Map(incoming.filter((c) => c.price > 0).map((c) => [c.symbol.toUpperCase(), c]));
+  // b41 H-1: per-row checks — a valid price, a readable (not future) quote time, and a coin the saved
+  // list already knows (by id, else symbol). Rows that fail are skipped; the rest still refresh.
+  const atMs = Date.parse(at);
+  const rowOk = (c: CoinMarket) => {
+    if (!(typeof c.price === "number" && Number.isFinite(c.price) && c.price > 0)) return false;
+    if (c.quotedAt) {
+      const t = Date.parse(c.quotedAt);
+      if (!Number.isFinite(t) || (Number.isFinite(atMs) && t - atMs > 2 * 60 * 1000)) return false;
+    }
+    return true;
+  };
+  const ok = incoming.filter(rowOk);
+  const byId = new Map(ok.filter((c) => c.id).map((c) => [String(c.id).toLowerCase(), c]));
+  const bySymbol = new Map(ok.map((c) => [c.symbol.toUpperCase(), c]));
   let matched = 0;
   const coins = existing.coins.map((coin) => {
-    const fresh = bySymbol.get(coin.symbol.toUpperCase());
+    const fresh = (coin.id ? byId.get(String(coin.id).toLowerCase()) : undefined) ?? bySymbol.get(coin.symbol.toUpperCase());
+    // Never replace a row with an older quote than it already has.
+    if (fresh?.quotedAt && coin.quotedAt && Date.parse(fresh.quotedAt) < Date.parse(coin.quotedAt)) return coin;
     if (!fresh) return { ...coin, quotedAt: coin.quotedAt || existing.at || null };
     matched += 1;
     return {
@@ -30,6 +45,13 @@ export function mergeStaleCryptoList(
     };
   });
   return matched ? coins : null;
+}
+
+/** b41 H-1: how many incoming rows pass the per-row checks against the saved list (for /status). */
+export function countMergeableRows(existing: { coins: CoinMarket[] }, incoming: CoinMarket[]): number {
+  const ids = new Set(existing.coins.map((c) => String(c.id || "").toLowerCase()).filter(Boolean));
+  const syms = new Set(existing.coins.map((c) => c.symbol.toUpperCase()));
+  return incoming.filter((c) => Number.isFinite(c.price) && c.price > 0 && (ids.has(String(c.id || "").toLowerCase()) || syms.has(c.symbol.toUpperCase()))).length;
 }
 
 /** b38 H-1: true when this row's own quote time is older than 15 minutes (or unknown). */

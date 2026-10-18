@@ -67,6 +67,7 @@ describe("session owner", () => {
       "__Secure-better-auth.session_data",
       "better-auth.dont_remember",
       "__Secure-better-auth.dont_remember",
+      "af_ls", // b41 P1: the signed last-good session goes with the token
     ]);
     for (const name of AUTH_COOKIE_NAMES) {
       const cookie = expiredAuthCookie(name);

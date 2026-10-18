@@ -3,8 +3,8 @@
 import { importFileProblem } from "@/lib/import-limits";
 import { useEffect, useRef, useState } from "react";
 import { importOversells } from "@/lib/import-oversell";
-import { datelessCsvRows, nzToday, withRowDates } from "@/lib/paste-date";
-import { PASTE_IMPORT_AI_ENABLED, parsePastedTrades, pastedRowsToCsv, type PastedRow } from "@/lib/paste-import";
+import { datelessCsvRows, withRowDates } from "@/lib/paste-date";
+import { PASTE_COLUMN_MAP, PASTE_IMPORT_AI_ENABLED, parsePastedTrades, pastedRowsToCsv, type PastedRow } from "@/lib/paste-import";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api";
@@ -56,7 +56,10 @@ export function BrokerImportPanel({
   initialFileName,
   embedded,
   onImported,
+  initialMapping,
 }: {
+  /** b41 G-24: the pasted CSV's own column map, so the mapper is skipped. */
+  initialMapping?: Record<string, string>;
   initialText?: string;
   initialFileName?: string;
   embedded?: boolean;
@@ -72,7 +75,7 @@ export function BrokerImportPanel({
   const [missingDate, setMissingDate] = useState("");
   // b38 G-24: each dateless row can take its own date (falls back to the shared one).
   const [rowDates, setRowDates] = useState<Record<number, string>>({});
-  const [mapping, setMapping] = useState<Record<string, string>>({});
+  const [mapping, setMapping] = useState<Record<string, string>>(() => ({ ...(initialMapping ?? {}) }));
   const [preview, setPreview] = useState<Preview | null>(null);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
@@ -162,6 +165,8 @@ export function BrokerImportPanel({
 
   // Goal b19 G-24: pasted email or contract-note text becomes CSV for the same
   // review screen below. Nothing is saved until the member confirms there.
+  const pastedDatesMissing = pastedRows.filter((r, i) => !r.date && !(rowDates[i] || missingDate)).length;
+
   function readPasted() {
     const { rows, unread } = parsePastedTrades(pasted);
     if (!rows.length) {
@@ -173,10 +178,11 @@ export function BrokerImportPanel({
 
   function adoptPasted(rows: PastedRow[], unread: string[], name: string) {
     const dateless = rows.filter((r) => !r.date).length;
-    const fill = missingDate || nzToday();
-    if (dateless && !missingDate) setMissingDate(fill);
+    // b41 G-24: a missing date stays blank and must be set; never today's date by default.
+    const fill = missingDate;
     setRowDates({});
     setPastedRows(rows);
+    setMapping({ ...PASTE_COLUMN_MAP });
     setText(pastedRowsToCsv(withRowDates(rows, {}, fill)));
     setFileName(name);
     setPreview(null);
@@ -421,6 +427,8 @@ export function BrokerImportPanel({
                         <input
                           type="date"
                           className="rounded border px-2 py-1"
+                          required
+                          aria-required="true"
                           value={rowDates[i] || missingDate}
                           onChange={(e) => changeRowDate(i, e.target.value)}
                           aria-label={`Trade date for ${r.type} ${r.quantity} ${r.ticker}`}
@@ -457,7 +465,12 @@ export function BrokerImportPanel({
             <span className="mt-1 block text-muted-foreground">{FUNDING_DISCLOSURE}</span>
           </span>
         </label>
-        <Button type="submit" disabled={busy || !text.trim()}>
+        {pastedDatesMissing ? (
+          <p className="text-sm font-medium text-rose-700" role="alert" data-paste-dates-required>
+            Set the date on {pastedDatesMissing} row{pastedDatesMissing === 1 ? "" : "s"} before review.
+          </p>
+        ) : null}
+        <Button type="submit" disabled={busy || !text.trim() || pastedDatesMissing > 0}>
           {busy ? "Reading…" : "Review file"}
         </Button>
       </form>

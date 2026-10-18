@@ -933,7 +933,7 @@ export async function readDexSnapshot(timeoutMs = SNAPSHOT_READ_TIMEOUT_MS): Pro
 }
 
 export { CRYPTO_PARTIAL_REFRESH_AFTER_MS, CRYPTO_ROW_DELAYED_AFTER_MS, mergeStaleCryptoList, cryptoRowDelayed } from "@/lib/crypto-row-delay";
-import { CRYPTO_PARTIAL_REFRESH_AFTER_MS, mergeStaleCryptoList } from "@/lib/crypto-row-delay";
+import { CRYPTO_PARTIAL_REFRESH_AFTER_MS, countMergeableRows, mergeStaleCryptoList } from "@/lib/crypto-row-delay";
 
 /** A refreshed list must keep at least this share of the saved list's rows to replace it. */
 export const CRYPTO_REPLACE_MIN_SHARE = 0.9;
@@ -946,6 +946,12 @@ export const PRIMARY_CRYPTO_SOURCE = "coingecko";
  * once the stored primary list is older than this (10 minutes).
  */
 export const FALLBACK_REPLACES_PRIMARY_AFTER_MS = 10 * 60 * 1000;
+
+/** b41 H-1: the exact guard reason for /status: which check, source, row counts and saved age. */
+function guardDetail(check: string, existing: CryptoSnapshot, incoming: CoinMarket[], ageMs: number): string {
+  const age = Number.isFinite(ageMs) ? `${Math.max(0, Math.round(ageMs / 1000))}s` : "unknown";
+  return `check=${check} source=${primarySnapshotSource(incoming) ?? "unknown"} rows=${incoming.length}/${existing.coins.length} mergeable=${countMergeableRows(existing, incoming)} savedAge=${age}`;
+}
 
 export async function persistCryptoSnapshot(coins: CoinMarket[], at = new Date().toISOString()): Promise<void> {
   const tagged = coins
@@ -968,7 +974,7 @@ export async function persistCryptoSnapshot(coins: CoinMarket[], at = new Date()
       const staleAge = Date.parse(at) - Date.parse(existing.at || "");
       const merged = Number.isFinite(staleAge) && staleAge > CRYPTO_PARTIAL_REFRESH_AFTER_MS ? mergeStaleCryptoList(existing, tagged, at) : null;
       if (!merged) {
-        recordCryptoAttempt(false, new Error("unavailable: list not verified"));
+        recordCryptoAttempt(false, new Error("unavailable: list not verified"), Date.now(), guardDetail("unverified", existing, tagged, staleAge));
         return;
       }
       const work = persistCryptoDurable(merged, at, existing.version ?? 0);
@@ -983,7 +989,16 @@ export async function persistCryptoSnapshot(coins: CoinMarket[], at = new Date()
     const existingAge = Date.parse(at) - Date.parse(existing.at || "");
     const existingAmber = !Number.isFinite(existingAge) || existingAge > CRYPTO_REPLACE_ANY_AFTER_MS;
     if (existingVerified && !existingAmber && tagged.length < Math.floor(existing.coins.length * CRYPTO_REPLACE_MIN_SHARE)) {
-      recordCryptoAttempt(false, new Error("unavailable: shorter list kept the previous one"));
+      // b41 H-1 (TT: snapshot stuck 15m16s): a verified but shorter list used to wait for the 15-minute
+      // amber band. After 10 minutes its rows that pass the per-row checks merge into the saved list.
+      const merged = Number.isFinite(existingAge) && existingAge > CRYPTO_PARTIAL_REFRESH_AFTER_MS ? mergeStaleCryptoList(existing, tagged, at) : null;
+      if (!merged) {
+        recordCryptoAttempt(false, new Error("unavailable: shorter list kept the previous one"), Date.now(), guardDetail("shorter", existing, tagged, existingAge));
+        return;
+      }
+      const work = persistCryptoDurable(merged, at, existing.version ?? 0);
+      pendingSnapshotWrite = work;
+      await keepAlive(work);
       return;
     }
     // b29 H-1: compare-and-set on as-of. An older list never replaces a newer one.
@@ -997,7 +1012,7 @@ export async function persistCryptoSnapshot(coins: CoinMarket[], at = new Date()
     const incomingPrimary = primarySnapshotSource(tagged);
     const primaryFresh = Number.isFinite(existingAge) && existingAge <= FALLBACK_REPLACES_PRIMARY_AFTER_MS;
     if (existingVerified && primaryFresh && existingPrimary && incomingPrimary && existingPrimary !== incomingPrimary && existingPrimary === PRIMARY_CRYPTO_SOURCE) {
-      recordCryptoAttempt(false, new Error(`unavailable: ${incomingPrimary} list kept the fresher ${existingPrimary} list`));
+      recordCryptoAttempt(false, new Error(`unavailable: ${incomingPrimary} list kept the fresher ${existingPrimary} list`), Date.now(), guardDetail("fallback-vs-fresh-primary", existing, tagged, existingAge));
       return;
     }
   }

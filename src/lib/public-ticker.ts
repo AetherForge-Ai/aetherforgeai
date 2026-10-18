@@ -24,6 +24,53 @@ export interface PublicTickerOptions {
   skipEquityFetch?: boolean;
 }
 
+const EDGE_EQUITY_KEY = "https://af-internal.invalid/ticker-equity-last-good";
+function equityCache(): Cache | null {
+  try {
+    return (globalThis as unknown as { caches?: { default?: Cache } }).caches?.default ?? null;
+  } catch {
+    return null;
+  }
+}
+/** b41 P3: the colo's last good equity quotes (bounded read; null when none or slow). */
+async function edgeEquityGet(ms = 150): Promise<Record<string, unknown> | null> {
+  const cache = equityCache();
+  if (!cache) return null;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const hit = await Promise.race([cache.match(EDGE_EQUITY_KEY), new Promise<undefined>((r) => (timer = setTimeout(() => r(undefined), ms)))]);
+    if (!hit) return null;
+    const v = (await hit.json()) as Record<string, unknown>;
+    return v && typeof v === "object" && Object.keys(v).length ? v : null;
+  } catch {
+    return null;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+let lastEquityPut = 0;
+async function edgeEquityPut(quotes: unknown): Promise<void> {
+  const cache = equityCache();
+  if (!cache || Date.now() - lastEquityPut < 30_000) return;
+  lastEquityPut = Date.now();
+  try {
+    await cache.put(EDGE_EQUITY_KEY, new Response(JSON.stringify(quotes), { headers: { "Content-Type": "application/json", "Cache-Control": "max-age=86400" } }));
+  } catch {
+    /* best effort */
+  }
+}
+
+/** b41 P3: newest equity quote time this isolate (or the colo copy) holds, for /status. */
+export async function lastGoodEquityAt(): Promise<string | null> {
+  const quotes = (lastGoodEquity ?? (await edgeEquityGet(200))) as Record<string, { quotedAt?: string | null }> | null;
+  let best: string | null = null;
+  for (const q of Object.values(quotes ?? {})) {
+    const t = q?.quotedAt;
+    if (t && Number.isFinite(Date.parse(t)) && (!best || t > best)) best = t;
+  }
+  return best;
+}
+
 export async function loadPublicTicker(opts: PublicTickerOptions = {}): Promise<TickerTapeFeed> {
   const asOf = new Date().toISOString();
   const equitySymbols = [...TICKER_TAPE.nzx, ...TICKER_TAPE.asx].map((row) => row.symbol);
@@ -50,9 +97,16 @@ export async function loadPublicTicker(opts: PublicTickerOptions = {}): Promise<
     ),
   ]);
   if (cryptoFresh && Object.keys(cryptoFresh).length) lastGoodCrypto = cryptoFresh;
-  if (equityFresh && Object.keys(equityFresh).length) lastGoodEquity = equityFresh;
+  // b41 P3 (TT: 43/627 replies lacked NZX/ASX rows): merge per symbol, so a partial or missed equity
+  // fetch keeps every symbol's last good quote (with its own quote time). A cold isolate takes the
+  // colo's saved copy first.
+  if (!lastGoodEquity) lastGoodEquity = (await edgeEquityGet()) as typeof lastGoodEquity;
+  if (equityFresh && Object.keys(equityFresh).length) {
+    lastGoodEquity = { ...(lastGoodEquity ?? {}), ...equityFresh } as typeof lastGoodEquity;
+    void edgeEquityPut(lastGoodEquity);
+  }
   const cryptoRaw = (cryptoFresh && Object.keys(cryptoFresh).length ? cryptoFresh : lastGoodCrypto ?? {}) as Awaited<ReturnType<typeof snapshotQuotesForSymbols>>;
-  const equityQuotes = (equityFresh && Object.keys(equityFresh).length ? equityFresh : lastGoodEquity ?? {}) as Awaited<ReturnType<typeof fetchLiveQuotes>>;
+  const equityQuotes = (lastGoodEquity ?? equityFresh ?? {}) as Awaited<ReturnType<typeof fetchLiveQuotes>>;
   const cryptoQuotes: Record<string, { price: number; changePct?: number; quotedAt: string | null; source: string; provider: string }> = {};
   for (const [symbol, quote] of Object.entries(cryptoRaw)) {
     cryptoQuotes[symbol] = {

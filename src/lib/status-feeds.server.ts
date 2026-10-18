@@ -1,10 +1,9 @@
-import { attemptLabel, attemptIsGuard } from "@/lib/crypto-attempts";
+import { attemptLabel, attemptIsGuard, cryptoFeedKilled, readCryptoAttempt, readSharedCryptoAttempt, type CryptoAttempt } from "@/lib/crypto-attempts";
 import "server-only";
 
 import { getFxSnapshot } from "@/lib/fx";
 import { getMetalsSpot } from "@/lib/metals";
 import { loadPublicTickerBounded } from "@/lib/public-ticker";
-import { cryptoFeedKilled, readSharedCryptoAttempt } from "@/lib/crypto-attempts";
 import { FEED_FORCE_LABEL, FEED_FRESHNESS_WINDOWS } from "@/lib/feed-freshness-hook";
 // b28 G-05: registers the durable attempt store this page reads.
 import "@/lib/crypto-snapshot";
@@ -77,7 +76,9 @@ async function within<T>(work: Promise<T>, ms = STATUS_PROBE_TIMEOUT_MS): Promis
 async function equityRow(row: StatusFeedRow, now: number): Promise<StatusFeedRow> {
   if (!/^unavailable/.test(row.text)) return row;
   const { latestSavedEquityAt } = await import("@/lib/stock-board.server");
-  const at = latestSavedEquityAt() ?? (await lastOkFor("equity"));
+  // b41 P3: then the ticker's own last good equity quotes (memory, then the colo copy).
+  const { lastGoodEquityAt } = await import("@/lib/public-ticker");
+  const at = latestSavedEquityAt() ?? (await lastOkFor("equity")) ?? (await within(lastGoodEquityAt(), 400));
   return at
     ? { ...row, tone: "amber", text: savedSnapshotLabel(at, now) }
     : { ...row, tone: "amber", text: EQUITY_NO_TIME_TEXT };
@@ -131,7 +132,7 @@ export async function loadStatusFeeds(now = Date.now()): Promise<StatusFeedRow[]
       failed: killed,
       failedText: "— switched off by the operator",
     }), tapeTimedOut),
-    (await within(cryptoAttemptRow())) ?? { label: "Crypto list last attempt", tone: "amber", text: "— check timed out" },
+    (await within(cryptoAttemptRow())) ?? localCryptoAttemptRow(),
     withLastOk(shapeStatusFeed({
       label: FEED_FORCE_LABEL.fx,
       at: fxAt,
@@ -148,9 +149,22 @@ export async function loadStatusFeeds(now = Date.now()): Promise<StatusFeedRow[]
 }
 
 /** Goal b14: the last CoinGecko attempt this server made, so a silent fallback shows. */
+/** b41 P3: the shared attempt read timed out; this server's own last attempt (or the one it last read). */
+function localCryptoAttemptRow(): StatusFeedRow {
+  const last = readCryptoAttempt().last ?? lastSharedAttempt;
+  if (!last) return { label: "Crypto list last attempt", tone: "amber", text: "— check timed out" };
+  return {
+    label: "Crypto list last attempt",
+    tone: last.ok || attemptIsGuard(last.code) ? "ok" : "red",
+    text: `${formatDisplayDateTime(last.at)} · ${attemptLabel(last)} (this server)`,
+  };
+}
+let lastSharedAttempt: CryptoAttempt | null = null;
+
 async function cryptoAttemptRow(): Promise<StatusFeedRow> {
   const { last, scope } = await readSharedCryptoAttempt();
   if (!last) return { label: "Crypto list last attempt", tone: "amber", text: "— no refresh attempt recorded yet" };
+  lastSharedAttempt = last;
   return {
     label: "Crypto list last attempt",
     tone: last.ok || attemptIsGuard(last.code) ? "ok" : "red",
