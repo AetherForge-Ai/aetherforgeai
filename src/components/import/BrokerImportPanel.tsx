@@ -2,6 +2,7 @@
 
 import { importFileProblem } from "@/lib/import-limits";
 import { useEffect, useRef, useState } from "react";
+import { PASTE_IMPORT_AI_ENABLED, parsePastedTrades, pastedRowsToCsv } from "@/lib/paste-import";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api";
@@ -61,6 +62,8 @@ export function BrokerImportPanel({
 } = {}) {
   const [text, setText] = useState("");
   const [fileName, setFileName] = useState("");
+  const [pasted, setPasted] = useState("");
+  const [pasteNote, setPasteNote] = useState("");
   const [mapping, setMapping] = useState<Record<string, string>>({});
   const [preview, setPreview] = useState<Preview | null>(null);
   const [message, setMessage] = useState("");
@@ -110,6 +113,24 @@ export function BrokerImportPanel({
     setImportError("");
     setConsent(false);
     setAcknowledgeSkipped(false);
+  }
+
+  // Goal b19 G-24: pasted email or contract-note text becomes CSV for the same
+  // review screen below. Nothing is saved until the member confirms there.
+  function readPasted() {
+    const { rows, unread } = parsePastedTrades(pasted);
+    if (!rows.length) {
+      setPasteNote("No trades found in that text. Paste lines like “Bought 25 FPH.NZ at NZ$28.50 on 13 Oct 2026”.");
+      return;
+    }
+    setText(pastedRowsToCsv(rows));
+    setFileName("Pasted text");
+    setPreview(null);
+    setMessage("");
+    setImportError("");
+    setConsent(false);
+    setAcknowledgeSkipped(false);
+    setPasteNote(`${rows.length} trade${rows.length === 1 ? "" : "s"} read from the text${unread.length ? `; ${unread.length} part${unread.length === 1 ? "" : "s"} could not be read` : ""}. Review them below before anything is saved.`);
   }
 
   async function postImport<T>(body: unknown): Promise<Awaited<ReturnType<typeof api.post<T>>>> {
@@ -301,6 +322,23 @@ export function BrokerImportPanel({
             }}
           />
           {fileName ? <p className="text-xs text-muted-foreground">{fileName}</p> : null}
+          <details className="mt-3 rounded-md border p-3" data-paste-import>
+            <summary className="cursor-pointer text-sm font-semibold">Or paste email or contract-note text</summary>
+            <textarea
+              aria-label="Pasted trade text"
+              className="mt-2 h-32 w-full rounded-md border bg-background p-2 text-sm"
+              value={pasted}
+              onChange={(e) => setPasted(e.target.value)}
+              placeholder="Bought 25 FPH.NZ at NZ$28.50 on 13 Oct 2026. Brokerage: $5.00"
+            />
+            <button type="button" onClick={readPasted} className="mt-2 h-9 rounded-md border px-3 text-sm font-semibold">Read trades from text</button>
+            {pasteNote ? <p className="mt-2 text-sm" role="status">{pasteNote}</p> : null}
+            <p className="mt-2 text-xs text-muted-foreground">
+              {PASTE_IMPORT_AI_ENABLED
+                ? "AI reading of PDFs and screenshots is switched on."
+                : "AI reading is off: only pasted text is read, in the app, by fixed rules. PDFs and screenshots are not read."}
+            </p>
+          </details>
         </div>
         <label className="flex items-start gap-2 text-sm" htmlFor="import-fund">
           <input
