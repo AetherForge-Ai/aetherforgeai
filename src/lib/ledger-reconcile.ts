@@ -5,7 +5,8 @@
  *   server rows minus rows deleted here, plus on-screen rows the server did not return yet.
  * Outside the window the server's ledger is used as is.
  */
-export const RECONCILE_WINDOW_MS = 20_000;
+// b32 G-10: TT saw store lag up to ~17 s after a delete; 45 s covers it with margin.
+export const RECONCILE_WINDOW_MS = 45_000;
 
 export type LedgerLike = { id: string };
 

@@ -42,7 +42,7 @@ export function guideFactsBlock(): string {
     "- Trades are recorded, never executed. AetherForge never places orders, never takes custody and never moves money.",
     "- Prices are delayed public data, not a direct NZX or ASX feed.",
     "### Overseas shares (FIF) — indicative only",
-    `- The FIF de minimis test is a total-cost test: add up the cost of attributing overseas shares held at any time in the income year (1 April to 31 March).`,
+    `- The FIF de minimis test: if the total cost of your FIF interests is more than NZ$50,000 at any time in the income year (1 April to 31 March), the FIF rules apply. It is the cost of what you hold at that moment, not the sum of everything held at some point in the year.`,
     `- The limit is ${nz(FIF_THRESHOLD_NZD)}, or ${nz(FIF_JOINT_THRESHOLD_NZD_FACT)} when the portfolio is set to jointly held.`,
     "- This is indicative, not tax advice; the member should confirm with IRD or a tax adviser.",
     "### Outside platforms",

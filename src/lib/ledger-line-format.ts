@@ -12,6 +12,10 @@ export function formatLedgerQtyPrice(input: {
     input.quantity != null && Number.isFinite(input.quantity) ? formatQuantity(input.quantity) : null;
   const code = String(input.currency || "").toUpperCase();
   const known = CODES.has(code as CurrencyCode) ? (code as CurrencyCode) : null;
+  // b32 G-10: a cash row (deposit, withdrawal) has neither; it is not a missing price.
+  if (qty == null && (input.price == null || !Number.isFinite(input.price))) {
+    return { text: MISSING_MARK, reason: null };
+  }
   if (input.price == null || !Number.isFinite(input.price)) {
     return {
       text: `${qty ?? MISSING_MARK} × ${MISSING_MARK}`,

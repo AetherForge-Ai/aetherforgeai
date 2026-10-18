@@ -15,7 +15,7 @@ describe("Goal b21", () => {
     expect(read("src/components/dashboard/PreciousMetals.tsx")).not.toContain(">Smitty spot prices<");
   });
   it("H-4: the 500-row page renders the server quota", () => {
-    expect(read("src/app/test-hooks/dashboard-500/page.tsx")).toMatch(/ServerQuotaStrip/);
+    expect(read("src/components/dashboard/Fixture500Page.tsx")).toMatch(/ServerQuotaStrip/);
   });
   it("G-23: every guide fact has a source or a reason; slugs, titles and descriptions are unique", () => {
     expect(GUIDES.length).toBeGreaterThanOrEqual(19);

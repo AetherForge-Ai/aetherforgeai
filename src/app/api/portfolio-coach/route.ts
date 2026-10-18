@@ -121,7 +121,27 @@ function boundedRead<T>(work: Promise<T>, ms: number): Promise<T | null> {
   return Promise.race([work.catch(() => null), new Promise<null>((resolve) => setTimeout(() => resolve(null), ms))]);
 }
 
+/** b32 CR-2: the whole request has a hard 9 s deadline; past it the member gets a plain facts answer. */
+const COACH_TOTAL_DEADLINE_MS = 9_000;
+const DEADLINE_REPLY =
+  "That took too long to answer just now, so here is what I can say without it: AetherForge is a paper book (nothing is sent to a broker), plans are listed in NZD on /pricing, and the Help page covers recording trades. Please ask again in a moment.";
+
 export async function POST(req: Request) {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<Response>((resolve) => {
+    timer = setTimeout(() => {
+      console.warn(`[api/portfolio-coach] total deadline ${COACH_TOTAL_DEADLINE_MS} ms reached`);
+      resolve(NextResponse.json({ ok: true, data: { reply: withAssistantDisclaimer(DEADLINE_REPLY), fallback: true, deadline: true } }));
+    }, COACH_TOTAL_DEADLINE_MS);
+  });
+  try {
+    return await Promise.race([handle(req), deadline]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+async function handle(req: Request): Promise<Response> {
   try {
     const user = await getCurrentUser();
     if (!user) {
@@ -139,6 +159,25 @@ export async function POST(req: Request) {
 
     const userMessage = parsed.data.message.trim();
     const history = parsed.data.history ?? [];
+
+    // b32 CR-2: refusals and fixed facts answer on the static path, before the quota read or any
+    // other network or model call (TT b31: a refusal took 20 s and paper-book 17 s behind slow reads).
+    // Still counted, in the background (the quota read is not on the answer's path).
+    const staticAnswer = (raw: string, extra: Record<string, unknown>) => {
+      const reply = withAssistantDisclaimer(raw);
+      void keepAlive(
+        readAssistantQuota(user)
+          .then((q) => recordAssistantExchange(user, q, userMessage, reply))
+          .catch((err) => console.warn("[api/portfolio-coach] quota record failed:", err instanceof Error ? err.message : "error"))
+      );
+      return NextResponse.json({ ok: true, data: { reply, ...extra } });
+    };
+    if (isSharePickRequest(userMessage)) {
+      console.info(`[api/portfolio-coach] share-pick refusal for user ${user._id}`);
+      return staticAnswer(withGuideDisclaimer(ASSISTANT_SHARE_PICK_REPLY), { refused: "personalised_advice", fallback: true });
+    }
+    const staticFirst = coachStaticFactReply(userMessage);
+    if (staticFirst) return staticAnswer(staticFirst, { facts: "static" });
 
     // b28 L-4: the panel shares the Market Assistant quota with /api/chat.
     // b31 CR-2: every slow read is bounded; a timed-out quota read does not block the answer.

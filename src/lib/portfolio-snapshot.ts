@@ -1995,17 +1995,31 @@ export function withLedgerLine(
     cashNzd: cashNzd ?? Number(trade.total ?? 0),
     // b31 G-10: a saved sell shows its stored realised NZ$ at once, not "—" until a reload.
     realisedNzd:
-      String(trade.type || "") === "sell" && !id.startsWith("optimistic-")
-        ? (() => {
-            const raw = trade.realized_pnl_nzd ?? trade.realized_pnl;
-            return raw != null && Number.isFinite(Number(raw)) ? Math.round(Number(raw) * 100) / 100 : null;
-          })()
-        : null,
+      String(trade.type || "") !== "sell"
+        ? null
+        : !id.startsWith("optimistic-")
+          ? (() => {
+              const raw = trade.realized_pnl_nzd ?? trade.realized_pnl;
+              return raw != null && Number.isFinite(Number(raw)) ? Math.round(Number(raw) * 100) / 100 : null;
+            })()
+          : // b32 G-10: the optimistic sell row shows realised at once (average cost from the book on
+            // screen); the saved row's FIFO figure replaces it when the server answers.
+            optimisticRealisedNzd(snapshot, String(trade.ticker || ""), Number(trade.quantity) || 0, cashNzd ?? Number(trade.total ?? 0)),
     when: day,
     whenLabel: formatDisplayDate(day),
   };
   const kept = snapshot.ledger.filter((row) => row.id !== id && !row.id.startsWith("optimistic-"));
   return { ...snapshot, ledger: [line, ...kept] };
+}
+
+/** b32 G-10: realised NZ$ estimate for a sell not yet saved: net proceeds minus average cost of the units sold. */
+export function optimisticRealisedNzd(snapshot: PortfolioSnapshot, ticker: string, qty: number, proceedsNzd: number): number | null {
+  if (!(qty > 0) || !Number.isFinite(proceedsNzd)) return null;
+  const want = ticker.toUpperCase();
+  const pos = (snapshot.groups || []).flatMap((g) => g.positions || []).find((p) => p.ticker.toUpperCase() === want && p.quantity > 0);
+  const cost = pos?.costBase?.value;
+  if (!pos || cost == null || !Number.isFinite(cost)) return null;
+  return Math.round((proceedsNzd - (cost / pos.quantity) * Math.min(qty, pos.quantity)) * 100) / 100;
 }
 
 /**

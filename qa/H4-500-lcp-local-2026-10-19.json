@@ -1,0 +1,33 @@
+{
+  "url": "http://localhost:3917/dashboard/transactions?fixture=500",
+  "results": [
+    {
+      "run": 1,
+      "lcp": 152,
+      "cls": 0,
+      "quota": true,
+      "ledger": "500",
+      "url": "/dashboard/transactions?fixture=500",
+      "wallMs": 2811
+    },
+    {
+      "run": 2,
+      "lcp": 184,
+      "cls": 0,
+      "quota": true,
+      "ledger": "500",
+      "url": "/dashboard/transactions?fixture=500",
+      "wallMs": 2829
+    },
+    {
+      "run": 3,
+      "lcp": 164,
+      "cls": 0,
+      "quota": true,
+      "ledger": "500",
+      "url": "/dashboard/transactions?fixture=500",
+      "wallMs": 2806
+    }
+  ],
+  "pass": true
+}

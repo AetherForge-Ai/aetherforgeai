@@ -1,3 +1,4 @@
+import { LAST_GOOD_SESSION_COOKIE, cookieValueOf, verifyLastGoodSession } from "@/lib/last-good-session";
 import "server-only";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
@@ -49,6 +50,8 @@ type TokenSession = {
     image?: string | null;
   };
   session: { expiresAt?: Date | string | number | null };
+  /** b32 REG-1: resolved from the signed last-good cookie because the store did not answer. */
+  storeDown?: boolean;
 };
 
 const inflightSessions = new Map<string, Promise<TokenSession | null>>();
@@ -118,8 +121,11 @@ export class SessionStoreUnavailable extends Error {
     super(`session store unavailable: ${reason}`);
   }
 }
-/** b27 H-4: no session read may hold a page for 25 s; 4 s then "unavailable, retry". */
-export const SESSION_LOOKUP_TIMEOUT_MS = 4000;
+/**
+ * b27 H-4: no session read may hold a page for 25 s.
+ * b32 REG-1: hard 1.5 s in render, then the cached / last-good session (never a block).
+ */
+export const SESSION_LOOKUP_TIMEOUT_MS = 1500;
 function sessionDeadline<T>(work: Promise<T>, what: string): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   return Promise.race([
@@ -182,8 +188,15 @@ async function readTokenSession(cookieHeader: string | null): Promise<TokenSessi
         recordSessionDecision({ cookie: true, signature: true, source: "stale-cache", storeMs, outcome: "user" });
         return last.row;
       }
-      recordSessionDecision({ cookie: true, signature: true, source: "store", storeMs, outcome: "unavailable" });
-      throw err;
+      // b32 REG-1: no isolate cache — the browser's signed last-good session for this token.
+      return verifyLastGoodSession(ctx.secret, token, cookieValueOf(cookieHeader, LAST_GOOD_SESSION_COOKIE)).then((lg) => {
+        if (lg) {
+          recordSessionDecision({ cookie: true, signature: true, source: "stale-cache", storeMs, outcome: "user" });
+          return { user: { id: lg.uid, email: lg.email, name: lg.name }, session: { expiresAt: lg.exp }, storeDown: true } as TokenSession;
+        }
+        recordSessionDecision({ cookie: true, signature: true, source: "store", storeMs, outcome: "unavailable" });
+        throw err;
+      });
     });
   const job = storeRead
     .finally(() => {
@@ -242,7 +255,11 @@ async function loadCurrentUser(): Promise<AppUser | null> {
     // A browser that just wrote (af_bw stamp) never gets a record read before its write: cash moved.
     const writtenNotBefore = bookNotBeforeFromCookie(headerList.get("cookie"));
     const cachedRecord = recordCache.get(userId);
-    if (cachedRecord && Date.now() - cachedRecord.at < USER_RECORD_FRESH_MS && cachedRecord.at >= writtenNotBefore) {
+    if (session.storeDown) {
+      // b32 REG-1: the store just failed the session read; do not wait on it again for the record.
+      record = cachedRecord?.record ?? null;
+      recordReadAt = cachedRecord?.at;
+    } else if (cachedRecord && Date.now() - cachedRecord.at < USER_RECORD_FRESH_MS && cachedRecord.at >= writtenNotBefore) {
       record = cachedRecord.record;
       recordReadAt = cachedRecord.at;
     } else {
@@ -257,8 +274,9 @@ async function loadCurrentUser(): Promise<AppUser | null> {
           record = cachedRecord.record;
           recordReadAt = cachedRecord.at;
         } else {
-          if (err instanceof SessionStoreUnavailable) throw err;
-          console.error("[session] Failed to load full user record:", err);
+          // b32 REG-1: the session is known (store, cache or signed last-good); a hung user-record
+          // read must not turn that into "unavailable". Render with the session fields only.
+          console.error("[session] Failed to load full user record:", err instanceof SessionStoreUnavailable ? err.reason : err);
         }
       }
     }
@@ -366,4 +384,18 @@ export function isTrialEligible(user: AppUser | null): boolean {
   if (!user) return false;
   if (hasPaidSubscription(user)) return false;
   return user.trial_used !== "yes";
+}
+
+
+/**
+ * b32 REG-1: the signed last-good session cookie value for the current request's token, or null.
+ * /api/session sets it after a store-confirmed read so a later store hang never blocks render.
+ */
+export async function lastGoodSessionCookieFor(cookieHeader: string | null, user: { id: string; email: string; name?: string | null }): Promise<string | null> {
+  const ctx = await auth.$context;
+  const raw = cookieValue(cookieHeader, ctx.authCookies.sessionToken.name);
+  const token = raw ? await verifySignedSessionToken(raw, ctx.secret) : null;
+  if (!token) return null;
+  const { signLastGoodSession } = await import("@/lib/last-good-session");
+  return signLastGoodSession(ctx.secret, token, user);
 }
