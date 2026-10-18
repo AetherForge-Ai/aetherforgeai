@@ -85,9 +85,18 @@ async function incrementRow(storageKey: string, windowMs: number, now: number): 
     _limit: DURABLE_COUNT_SCAN,
   } as never);
   // Count only this bucket's rows, in case the store ignores the filter.
-  const rows = ((res?.data as Row[] | undefined) || []).filter(
+  const list = ((res?.data as Row[] | undefined) || []).filter(
     (r) => r.bucket_key == null || r.bucket_key === storageKey
-  ).length;
+  );
+  const rows = list.length;
+  // b30: decide on this insert's ordinal (rows created at or before it), so two
+  // concurrent hits never both read the same total and never both see "10".
+  const mine = insertedId ? list.find((r) => r._id === insertedId) : undefined;
+  if (mine) {
+    const key = (r: Row) => `${String((r as { createdAt?: string }).createdAt ?? "")}|${r._id}`;
+    const k = key(mine);
+    return list.filter((r) => key(r) <= k).length;
+  }
   // b7: our own insert must be visible. Zero rows means the read is not working
   // (missing bucket_key column, a filter the table ignores, or a lagging read),
   // so the count would always be 1 and never refuse. Report it as a store

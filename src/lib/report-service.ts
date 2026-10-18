@@ -4,6 +4,8 @@ import { buildLiveReport, type LiveHolding, type BotKind } from "@/lib/bot-repor
 import { applyMarketsSessionChange } from "@/lib/markets-session";
 import { renderReportHtml, type ReportAlert } from "@/lib/report-html";
 import { analyzeSecurity, staleDataHold, analyzeUniverse, getMarketNews, universeFor, type SecurityIntel } from "@/lib/market-intel";
+import { forcedStalePrintIso, holdAssetForMarket } from "@/lib/bot-hold-gate";
+import { forcedStaleTickersForRequest } from "@/lib/stale-ticker-hook";
 import { loadMarketNews } from "@/lib/market-news";
 import { computePortfolioMetrics, buildActionableIntelligence } from "@/lib/analytics";
 import { getUpcomingEvents } from "@/lib/econ-calendar";
@@ -74,6 +76,18 @@ export class EmptyBookReportError extends Error {
 
 function nzDateLabel(d: Date): string {
   return formatAucklandDateTime(d);
+}
+
+/** H-12: Hold when this ticker's price is older than its market limit, or the test hook forced it stale. */
+function gateBotRow(
+  row: SecurityIntel,
+  quotedAt: string | null | undefined,
+  forced: Set<string>,
+  now: Date
+): SecurityIntel {
+  const asset = holdAssetForMarket(row.market);
+  const at = forced.has(row.ticker.toUpperCase()) ? forcedStalePrintIso(asset, now) : quotedAt;
+  return labelIntel(staleDataHold(row, at ?? null, now, asset));
 }
 
 async function loadPriorReportCalls(userId: string, bot: BotKind) {
@@ -259,6 +273,8 @@ export async function generateReportForUser(
   let marketOverrides: Record<string, number> = {};
   let universeQuotes: Record<string, { price: number; changePct?: number; quotedAt?: string }> = {};
   let equityHistories: Record<string, number[]> = {};
+  const forcedStale = new Set((await forcedStaleTickersForRequest()).map((ticker) => ticker.toUpperCase()));
+  const holdNow = new Date();
   try {
     const universeTickers = universeFor(bot).map((e) => e.ticker);
     const [quotes, histories] = await Promise.all([
@@ -288,9 +304,11 @@ export async function generateReportForUser(
     technicals = stockObjs.map((s) => {
       const series = equityHistories[s.ticker] ?? equityHistories[s.ticker.toUpperCase()];
       const printAt = (universeQuotes[s.ticker] ?? universeQuotes[s.ticker.toUpperCase()])?.quotedAt;
-      // H-12: a last print more than 3 trading days old holds the row.
-      return labelIntel(
-        staleDataHold(analyzeSecurity(s.ticker, s.current_price || undefined, s.company_name, undefined, series), printAt)
+      return gateBotRow(
+        analyzeSecurity(s.ticker, s.current_price || undefined, s.company_name, undefined, series),
+        printAt,
+        forcedStale,
+        holdNow
       );
     });
   }
@@ -306,9 +324,10 @@ export async function generateReportForUser(
       const bySymbol = new Map(cryptoIntel.map((row) => [row.ticker.toUpperCase(), row]));
       technicals = stockObjs.map((s) => {
         const found = bySymbol.get(s.ticker.toUpperCase());
-        return found
-          ? labelIntel({ ...found, price: s.current_price || found.price })
-          : labelIntel(analyzeSecurity(s.ticker, s.current_price || undefined, s.company_name, "CRYPTO"));
+        const base = found
+          ? { ...found, price: s.current_price || found.price }
+          : analyzeSecurity(s.ticker, s.current_price || undefined, s.company_name, "CRYPTO");
+        return forcedStale.has(s.ticker.toUpperCase()) ? gateBotRow(base, null, forcedStale, holdNow) : labelIntel(base);
       });
       console.log(`[report-service] Koins full-market intel: ${cryptoIntel.length} coins feeding the report`);
     } else {
@@ -327,6 +346,11 @@ export async function generateReportForUser(
   if (bot !== "crypto") {
     marketTechnicals = applyMarketsSessionChange(marketTechnicals, universeQuotes);
   }
+  marketTechnicals = marketTechnicals.map((row) => {
+    if (row.market === "CRYPTO" && !forcedStale.has(row.ticker.toUpperCase())) return row;
+    const quoted = (universeQuotes[row.ticker] ?? universeQuotes[row.ticker.toUpperCase()])?.quotedAt;
+    return gateBotRow(row, quoted, forcedStale, holdNow);
+  });
   const marketFeedUnavailable = marketTechnicals.length === 0;
   if (marketFeedUnavailable) {
     console.error(`[report-service] ${bot} market feed unavailable — report will say so and will not invent quotes`);

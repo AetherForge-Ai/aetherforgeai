@@ -15,6 +15,7 @@ import { sanitizeGuardedReport } from "@/lib/report-consistency";
 import { labelMemberReport } from "@/lib/report-language";
 import { moverSweepCaption } from "@/lib/mover-sweep";
 import { memberUnderReviewLines, neutralRatingLabel, printUnderReviewLabel, PROJECTION_RANK_NOTE, projectionLeaderLine } from "@/lib/report-copy";
+import { scrubBotReportCopy } from "@/lib/bot-hold-gate";
 import type {
   ApexReport,
   TickerAnalysis,
@@ -561,7 +562,7 @@ function BriefingSection({ report }: { report: ApexReport }) {
 
 export function ApexReportView({ report: source, scrubCopy = false }: { report: ApexReport; scrubCopy?: boolean }) {
   // Stored View, including recommendation rows, always re-applies the cash guard.
-  const report = labelMemberReport(sanitizeGuardedReport(source));
+  const report = scrubBotReportCopy(labelMemberReport(sanitizeGuardedReport(source)));
   const underReview = memberUnderReviewLines(report);
   return (
     <div className="min-w-0 max-w-full space-y-5 overflow-x-hidden">
@@ -773,7 +774,7 @@ export function ApexReportView({ report: source, scrubCopy = false }: { report: 
 
       <p className="text-[11px] leading-relaxed text-muted-foreground/70 border-t border-border/50 pt-3">
         AetherForge AI delivers informational market intelligence only. Nothing here is personalised financial advice, a
-        recommendation, or an offer to buy or sell any security or digital asset. Always do your own research.
+        recommendation, or an offer to deal in any security or digital asset. Always do your own research.
       </p>
     </div>
   );

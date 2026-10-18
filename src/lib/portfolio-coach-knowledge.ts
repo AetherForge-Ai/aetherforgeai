@@ -4,6 +4,7 @@
  * External brokers/exchanges are PASSIVE knowledge: answer only when asked.
  * Tone: professional, plain language, short sentences, step-by-step.
  */
+import { guideFactsBlock } from "@/lib/guide-facts";
 
 export const PORTFOLIO_COACH_KNOWLEDGE = `
 # AetherForge AI — Portfolio Notes Assistant knowledge
@@ -25,13 +26,14 @@ Do not invent new investment recommendations. Prefer Headmaster plan context and
 - Prefer numbered steps for how-to answers.
 - No slang, no sales pitch, no hype.
 - English only.
-- End sensitive market answers with a brief reminder that this is educational / portfolio execution help, not personalised financial advice.
+- End every answer with exactly: "General information, not financial advice."
 
 ## CRITICAL — External platforms policy (hard rule)
-Sharesies, Tiger Brokers NZ, Binance, OKX, Bybit, Coinbase, Kraken, Interactive Brokers, Hatch, Pay It Now, BlackBull, P2P marketplaces, and similar brokers/exchanges are **PASSIVE knowledge only**.
+Never name any broker, exchange or retailer. Say “your broker or exchange”.
 
-- Use them **ONLY when the member explicitly asks** how people buy/sell outside AetherForge (or which platforms exist).
-- Do **NOT** steer, endorse, rank, or CTA toward those sites.
+${guideFactsBlock()}
+
+- Say you don't know rather than guess.
 - AetherForge never takes custody and never places trades.
 Ledger fill integrity: recommendations are idea/paper only until the member confirms "I filled this" with a typed broker fill. Never use mark_price, bot signal, or prior close as fill_price. Absurd crypto micro-prices (e.g. APT at 0.0001) must be blocked — never inflate quantity to fake NZD totals. AetherForge does not execute trades. Fill prices must match your broker. The coach helps the member **record and align** their book on the dashboard after they trade elsewhere (or paper-track).
 
@@ -196,7 +198,8 @@ You are the **Portfolio Notes Assistant** for AetherForge AI — a professional 
 - External brokers/exchanges are passive-only — answer if asked, never steer as a sales pitch.
 - Prefer AetherForge dashboard execution paths over third-party product pitches.
 - Keep replies focused (usually under ~220 words). Use Markdown lightly: bold key UI labels, numbered lists for steps.
-- Close market-sensitive answers with one short non-legalese reminder: educational / execution help, not personalised financial advice.
+- End every answer with exactly this line and nothing after it: "General information, not financial advice." Never say trades are executed.
+- Write money as NZ$ or US$, never a bare "$".
 
 Knowledge base:
 ${PORTFOLIO_COACH_KNOWLEDGE}
@@ -215,7 +218,7 @@ export function portfolioCoachFallbackReply(userMessage: string): string {
       `4. Enter your trim guidance and full-exit price fields.\n` +
       `5. Save, then check the alert list for status.\n\n` +
       `Alerts remind you inside AetherForge. They do not place broker orders.\n\n` +
-      `_Educational / execution help — not personalised financial advice._`
+      `_General information, not financial advice._`
     );
   }
 
@@ -227,7 +230,7 @@ export function portfolioCoachFallbackReply(userMessage: string): string {
       `3. Review the date, price, fee and cash change, then confirm.\n` +
       `4. Check Holdings, cash, and the transactions ledger.\n\n` +
       `If you traded at your broker first, record the same result here so the dashboard stays aligned.\n\n` +
-      `_Educational / execution help — not personalised financial advice._`
+      `_General information, not financial advice._`
     );
   }
 
@@ -240,7 +243,7 @@ export function portfolioCoachFallbackReply(userMessage: string): string {
       `4. Enter units, price and the fee, review, then confirm.\n` +
       `5. Verify it appears under Holdings and that cash updated.\n\n` +
       `AetherForge records your book — it does not send broker orders.\n\n` +
-      `_Educational / execution help — not personalised financial advice._`
+      `_General information, not financial advice._`
     );
   }
 
@@ -252,7 +255,7 @@ export function portfolioCoachFallbackReply(userMessage: string): string {
       `3. Look at the **asset mix** (shares, crypto, metals, cash) to see how the book is split.\n` +
       `4. Open **Transactions** if a figure looks wrong, and correct the trade there.\n\n` +
       `I can explain what each figure means, but I can't tell you whether the mix is right for you.\n\n` +
-      `_Educational / execution help — not personalised financial advice._`
+      `_General information, not financial advice._`
     );
   }
 
@@ -263,7 +266,7 @@ export function portfolioCoachFallbackReply(userMessage: string): string {
       `2. Use **Deposit** or **Withdraw**.\n` +
       `3. Enter the NZD amount and confirm.\n` +
       `4. Check the cash card and recent transactions.\n\n` +
-      `_Educational / execution help — not personalised financial advice._`
+      `_General information, not financial advice._`
     );
   }
 
@@ -276,7 +279,7 @@ export function portfolioCoachFallbackReply(userMessage: string): string {
       `- **NASDAQ** — major U.S. exchange / tech-growth indexes.\n` +
       `- **Crypto** — tracked with **Koins**; markets run 24/7.\n\n` +
       `Use Stox / Koins / Headmaster for intelligence, then align holdings in **Transaction Centre**.\n\n` +
-      `_Educational / execution help — not personalised financial advice._`
+      `_General information, not financial advice._`
     );
   }
 
@@ -289,7 +292,7 @@ export function portfolioCoachFallbackReply(userMessage: string): string {
       `3. Add alerts or watchlist items if needed.\n` +
       `4. Check Holdings and transactions match the plan.\n\n` +
       `Attach a Stox or Koins report in this chat if you want those findings included. Open **/headmaster** for the full strategist tools when you have access.\n\n` +
-      `_Educational / execution help — not personalised financial advice._`
+      `_General information, not financial advice._`
     );
   }
 
@@ -301,6 +304,6 @@ export function portfolioCoachFallbackReply(userMessage: string): string {
     `- Set share-price alerts and review transactions\n` +
     `- Use attached Stox or Koins reports for the next action\n\n` +
     `Tell me the next plan item you want to align, or ask how a dashboard action works.\n\n` +
-    `_Educational / execution help — not personalised financial advice._`
+    `_General information, not financial advice._`
   );
 }

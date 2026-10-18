@@ -24,7 +24,7 @@ export function PublicGuide({
   title: string;
   lede: string;
   links: GuideLink[];
-  notes?: { title: string; body: string; tone?: "ok" | "amber" }[];
+  notes?: { title: string; body: string; tone?: "ok" | "amber" | "red" }[];
 }) {
   return (
     <div className="relative min-h-screen bg-grid">
@@ -44,10 +44,14 @@ export function PublicGuide({
               {notes.map((note) => (
                 <li
                   key={note.title}
+                  data-feed={note.title}
+                  data-freshness-tone={note.tone ?? "ok"}
                   className={
-                    note.tone === "amber"
-                      ? "rounded-2xl border border-amber-800/40 bg-amber-500/10 px-5 py-3 text-amber-950 dark:text-amber-50"
-                      : "rounded-2xl border border-border/70 bg-card/70 px-5 py-3"
+                    note.tone === "red"
+                      ? "rounded-2xl border border-rose-800/40 bg-rose-500/10 px-5 py-3 text-rose-950 dark:text-rose-50"
+                      : note.tone === "amber"
+                        ? "rounded-2xl border border-amber-800/40 bg-amber-500/10 px-5 py-3 text-amber-950 dark:text-amber-50"
+                        : "rounded-2xl border border-border/70 bg-card/70 px-5 py-3"
                   }
                 >
                   <span className="block font-display text-base font-bold">{note.title}</span>

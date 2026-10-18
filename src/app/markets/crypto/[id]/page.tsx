@@ -1,3 +1,4 @@
+import { snapshotMetaOther } from "@/lib/crypto-snapshot";
 import type { Metadata } from "next";
 import { cache } from "react";
 import { getCurrentUser } from "@/lib/session";
@@ -97,7 +98,9 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   }
   const loaded = await loadCryptoDetailFacts(id);
   const copy = cryptoDetailCopy(loaded.facts);
-  const meta = publicPageMetadata(`/markets/crypto/${id}`, copy);
+  const base = publicPageMetadata(`/markets/crypto/${id}`, copy);
+  // b30 H-1: snapshot stamp as meta tags.
+  const meta: Metadata = { ...base, other: { ...(base.other ?? {}), ...(await snapshotMetaOther()) } };
   // H-3: a coin page with no price is not indexed.
   return loaded.facts.priceUsd == null ? { ...meta, robots: { index: false, follow: true } } : meta;
 }

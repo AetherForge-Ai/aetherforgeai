@@ -11,6 +11,7 @@ import { useFxRates } from "@/hooks/useFxRates";
 import { cryptoFreshnessLabel, exchangeFreshnessLabel, latestQuoteTime, metalUpdatedPhrase } from "@/lib/market-freshness";
 import { cryptoVenueForLabel } from "@/lib/crypto-price-chain";
 import { priceBadge } from "@/lib/price-confidence";
+import { forcedRefreshMisses, type FeedForce } from "@/lib/feed-freshness-hook";
 
 /**
  * Market tape. Prices come only from GET /api/ticker (one live pipeline).
@@ -117,6 +118,7 @@ function TickerRow({
   source,
   delay,
   failedRefreshes,
+  missesFor,
   emptyText,
 }: {
   quotes: Quote[];
@@ -128,6 +130,8 @@ function TickerRow({
   source: string;
   delay: string;
   failedRefreshes: number;
+  /** Per-quote override. Used when one row mixes feeds. */
+  missesFor?: (q: Quote) => number;
   emptyText?: string;
 }) {
   // A chip with no price (e.g. "BTC" alone) is left out rather than shown as a bare symbol.
@@ -170,7 +174,7 @@ function TickerRow({
                       price={priceFor(q)}
                       source={cryptoCell ? q.provider || source : source}
                       delay={cryptoCell ? "Delayed or indicative" : delay}
-                      failedRefreshes={failedRefreshes}
+                      failedRefreshes={missesFor ? missesFor(q) : failedRefreshes}
                     />
                   );
                 })}
@@ -291,6 +295,8 @@ interface TickerFeed {
   live: { crypto: boolean; equities: boolean };
   providers?: { equities: string | null; crypto: string | null };
   asOf?: string | null;
+  /** Present only for an allow-listed test account. */
+  testFeedForce?: FeedForce | null;
 }
 
 const EMPTY_LIVE = { crypto: false, equities: false };
@@ -312,6 +318,7 @@ export function MarketTicker({ className, compact = false, initial = null, initi
   const [asOf, setAsOf] = useState<string | null>(initial?.asOf ?? null);
   const [loaded, setLoaded] = useState(hasTape(initial));
   const [failedRefreshes, setFailedRefreshes] = useState(0);
+  const [feedForce, setFeedForce] = useState<FeedForce | null>(null);
   const [showNzd, setShowNzd] = useState(false);
   const fx = useFxRates();
   const fxReady = fx.ready && !!fx.asOf;
@@ -334,6 +341,7 @@ export function MarketTicker({ className, compact = false, initial = null, initi
         setLive(res.data.live ?? EMPTY_LIVE);
         setProviders(res.data.providers ?? { equities: null, crypto: null });
         setAsOf(res.data.asOf ?? null);
+        setFeedForce(res.data.testFeedForce ?? null);
         setFailedRefreshes(0);
         console.log("[ticker] Feed loaded:", res.data.live, res.data.providers, res.data.asOf);
       } else if (!res.ok) {
@@ -365,14 +373,16 @@ export function MarketTicker({ className, compact = false, initial = null, initi
   const statusTitle = [liveTape, providerLabel, asOfLabel ? `as of ${asOfLabel}` : null]
     .filter(Boolean)
     .join(" · ");
+  const equityMisses = forcedRefreshMisses(feedForce, "equity", failedRefreshes);
+  const cryptoMisses = forcedRefreshMisses(feedForce, "crypto", failedRefreshes);
   const equityDelay = "Delayed, not a direct NZX or ASX feed";
   const equitySource = providers.equities || "Public market data (Yahoo Finance)";
   const feedBadge = priceBadge({
     source: equitySource,
     delay: equityDelay,
     quotedAt: asOf ? new Date(asOf) : null,
-    refreshOk: failedRefreshes === 0,
-    failedRefreshes,
+    refreshOk: equityMisses === 0,
+    failedRefreshes: equityMisses,
   });
 
   // H-4/M-1: no short placeholder. The same rows render while loading so the
@@ -391,7 +401,11 @@ export function MarketTicker({ className, compact = false, initial = null, initi
           priceFor={priceFor}
           source={equitySource}
           delay={equityDelay}
-          failedRefreshes={failedRefreshes}
+          failedRefreshes={equityMisses}
+          missesFor={(q) => {
+            const cryptoCell = (q.currency || "").toUpperCase() === "USD" && !q.symbol.includes(".");
+            return forcedRefreshMisses(feedForce, cryptoCell ? "crypto" : "equity", failedRefreshes);
+          }}
           emptyText={emptyText}
         />
         {loaded && feedBadge.tone !== "green" ? (
@@ -424,7 +438,7 @@ export function MarketTicker({ className, compact = false, initial = null, initi
         priceFor={priceFor}
         source={equitySource}
         delay={equityDelay}
-        failedRefreshes={failedRefreshes}
+        failedRefreshes={equityMisses}
         emptyText={emptyText}
       />
       <TickerRow
@@ -436,7 +450,7 @@ export function MarketTicker({ className, compact = false, initial = null, initi
         priceFor={priceFor}
         source={equitySource}
         delay={equityDelay}
-        failedRefreshes={failedRefreshes}
+        failedRefreshes={equityMisses}
         emptyText={emptyText}
       />
       <TickerRow
@@ -448,7 +462,7 @@ export function MarketTicker({ className, compact = false, initial = null, initi
         priceFor={priceFor}
         source={providers.crypto || "Public crypto prices"}
         delay="Delayed or indicative"
-        failedRefreshes={failedRefreshes}
+        failedRefreshes={cryptoMisses}
         emptyText={emptyText}
       />
       {loaded && feedBadge.tone !== "green" ? (

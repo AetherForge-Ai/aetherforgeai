@@ -232,6 +232,8 @@ export interface RankedCryptoPage {
   notice: string | null;
   /** Snapshot time. Present when the page was read from the shared board. */
   at?: string | null;
+  /** b30 H-1: stored snapshot version. */
+  version?: number;
 }
 
 async function loadPlatforms(): Promise<Map<string, Record<string, string>> | null> {

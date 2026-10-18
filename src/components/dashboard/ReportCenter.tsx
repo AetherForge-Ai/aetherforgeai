@@ -17,6 +17,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
+import { takePrefetchedReports } from "@/lib/reports-prefetch";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -328,7 +329,7 @@ export function ReportCenter({
     }
     const tracked = trackAccountRequest();
     try {
-      const res = await api.get<ReportsResponse>("/api/reports", { signal: tracked.signal });
+      const res = await (takePrefetchedReports<Awaited<ReturnType<typeof api.get<ReportsResponse>>>>() ?? api.get<ReportsResponse>("/api/reports", { signal: tracked.signal }));
       if (res.aborted) return;
       const echoed = responseUserId(res);
       if (res.status === 409 || res.error === "account-mismatch") {

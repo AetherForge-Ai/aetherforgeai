@@ -84,7 +84,7 @@ describe("FIF working paper", () => {
     );
   });
 
-  it("includes Australian listings in the $50,000 total and leaves New Zealand, crypto and metals out", () => {
+  it("b30: an exempt ASX share is excluded from the $50,000 total; New Zealand, crypto and metals are left out", () => {
     const paper = paperFor([
       buy({ ticker: "AAPL", executed_at: "2025-06-01", quantity: 100, price: 10, fx_rate: 1.6 }),
       buy({ ticker: "CBA.AX", executed_at: "2025-06-01", quantity: 100, price: 100, currency: "AUD", fx_rate: 1 }),
@@ -92,7 +92,7 @@ describe("FIF working paper", () => {
       buy({ ticker: "ETH", asset_type: "crypto", executed_at: "2025-06-01", quantity: 2, price: 100, currency: "USD", fx_rate: 1.6 }),
       buy({ ticker: "GOLD", asset_type: "metal", executed_at: "2025-06-01", quantity: 1, price: 4000, currency: "NZD", fx_rate: 1 }),
     ]);
-    expect(paper.peakCostNzd).toBe(11600);
+    expect(paper.peakCostNzd).toBe(1600); // b30 H-9: CBA.AX is exempt and not counted
     expect(paper.australian.map((row) => row.ticker)).toEqual(["CBA.AX"]);
     expect(paper.australian[0].costNzd).toBe(10000);
     expect(paper.australian[0].fdrNzd).toBeNull();
@@ -238,8 +238,9 @@ describe("FIF working paper", () => {
         cash_nzd: -11743.35,
       }),
     ]);
-    expect(wor.attributing).toHaveLength(0);
-    expect(wor.australian[0].costNzd).toBe(11743.36);
+    // b30 H-9: WOR.AX is not on the exemption set, so it is an attributing interest.
+    expect(wor.australian).toHaveLength(0);
+    expect(wor.attributing[0].costNzd).toBe(11743.36);
     expect(wor.peakCostNzd).toBe(11743.36);
     expect(fifThresholdSentence(wor)).toContain("NZ$11,743.36");
     expect(fifThresholdSentence(wor)).not.toBe("No attributing overseas shares on this book.");
@@ -257,8 +258,8 @@ describe("FIF working paper", () => {
       buy({ ticker: "WOR.AX", executed_at: "2025-06-01", quantity: 1, price: 7046.174, currency: "NZD", fx_rate: 1 }),
       buy({ ticker: "WOR.AX", executed_at: "2025-06-02", quantity: 1, price: 4697.181, currency: "NZD", fx_rate: 1 }),
     ]);
-    expect(worLots.australian[0].costNzd).toBe(11743.36);
-    expect(`${worLots.australian[0].ticker}: cost NZ$11,743.36.`).toBe("WOR.AX: cost NZ$11,743.36.");
+    expect(worLots.attributing[0].costNzd).toBe(11743.36);
+    expect(`${worLots.attributing[0].ticker}: cost NZ$11,743.36.`).toBe("WOR.AX: cost NZ$11,743.36.");
   });
 
   it("does not call an empty book under the threshold", () => {

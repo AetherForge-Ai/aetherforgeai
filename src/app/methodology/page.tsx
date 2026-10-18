@@ -2,7 +2,8 @@ import Link from "next/link";
 import { SiteHeader } from "@/components/SiteHeader";
 import { FmcStatement } from "@/components/legal/DisclaimerNotice";
 import { publicPageMetadata } from "@/lib/reviewed-book";
-import { DATA_TOO_OLD_HOLD, STALE_TRADING_DAYS } from "@/lib/market-intel";
+import { DATA_TOO_OLD_HOLD } from "@/lib/market-intel";
+import { HOLD_ASSETS, holdLimitLine } from "@/lib/bot-hold-gate";
 
 export const metadata = publicPageMetadata("/methodology", {
   title: "How Stox and Koins work out a score · AetherForge AI",
@@ -17,7 +18,7 @@ const STEPS = [
   },
   {
     title: "2. Data-quality gates",
-    body: `A name with fewer than 40 daily closes gets no score. A name whose last price is more than ${STALE_TRADING_DAYS} trading days old shows “${DATA_TOO_OLD_HOLD}” instead of a score.`,
+    body: `A name with fewer than 40 daily closes gets no score. When the last price is past the limit for that market, Stox and Koins show “${DATA_TOO_OLD_HOLD}” with the age of the price, instead of a score. ${HOLD_ASSETS.map((asset) => holdLimitLine(asset)).join(" ")}`,
   },
   {
     title: "3. Indicators",

@@ -3,11 +3,12 @@ import "server-only";
 import { getFxSnapshot } from "@/lib/fx";
 import { getMetalsSpot } from "@/lib/metals";
 import { loadPublicTickerBounded } from "@/lib/public-ticker";
-import { cryptoAgeBand, cryptoFeedKilled, readSharedCryptoAttempt } from "@/lib/crypto-attempts";
+import { cryptoFeedKilled, readSharedCryptoAttempt } from "@/lib/crypto-attempts";
+import { FEED_FORCE_LABEL, FEED_FRESHNESS_WINDOWS } from "@/lib/feed-freshness-hook";
 // b28 G-05: registers the durable attempt store this page reads.
 import "@/lib/crypto-snapshot";
 import { formatDisplayDateTime } from "@/lib/currency";
-import { latestIso, presentStatusFeed, type StatusFeedRow } from "@/lib/status-feeds";
+import { latestIso, shapeStatusFeed, type StatusFeedRow } from "@/lib/status-feeds";
 
 async function within<T>(work: Promise<T>, ms = 4000): Promise<T | null> {
   return Promise.race([
@@ -28,23 +29,31 @@ export async function loadStatusFeeds(now = Date.now()): Promise<StatusFeedRow[]
     ...(tape?.rows.asx ?? []).map((row) => row.quotedAt),
   ]);
   const cryptoAt = latestIso((tape?.rows.crypto ?? []).map((row) => row.quotedAt));
+  const killed = cryptoFeedKilled();
   return [
-    presentStatusFeed("Equity quotes", equityAt, now),
-    cryptoQuotesRow(cryptoAt, now),
+    shapeStatusFeed({ label: FEED_FORCE_LABEL.equity, at: equityAt, now, ...FEED_FRESHNESS_WINDOWS.equity }),
+    shapeStatusFeed({
+      label: FEED_FORCE_LABEL.crypto,
+      at: cryptoAt,
+      now,
+      ...FEED_FRESHNESS_WINDOWS.crypto,
+      failed: killed,
+      failedText: "— switched off by the operator",
+    }),
     await cryptoAttemptRow(),
-    presentStatusFeed("Exchange rates", fx?.sourced ? fx.asOf : null, now),
-    presentStatusFeed("Metals spot", metals?.live ? metals.quotedAt : null, now),
+    shapeStatusFeed({
+      label: FEED_FORCE_LABEL.fx,
+      at: fx?.sourced ? fx.asOf : null,
+      now,
+      ...FEED_FRESHNESS_WINDOWS.fx,
+    }),
+    shapeStatusFeed({
+      label: FEED_FORCE_LABEL.metals,
+      at: metals?.live ? metals.quotedAt : null,
+      now,
+      ...FEED_FRESHNESS_WINDOWS.metals,
+    }),
   ];
-}
-
-/** G-05: crypto quotes with amber (>15 min) and red (>60 min) bands. */
-function cryptoQuotesRow(at: string | null, now: number): StatusFeedRow {
-  if (cryptoFeedKilled()) return { label: "Crypto quotes", tone: "amber", text: "— switched off by the operator" };
-  const base = presentStatusFeed("Crypto quotes", at, now);
-  const band = cryptoAgeBand(at, now);
-  if (base.tone === "ok" && band === "amber") return { ...base, tone: "amber", text: `${base.text} · amber: older than 15 minutes` };
-  if (base.tone === "ok" && band === "red") return { ...base, tone: "amber", text: `${base.text} · red: older than 60 minutes` };
-  return base;
 }
 
 /** Goal b14: the last CoinGecko attempt this server made, so a silent fallback shows. */
@@ -53,7 +62,7 @@ async function cryptoAttemptRow(): Promise<StatusFeedRow> {
   if (!last) return { label: "Crypto list last attempt", tone: "amber", text: "— no refresh attempt recorded yet" };
   return {
     label: "Crypto list last attempt",
-    tone: last.ok ? "ok" : "amber",
+    tone: last.ok ? "ok" : "red",
     text: `${formatDisplayDateTime(last.at)} · ${last.ok ? "succeeded" : `failed (${last.code})`}`,
   };
 }

@@ -148,6 +148,7 @@ import { DashboardCalculator } from "@/components/dashboard/DashboardCalculator"
 import { FREE_REPORTS_PER_MONTH } from "@/lib/entitlements";
 import { SnapshotAllocation } from "@/components/dashboard/SnapshotAllocation";
 import { holdingDeleteEffect } from "@/lib/dashboard-tabs";
+import { prefetchReportsList } from "@/lib/reports-prefetch";
 import { QUOTA_NOT_LOADED, unloadedReportControl, type ReportDeskSnapshot } from "@/lib/report-quota-display";
 import { isStoxOrKoinsRun } from "@/lib/report-body";
 import type { ReportsResponse } from "@/components/dashboard/ReportCenter";
@@ -715,6 +716,8 @@ export function PortfolioDashboard({
   useEffect(() => {
     if (preview) return;
     let live = true;
+    // b30 H-4: the report list starts now, alongside the book.
+    prefetchReportsList();
     void fetch("/api/reports/quota", { credentials: "include", cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
       .then((d: { used?: number | null; limit?: number | null } | null) => {
