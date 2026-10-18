@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { formatDisplayDate, formatMoney, formatSignedPercent } from "@/lib/currency";
 import { formatTapeItem, fxRateLine, type TapeDisplay } from "@/lib/tape-display";
 import { useFxRates } from "@/hooks/useFxRates";
+import { savedSnapshotLabel } from "@/lib/status-feeds";
 import { cryptoFreshnessLabel, exchangeFreshnessLabel, latestQuoteTime, metalUpdatedPhrase } from "@/lib/market-freshness";
 import { cryptoVenueForLabel } from "@/lib/crypto-price-chain";
 import { priceBadge } from "@/lib/price-confidence";
@@ -376,6 +377,9 @@ export function MarketTicker({ className, compact = false, initial = null, initi
   const asxStatus = exchangeFreshnessLabel("ASX").label;
   const cryptoStatus = cryptoFreshnessLabel(latestQuoteTime(crypto.map((row) => row.quotedAt)));
   const asOfLabel = formatAsOf(asOf);
+  // b37 M-2: one "Prices last updated" line on the signed-in strip, from the newest quote time shown
+  // (equity as-of or crypto), so the strip no longer mixes "Close · 16 Oct" with "as of 19 Oct".
+  const pricesUpdatedAt = latestQuoteTime([asOf, ...crypto.map((row) => row.quotedAt)]);
   const providerLabel = [
     providers.equities ? `Equities ${providers.equities}` : null,
     providers.crypto ? `Crypto ${providers.crypto}` : null,
@@ -435,6 +439,7 @@ export function MarketTicker({ className, compact = false, initial = null, initi
             {display === "NZD" ? "Showing NZ$" : "Show NZ$"}
           </button>
           <span>{fxReady ? fxRateLine(fx.rates) : "Loading today's NZ$ exchange rate…"}</span>
+          <span data-prices-last-updated>{pricesUpdatedAt ? savedSnapshotLabel(pricesUpdatedAt.toISOString()) : "Prices last updated: loading…"}</span>
         </div>
       </div>
     );

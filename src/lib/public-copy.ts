@@ -212,6 +212,7 @@ export const AI_SENT_CATEGORIES = {
 function marketProcessors(): { name: string; role: string }[] {
   const rows: { name: string; role: string }[] = [
     { name: "CoinGecko", role: "crypto prices" },
+    { name: "CoinPaprika", role: "crypto prices" },
     { name: "CoinCap", role: "crypto prices" },
     { name: "Binance", role: "public crypto price tickers" },
   ];

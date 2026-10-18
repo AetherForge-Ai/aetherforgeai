@@ -36,7 +36,9 @@ export default async function GuidePage({ params }: { params: Promise<{ slug: st
             </li>
           ))}
         </ul>
-        <p className="mt-6 text-xs text-muted-foreground">Rules change. Check the linked source before relying on a figure, and ask your accountant about your own situation.</p>
+        <p className="mt-6 text-xs text-muted-foreground" data-learn-disclaimer>
+          {/* b37: every /learn guide carries the tax label TT checks for. */}
+          <strong className="font-semibold text-foreground">Indicative, not tax advice.</strong> Rules change. Check the linked source before relying on a figure, and ask your accountant about your own situation.</p>
         <DisclaimerNotice variant="full" className="mt-10" />
       </article>
     </div>

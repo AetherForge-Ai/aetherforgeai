@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/session";
 import { testHooksAllowedFor } from "@/lib/test-hooks";
 import { checkTickerQuota } from "@/lib/entitlements";
 import { totalumSdk } from "@/lib/totalum";
+import { currentPlanName } from "@/lib/plan-usage";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +13,7 @@ export const dynamic = "force-dynamic";
  * /api/stocks). No ticker names, no write.
  */
 export async function GET() {
-  const user = (await getCurrentUser().catch(() => null)) as (Parameters<typeof checkTickerQuota>[0] & { _id: string; email?: string; plan?: string }) | null;
+  const user = (await getCurrentUser().catch(() => null)) as (Parameters<typeof checkTickerQuota>[0] & { _id: string; email?: string; subscription_plan?: string | null; subscription_status?: string | null }) | null;
   if (!user || !testHooksAllowedFor(user)) return NextResponse.json({ ok: false, error: "Not found" }, { status: 404 });
   const existing = await totalumSdk.crud.query("stock", { _filter: { user: user._id }, _limit: 1000 });
   const held = (existing?.data as unknown as Array<{ ticker?: string; asset_type?: string }>) || [];
@@ -21,5 +22,6 @@ export async function GET() {
     const q = checkTickerQuota(user, held as never, kind);
     out[kind] = { used: q.used, limit: Number.isFinite(q.limit) ? q.limit : null, allowedOneMore: q.allowed };
   }
-  return NextResponse.json({ ok: true, plan: user.plan ?? "free", holdings: out }, { headers: { "Cache-Control": "private, no-store" } });
+  return NextResponse.json({ ok: true, // b37 CR-6: the same plan name the UI shows (Settings, Report Center), plus the raw stored key.
+    plan: currentPlanName(user.subscription_plan, user.subscription_status), planKey: user.subscription_plan ?? null, holdings: out }, { headers: { "Cache-Control": "private, no-store" } });
 }

@@ -25,6 +25,7 @@ import {
   PERSONAL_GUIDE_SYSTEM_PROMPT,
   personalGuideFallbackReply,
 } from "@/lib/personal-guide-knowledge";
+import { fifStaticReply } from "@/lib/guide-facts";
 import { ensureDurableRateLimit } from "@/lib/durable-counter.server";
 import {
   aiSpendLogLine,
@@ -141,6 +142,10 @@ export async function POST(req: Request) {
     if (isPersonalisedAdviceRequest(userMessage)) {
       return canned(GENERAL_INFORMATION_REPLY, { refused: "personalised_advice" });
     }
+
+    // b37 CR-2: FIF / joint / partner / NZ$100k questions get the static answer, never the model.
+    const fifReply = fifStaticReply(userMessage);
+    if (fifReply) return canned(fifReply, { static: "fif" });
 
     if (!isGrokConfigured()) {
       console.warn("[api/personal-guide] AI key missing — using fallback replies");

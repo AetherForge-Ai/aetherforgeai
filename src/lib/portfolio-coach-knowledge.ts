@@ -4,7 +4,7 @@
  * External brokers/exchanges are PASSIVE knowledge: answer only when asked.
  * Tone: professional, plain language, short sentences, step-by-step.
  */
-import { guideFactsBlock } from "@/lib/guide-facts";
+import { guideFactsBlock, fifStaticReply } from "@/lib/guide-facts";
 
 export const PORTFOLIO_COACH_KNOWLEDGE = `
 # AetherForge AI — Portfolio Notes Assistant knowledge
@@ -328,11 +328,9 @@ export function coachStaticFactReply(userMessage: string): string | null {
       "Yes, AetherForge is a paper book. Trades you record are kept on your dashboard; they are never executed or sent to a broker."
     );
   }
-  if (/de minimis|fif (threshold|exemption|limit)|(threshold|limit).*\bfif\b|50,?000|\b50k\b/.test(q)) {
-    parts.push(
-      "FIF de minimis: the FIF rules usually do not apply if the total cost of your FIF interests (purchase price including fees) is not more than NZ$50,000 at any time in the income year. New Zealand shares and most ASX-listed shares (Australian-resident, on the approved list) are excluded and add nothing to that cost. The NZ$100,000 figure applies only to two equal joint owners with no other FIF holdings; otherwise each owner counts their share of the joint cost plus their own FIF holdings against their own NZ$50,000. Indicative, not tax advice; check IR461 or a tax adviser."
-    );
-  }
+  // b37 CR-2: one shared FIF answer (guide-facts) for every FIF, joint, partner or NZ$100k intent.
+  const fif = fifStaticReply(userMessage);
+  if (fif) parts.push(fif);
   // b32 CR-2: broker questions get plain example facts on the static path: no ranking, no
   // speed or accuracy claims, no recommendation.
   if (/\bbrokers?\b|\bwhich (platform|app|exchange)\b|\bwhere (do|can|should) i (buy|trade)\b|\b(trading|investing) (app|platform)\b/.test(q)) {

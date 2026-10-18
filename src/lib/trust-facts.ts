@@ -84,6 +84,18 @@ export function trustBreachLine(): string {
   return "security.txt lists Contact mailto:admin@aetherforgeai.co.nz and Expires 2027-10-08. A notifiable privacy breach is reported to affected people and the Office of the Privacy Commissioner, as the privacy policy states.";
 }
 
+/**
+ * b37: the breach line split around the address. The page renders the address with <EmailAddress>,
+ * so the HTML never contains "user@host" as one string and Cloudflare's email obfuscation (whose
+ * decoder the CSP blocks) leaves it alone. The CSP is unchanged.
+ */
+export function trustBreachParts(): { before: string; email: string; after: string } {
+  const line = trustBreachLine();
+  const m = /mailto:([^\s]+@[^\s]+?)(?= and )/.exec(line);
+  if (!m) return { before: line, email: "", after: "" };
+  return { before: line.slice(0, m.index + "mailto:".length), email: m[1], after: line.slice(m.index + m[0].length) };
+}
+
 export function trustExportLine(): string {
   return LEDGER_EXPORT_LINE;
 }

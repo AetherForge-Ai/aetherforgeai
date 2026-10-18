@@ -68,3 +68,7 @@ screenshots/
 /tmp/playwright-dev-server.log
 /*.png
 qa/local-harness/.fixtures-local.md
+
+# b37 Playwright output
+/test-results/
+/playwright-report/
