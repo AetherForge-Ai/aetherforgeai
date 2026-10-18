@@ -1371,7 +1371,7 @@ export function PortfolioDashboard({
       (payload) => api.post("/api/transactions", payload),
       undefined,
       Date.now(),
-      (id) => api.delete(`/api/transactions?id=${encodeURIComponent(id)}`)
+      (id, idem) => api.delete(`/api/transactions?id=${encodeURIComponent(id)}${idem ? `&idem=${encodeURIComponent(idem)}` : ""}`)
     ).then((out) => {
       if (out.saved.length) toast.success(out.saved.length === 1 ? "1 entry recorded." : `${out.saved.length} entries recorded.`, { id: toastId });
       else if (out.refused.length) toast.error(`Not recorded: ${out.refused[0].error}`, { id: toastId });
@@ -2075,9 +2075,13 @@ export function PortfolioDashboard({
     // b38 G-10: journal the delete before sending, so a reload mid-request keeps the row hidden
     // and the next load re-sends it (DELETE is idempotent on the server).
     const deleteKey = newWriteKey();
-    if (userId) journalPendingWrite({ key: deleteKey, userId, method: "DELETE", payload: {}, deleteId: line.id, at: Date.now() });
+    // b39 G-10: deleting a row cancels any pending replay of the write that created it (same key),
+    // and the key goes to the server, which tombstones it so a late replay can't recreate the row.
+    if (line.idem) clearPendingWrite(line.idem);
+    if (userId) journalPendingWrite({ key: deleteKey, userId, method: "DELETE", payload: {}, deleteId: line.id, idem: line.idem, at: Date.now() });
+    const idemQuery = line.idem ? `&idem=${encodeURIComponent(line.idem)}` : "";
     const res = await withWriteTimeout(
-      api.delete<{ cash?: { after?: number }; alreadyRemoved?: boolean }>(`/api/transactions?id=${encodeURIComponent(line.id)}`),
+      api.delete<{ cash?: { after?: number }; alreadyRemoved?: boolean }>(`/api/transactions?id=${encodeURIComponent(line.id)}${idemQuery}`),
       WRITE_TIMEOUT_MS
     );
     if (res.ok || isDefiniteRefusal(res.status)) clearPendingWrite(deleteKey);

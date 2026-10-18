@@ -136,6 +136,8 @@ export interface PendingWrite {
   method: "POST" | "DELETE";
   payload: Record<string, unknown>;
   deleteId?: string;
+  /** b39 G-10: for a DELETE, the idempotency key of the write that created the row. */
+  idem?: string;
   at: number;
 }
 
@@ -224,7 +226,7 @@ export interface ReplayOutcome {
 
 type ApiResult = { ok: boolean; status?: number; error?: unknown; data?: unknown };
 type Poster = (payload: Record<string, unknown>) => Promise<ApiResult>;
-type Deleter = (id: string) => Promise<ApiResult>;
+type Deleter = (id: string, idem?: string) => Promise<ApiResult>;
 
 /**
  * Replay this user's pending writes (same payload, same key). Saved → cleared and noted as created;
@@ -238,7 +240,15 @@ export async function replayPendingWrites(
   del?: Deleter
 ): Promise<ReplayOutcome> {
   const out: ReplayOutcome = { saved: [], refused: [], kept: 0, expired: 0 };
+  // b39 G-10: a POST whose row was later deleted (a pending or answered DELETE names its key) is
+  // cancelled, never re-sent. The server also tombstones deleted keys (410), which clears it too.
+  const cancelled = new Set(listPendingWrites(userId, s).flatMap((w) => (w.method === "DELETE" && w.idem ? [w.idem] : [])));
   for (const w of listPendingWrites(userId, s)) {
+    if (w.method !== "DELETE" && cancelled.has(w.key)) {
+      clearPendingWrite(w.key, s);
+      out.expired += 1;
+      continue;
+    }
     if (now - w.at > PENDING_MAX_AGE_MS) {
       clearPendingWrite(w.key, s);
       out.expired += 1;
@@ -255,7 +265,7 @@ export async function replayPendingWrites(
       }
       let dres: ApiResult;
       try {
-        dres = await del(w.deleteId);
+        dres = await del(w.deleteId, w.idem);
       } catch {
         out.kept += 1;
         continue;

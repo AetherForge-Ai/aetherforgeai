@@ -194,7 +194,11 @@ export function TransactionDialog({
             }}
             onDone={(ledger) => {
               onDone(ledger);
-              requestExplicitClose();
+              // b39 G-10: the optimistic paint (and its rollback) must not close the dialog. It stays
+              // open and disabled until the server returns the saved row id; the panel then calls
+              // onRequestClose itself.
+              const l = ledger as { optimistic?: boolean; optimisticRollback?: boolean } | null | undefined;
+              if (!l?.optimistic && !l?.optimisticRollback) requestExplicitClose();
             }}
             onRequestClose={requestExplicitClose}
           />

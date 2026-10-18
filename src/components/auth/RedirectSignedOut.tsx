@@ -18,21 +18,42 @@ export function RedirectSignedOut({
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+    const leave = () => {
+      setSignedOut(true);
+      const next = `/login?redirect=${encodeURIComponent(redirectTo)}`;
+      if (window.location.pathname !== "/login") window.location.replace(next);
+    };
+    const check = async () => {
       try {
         const res = await fetch("/api/session", { credentials: "include", cache: "no-store" });
+        // b39 P3: a 401 is a definite "signed out" (it used to be ignored, so /settings stayed up).
+        if (res.status === 401) {
+          if (!cancelled) leave();
+          return;
+        }
         if (!res.ok) return;
         const data = (await res.json().catch(() => null)) as { user?: { id?: string } | null } | null;
         if (cancelled || data?.user?.id) return;
-        setSignedOut(true);
-        const next = `/login?redirect=${encodeURIComponent(redirectTo)}`;
-        if (window.location.pathname !== "/login") window.location.replace(next);
+        leave();
       } catch {
         /* keep the server render; a blip is not a logout */
       }
-    })();
+    };
+    void check();
+    // b39 P3: after sign-out, Back (bfcache restore) or returning to the tab shows the old page
+    // without a new render. Re-check then, so /settings leaves for /login promptly.
+    const onShow = (e: PageTransitionEvent) => {
+      if (e.persisted) void check();
+    };
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void check();
+    };
+    window.addEventListener("pageshow", onShow);
+    document.addEventListener("visibilitychange", onVisible);
     return () => {
       cancelled = true;
+      window.removeEventListener("pageshow", onShow);
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, [redirectTo]);
 

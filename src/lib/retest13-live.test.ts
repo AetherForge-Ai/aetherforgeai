@@ -144,8 +144,9 @@ describe("retest 13 confirm and holdings", () => {
     expect(route).toContain("holdings=");
     expect(route).toContain("ledgerPartial");
     // b37 G-10: awaited only to replay an idempotent retry (a key was sent), never on the plain hot path.
-    expect(route.match(/await priorLedger/g) ?? []).toHaveLength(1);
-    expect(route).toMatch(/if \(idemKey\) \{\s*const book = await priorLedger;/);
+    // b39 G-10: the key is resolved by a fresh query (findIdemRowsFresh), never by awaiting the book.
+    expect(route.match(/await priorLedger/g) ?? []).toHaveLength(0);
+    expect(route).toMatch(/findIdemRowsFresh\(user\._id, idemKey\)/);
   });
 
   it("keeps a new coin when a later holdings body does not include it", () => {

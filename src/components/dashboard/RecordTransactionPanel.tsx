@@ -167,6 +167,17 @@ export function RecordTransactionPanel({
   const [problems, setProblems] = useState<string[]>([]);
   const [hint, setHint] = useState("");
   const [saving, setSaving] = useState(false);
+  // b39 G-10: warn before leaving while a confirmed write is in flight (TT reloaded 0.4-4.3 s after Confirm).
+  useEffect(() => {
+    if (!saving) return;
+    const warn = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+      return "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [saving]);
   const [checkingCash, setCheckingCash] = useState(false);
   const [cashNote, setCashNote] = useState("");
   const [saveError, setSaveError] = useState("");

@@ -49,7 +49,7 @@ describe("b37 G-10 P1: idempotent duplicate", () => {
     expect(findIdempotentRow(rows, "w-10")?._id).toBe("b");
     expect(findIdempotentRow(rows, "w-2")).toBeNull();
     const route = src("src/app/api/transactions/route.ts");
-    expect(route).toMatch(/findIdempotentRow/);
+    expect(route).toMatch(/findIdemRowsFresh/); // b39: fresh lookup replaced the book-cache scan
     expect(route).toMatch(/replayed: ?true/);
   });
   it("the same key posted twice books one row", () => {
