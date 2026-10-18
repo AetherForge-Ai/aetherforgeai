@@ -29,7 +29,10 @@ export function PublicMarketTables({ index }: { index: PublicMarketIndex }) {
               {cryptoTab ? "No earlier price is stored." : "No prices in this response."}
             </p>
           ) : (
-            <table className="mt-2 w-full text-sm">
+            // b33 M-7: at 390 px the table overflowed its dark panel onto the light page (#94a3b8 on
+            // #f8fafc, 2.45:1). Scroll it inside the panel instead (keyboard-focusable region).
+            <div className="mt-2 overflow-x-auto" tabIndex={0} role="region" aria-label={`${tab.title} prices (scrolls sideways)`}>
+            <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border/60 text-left text-xs uppercase tracking-wide text-muted-foreground">
                   <th scope="col" className="py-2 pr-3">Ticker</th>
@@ -71,6 +74,7 @@ export function PublicMarketTables({ index }: { index: PublicMarketIndex }) {
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </div>
         );

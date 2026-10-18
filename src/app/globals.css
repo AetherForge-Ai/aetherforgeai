@@ -508,3 +508,10 @@ main p > a.text-primary {
   text-decoration-line: underline;
   text-underline-offset: 4px;
 }
+/* b33 M-7 (GOAL-LOCK #17): negative change on the dark board — rose-600 was 3.8:1 on #0f172a; rose-400 is 6.4:1. */
+.chrome-dark .text-rose-600 {
+  color: #fb7185;
+}
+.content-light .text-rose-600 {
+  color: #e11d48;
+}
