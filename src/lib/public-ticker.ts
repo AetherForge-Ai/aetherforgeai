@@ -20,6 +20,8 @@ export interface PublicTickerOptions {
    * it, so the rows and the x-af-snapshot headers always name the same list.
    */
   snapshot?: { at: string; coins: import("@/lib/crypto-market").CoinMarket[] } | null;
+  /** b40 REG-1: skip the live equity fetch (deadline fallback); the last good equities are used. */
+  skipEquityFetch?: boolean;
 }
 
 export async function loadPublicTicker(opts: PublicTickerOptions = {}): Promise<TickerTapeFeed> {
@@ -39,7 +41,8 @@ export async function loadPublicTicker(opts: PublicTickerOptions = {}): Promise<
         return null;
       })
     ),
-    boundedPart(
+    // b40 REG-1: the deadline fallback skips the live equity fetch and serves the last good equities.
+    opts.skipEquityFetch ? Promise.resolve(null) : boundedPart(
       fetchLiveQuotes(equitySymbols).catch((err) => {
         console.error("[ticker] Equity live fetch failed:", err instanceof Error ? err.message.slice(0, 120) : "failed");
         return null;

@@ -150,7 +150,11 @@ function cryptoRowsFromCoins(coins: CryptoTabCoin[], quotedAt: string): PublicPr
 async function cryptoTabFromSnapshot(): Promise<PublicPriceTab | null> {
   try {
     const { readCryptoSnapshot } = await import("@/lib/crypto-snapshot");
-    const snap = await within(readCryptoSnapshot(1_500), null, 1_800);
+    const { edgeSnapshotGet } = await import("@/lib/ticker-serve");
+    // b40 H-1 (a): the colo's edge copy (the one /api/ticker keeps) first, then the durable read.
+    type Snap = NonNullable<Awaited<ReturnType<typeof readCryptoSnapshot>>>;
+    const edge = await within(edgeSnapshotGet<Snap>(300), null, 400);
+    const snap = edge?.coins?.length ? edge : await within(readCryptoSnapshot(1_500), null, 1_800);
     if (!snap?.coins.length) return null;
     const coins = snap.coins.filter((coin) => coin.price > 0).slice(0, COIN_PAGE) as CryptoTabCoin[];
     const rows = cryptoRowsFromCoins(coins, snap.at);
@@ -252,7 +256,11 @@ async function loadDexTab(): Promise<PublicPriceTab> {
       usd: row.price as number,
       quoteId: row.detailId as string,
       source: shownSource(feed, "") || "Public DEX data",
-      asOf: asOfLabel(quotedAt),
+      // b40 H-1 (b): DEX rows carry their own time; over 15 min they are marked delayed, like crypto.
+      asOf: cryptoRowDelayed((row as { quotedAt?: string | null }).quotedAt || quotedAt)
+        ? `${asOfLabel((row as { quotedAt?: string | null }).quotedAt || quotedAt)} · delayed`
+        : asOfLabel((row as { quotedAt?: string | null }).quotedAt || quotedAt),
+      delayed: cryptoRowDelayed((row as { quotedAt?: string | null }).quotedAt || quotedAt),
       blockchain: row.network || "",
       dex: row.dex || "",
     }));
@@ -389,6 +397,19 @@ function startBuild(): Promise<PublicMarketIndex> {
  * A refresh that keeps the old snapshot waits REFRESH_BACKOFF_MS before another try.
  * A cold read waits for the tab budget (EQUITY_BUDGET_MS). Empty tabs say the price is not in this response.
  */
+/**
+ * b40 H-1 (a): /markets?tab=crypto must never be an empty 200. If the index (memo or a timed-out
+ * build) has no crypto rows, fill the tab from the stored snapshot before rendering.
+ */
+export async function ensureCryptoTab(index: PublicMarketIndex): Promise<PublicMarketIndex> {
+  const at = index.tabs.findIndex((tab) => tab.id === "CRYPTO");
+  if (at !== -1 && index.tabs[at].rows.length) return index;
+  const filled = await cryptoTabFromSnapshot();
+  if (!filled) return index;
+  const tabs = at === -1 ? [...index.tabs, filled] : index.tabs.map((tab, i) => (i === at ? filled : tab));
+  return { tabs, priceRowCount: tabs.reduce((sum, tab) => sum + tab.rows.length, 0) };
+}
+
 export async function loadPublicMarketIndex(): Promise<PublicMarketIndex> {
   if (memo && memo.value.priceRowCount > 0) {
     if (Date.now() >= nextRefreshAt) void startBuild();

@@ -51,6 +51,9 @@ export function TransactionDialog({
 }) {
   const searchQueryRef = useRef("");
   const closeReasonRef = useRef<DialogCloseReason>("unknown");
+  // b40 G-10: while a confirmed write is in flight the dialog can't be closed by X or Escape; only the
+  // panel's own close after the saved row id returns (explicit) closes it.
+  const savingRef = useRef(false);
   // b31 G-10: remember the control that opened the panel, and return focus to it on close.
   const returnFocusRef = useRef<HTMLElement | null>(null);
   useEffect(() => {
@@ -138,6 +141,7 @@ export function TransactionDialog({
   function handleDialogOpenChange(next: boolean) {
     const reason = closeReasonRef.current;
     closeReasonRef.current = "unknown";
+    if (!next && savingRef.current && reason !== "explicit") return;
     guardDialogOpenChange(next, onOpenChange, {
       reason,
       queryLength: searchQueryRef.current.trim().length,
@@ -167,6 +171,10 @@ export function TransactionDialog({
         }}
         onEscapeKeyDown={(e) => {
           closeReasonRef.current = "escape";
+          if (savingRef.current) {
+            e.preventDefault();
+            return;
+          }
           keepDialogOpenWhilePopoverOpen(e);
         }}
       >
@@ -201,6 +209,9 @@ export function TransactionDialog({
               if (!l?.optimistic && !l?.optimisticRollback) requestExplicitClose();
             }}
             onRequestClose={requestExplicitClose}
+            onSavingChange={(saving) => {
+              savingRef.current = saving;
+            }}
           />
         </div>
       </DialogContent>

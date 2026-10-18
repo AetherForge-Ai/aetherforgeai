@@ -5,7 +5,7 @@ import { getCurrentUser } from "@/lib/session";
 import { AppShell } from "@/components/AppShell";
 import { MarketsPageContent } from "@/components/dashboard/MarketsPageContent";
 import { parseMarketsTab } from "@/lib/market-detail-routes";
-import { loadPublicMarketIndex } from "@/lib/public-market-index";
+import { ensureCryptoTab, loadPublicMarketIndex } from "@/lib/public-market-index";
 import { publicPageMetadata } from "@/lib/reviewed-book";
 import { snapshotMetaOther } from "@/lib/crypto-snapshot";
 import { dexscreenerPublicDisplay, dexPoweredByLine } from "@/lib/dexscreener-display";
@@ -69,13 +69,15 @@ export default async function MarketsPage({
 }) {
   // b37 REG-1: /markets once gave no first byte for 30 s. The session lookup and the index build run in
   // parallel, each with a hard deadline; a slow session read renders the public view instead of hanging.
-  const [user, tab, index] = await Promise.all([
+  const [user, tab, built] = await Promise.all([
     withDeadline<Awaited<ReturnType<typeof getCurrentUser>> | typeof SESSION_PENDING>(getCurrentUser(), MARKETS_SSR_DEADLINE_MS, SESSION_PENDING),
     searchParams.then((p) => parseMarketsTab(p.tab)),
     withDeadline(loadPublicMarketIndex(), MARKETS_SSR_DEADLINE_MS + 3_000, null),
   ]);
   // b38 (Chief ruling 4): a slow session is never shown as signed out.
   if (user === SESSION_PENDING) return <MarketsAccountPending />;
+  // b40 H-1 (a): never an empty crypto board while a snapshot exists.
+  const index = built ? await ensureCryptoTab(built) : null;
   if (!index) return <MarketsTimeout />;
 
   if (!user) {

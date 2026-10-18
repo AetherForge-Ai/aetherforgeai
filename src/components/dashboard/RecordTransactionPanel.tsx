@@ -127,6 +127,7 @@ export function RecordTransactionPanel({
   onQueryChange,
   onDone,
   onRequestClose,
+  onSavingChange,
 }: {
   open: boolean;
   initialMode: RecordKind;
@@ -138,6 +139,8 @@ export function RecordTransactionPanel({
   onQueryChange?: (query: string) => void;
   onDone: (ledger: unknown) => void;
   onRequestClose: () => void;
+  /** b40 G-10: tells the dialog a confirmed write is in flight, so X and Escape can't close it. */
+  onSavingChange?: (saving: boolean) => void;
 }) {
   const today = useMemo(() => todayISO(), [open]);
   const { rates, live: fxLive } = useFxRates();
@@ -168,6 +171,9 @@ export function RecordTransactionPanel({
   const [hint, setHint] = useState("");
   const [saving, setSaving] = useState(false);
   // b39 G-10: warn before leaving while a confirmed write is in flight (TT reloaded 0.4-4.3 s after Confirm).
+  useEffect(() => {
+    onSavingChange?.(saving);
+  }, [saving, onSavingChange]);
   useEffect(() => {
     if (!saving) return;
     const warn = (e: BeforeUnloadEvent) => {

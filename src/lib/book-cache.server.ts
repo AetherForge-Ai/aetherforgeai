@@ -22,3 +22,12 @@ export async function readBookCacheForRequest<T>(key: string, ttlMs = BOOK_CACHE
   }
   return readBookCache<T>(key, ttlMs, notBefore);
 }
+
+/** b40 G-10: the newest write time this browser's write cookies name (0 outside a request). */
+export async function requestWriteNotBefore(): Promise<number> {
+  try {
+    return bookNotBeforeFromCookie((await headers()).get("cookie"));
+  } catch {
+    return 0;
+  }
+}
