@@ -1,5 +1,7 @@
 "use client";
 
+import { ASSISTANT_QUOTA_EVENT } from "@/components/chat/AssistantQueryCounter";
+
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -74,6 +76,9 @@ export function ChatAssistant() {
     if (res.ok && res.data?.reply) {
       setMessages((prev) => [...prev, { role: "assistant", content: res.data!.reply }]);
       if (typeof res.data.remaining === "number") setRemaining(res.data.remaining);
+      if (typeof res.data.limit === "number" && typeof res.data.remaining === "number") {
+        window.dispatchEvent(new CustomEvent(ASSISTANT_QUOTA_EVENT, { detail: { used: Math.max(0, res.data.limit - res.data.remaining), limit: res.data.limit } }));
+      }
       if (typeof res.data.limit === "number") setLimit(res.data.limit);
       else if (remaining != null) setRemaining(Math.max(0, remaining - 1));
     } else {
@@ -113,7 +118,7 @@ export function ChatAssistant() {
           <div>
             <h1 className="font-display text-xl font-bold">AI Market Assistant</h1>
             <p className="text-xs text-muted-foreground">
-              {limit != null && remaining != null ? `${remaining} of ${limit} questions left this month. ` : null}
+              {limit != null && remaining != null ? `${Math.max(0, limit - remaining)} / ${limit} Market Assistant queries used this month. ` : null}
               Informational scenarios about your book. Not financial advice — we don&apos;t trade for you.{" "}
               <a href="/ai-disclaimer" className="font-medium text-primary hover:underline">
                 Disclaimer

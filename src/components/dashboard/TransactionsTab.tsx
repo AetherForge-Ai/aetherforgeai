@@ -241,12 +241,12 @@ export function TransactionsTab({
                         >
                           Edit
                         </Button>
-                        {line.type === "dividend" || (onEditTrade && isTradeLine(line)) ? (
+                        {line.type === "dividend" || line.type === "deposit" || line.type === "withdrawal" || (onEditTrade && isTradeLine(line)) ? (
                           <Button type="button" size="sm" variant="outline" aria-label={`Delete ${line.type} ${line.ticker}`} onClick={() => setPending(line)}>
                             Delete
                           </Button>
                         ) : (
-                          <Button type="button" size="sm" variant="outline" disabled title="This row cannot be removed from this list.">
+                          <Button type="button" size="sm" variant="outline" disabled title="This row cannot be removed from this list. Opening balances and holding edits are changed from Cash or the holding instead.">
                             Delete
                           </Button>
                         )}
@@ -318,7 +318,7 @@ export function TransactionsTab({
                 });
               }}
             >
-              {busy ? "Removing…" : pending && isTradeLine(pending) ? `Remove ${pending.type}` : "Remove dividend"}
+              {busy ? "Removing…" : pending && pending.type !== "dividend" ? `Remove ${pending.type}` : "Remove dividend"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

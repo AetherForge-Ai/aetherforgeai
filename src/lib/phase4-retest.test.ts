@@ -80,7 +80,7 @@ describe("phase 4 retest", () => {
   it("does not leave the report desk or onboarding on a stuck sentence", () => {
     const center = read("src/components/dashboard/ReportCenter.tsx");
     expect(center).toContain("Reports did not load.");
-    expect(center).toContain("8_000");
+    expect(center).toContain("5_000"); // b26 H-4: tightened from 8 s to 5 s
     expect(center).not.toContain("Loading…");
     const onboard = read("src/components/dashboard/OnboardingChecklist.tsx");
     expect(onboard).not.toContain("Checking your paper book…");

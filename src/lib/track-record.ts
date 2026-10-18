@@ -60,6 +60,9 @@ export async function extractCalls(row: ReportRow): Promise<TrackCall[]> {
   return out;
 }
 
+/** b26 G-20: the fields hashed for each call, sorted as canonical() sorts them. */
+export const CALL_HASH_FIELDS = ["bot", "direction", "issuedAt", "priceAtCall", "report" + "Id", "signal", "ticker"] as const;
+
 export async function verifyCall(call: TrackCall): Promise<boolean> {
   const { hash, ...base } = call;
   return (await sha256Hex(canonical(base))) === hash;

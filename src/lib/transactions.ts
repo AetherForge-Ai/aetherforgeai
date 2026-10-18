@@ -160,6 +160,8 @@ export interface TransactionResult {
   pendingCash?: number;
   previousCash?: number;
   restoreHolding?: () => Promise<void>;
+  /** b26 G-10: the holding as written, so the client updates without a re-read. */
+  holding?: { _id: string | null; ticker: string; asset_type: string; shares: number; purchase_price: number } | null;
   /** Milliseconds for the confirm steps. The route logs these before it responds. */
   confirmSteps?: ConfirmStepMs;
 }
@@ -296,6 +298,15 @@ async function findHolding(
 ) {
   const rows = holdings ?? (await loadHoldingsList(userId));
   return holdingFromList(rows, ticker, assetType);
+}
+
+/** b26 G-10: the session read the user record moments ago; reuse its cash instead of a second read. */
+export const SESSION_CASH_FRESH_MS = 2000;
+export function sessionCash(user: AppUser, now = Date.now()): number | null {
+  const at = (user as { cash_read_at?: number }).cash_read_at;
+  return typeof at === "number" && now - at >= 0 && now - at < SESSION_CASH_FRESH_MS && typeof user.cash_balance === "number"
+    ? user.cash_balance
+    : null;
 }
 
 async function readUserCash(userId: string, fallback: number): Promise<number> {
@@ -616,7 +627,8 @@ async function applyTransactionUnlocked(
   const checkStarted = Date.now();
   // Cash and the holding are read once and shared with the movement check.
   const fallbackCash = typeof user.cash_balance === "number" ? user.cash_balance : 0;
-  const cashPromise = readUserCash(user._id, fallbackCash);
+  const fromSession = sessionCash(user);
+  const cashPromise = fromSession != null ? Promise.resolve(fromSession) : readUserCash(user._id, fallbackCash);
   const sharedTicker = normalizeTicker(input.ticker || "");
   const sharedAsset: TxAssetType = input.asset_type || "stock";
   const holdingsStarted = Date.now();
@@ -1069,6 +1081,7 @@ async function applyTransactionUnlocked(
       );
     }
     let holdingId: string;
+    let writtenAvg = 0;
     const stamp = dexStamp(input, holding);
     let holdingWrite: Promise<unknown> = Promise.resolve();
 
@@ -1087,6 +1100,7 @@ async function applyTransactionUnlocked(
         ...(stamp.sector ? { sector: stamp.sector } : {}),
       });
       holdingId = holding._id;
+      writtenAvg = roundFillPrice(newAvg);
       console.log(`[transactions] BUY ${quantity} ${ticker} → ${newShares} @ avg ${round(newAvg, 4)} (${currency})`);
     } else {
       // New position — resolve a live current price so the P&L is meaningful.
@@ -1115,6 +1129,7 @@ async function applyTransactionUnlocked(
         user: user._id,
       });
       holdingId = created?.data?._id;
+      writtenAvg = roundFillPrice(avgWithFees);
       console.log(`[transactions] BUY opened new position ${ticker} (${quantity} @ ${price} ${currency})`);
     }
 
@@ -1246,10 +1261,12 @@ async function applyTransactionUnlocked(
         holdingId,
         ledgerId,
         restoreHolding,
+        holding: { _id: holdingId ?? null, ticker, asset_type: assetType, shares: round(expectedShares, 6), purchase_price: writtenAvg },
       };
     }
     confirmSteps.cash = Date.now() - ledgerStarted;
-    return { transaction: rec.data, cashBalance: newCash, realizedNZD: 0, holdingId };
+    const holdingOut = { _id: holdingId ?? null, ticker, asset_type: assetType, shares: round(expectedShares, 6), purchase_price: writtenAvg };
+    return { transaction: rec.data, cashBalance: newCash, realizedNZD: 0, holdingId, holding: holdingOut };
     } catch (err) {
       console.error(`[transactions] Rolling back buy of ${ticker}:`, err);
       if (ledgerId) {
@@ -1742,7 +1759,7 @@ async function loadLedgerFresh(user: AppUser, limit: number): Promise<Transactio
       _filter: { user: user._id },
       _limit: cap,
     }),
-    readUserCash(user._id, fallbackCash),
+    sessionCash(user) ?? readUserCash(user._id, fallbackCash),
   ]);
   const bookRows = ((bookRes?.data as unknown as TransactionRow[]) || []).map((r) => ({
     ...r,

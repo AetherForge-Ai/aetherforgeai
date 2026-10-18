@@ -119,6 +119,14 @@ for (const f of FIXTURES) {
   }
   const { status, cookie } = await signIn(f.email);
   const out = [];
+  // b26: start every fixture from a known book. An empty book gets the opening balance and rows;
+  // a book that already has rows is left alone so re-runs never double the opening balance.
+  const book = await fetch(`${BASE}/api/transactions`, { headers: { cookie } }).then((r) => r.json()).catch(() => null);
+  const existing = Array.isArray(book?.data?.transactions) ? book.data.transactions.length : 0;
+  if (existing > 0) {
+    console.log(`${f.email}: book already has ${existing} rows; not re-seeding`);
+    continue;
+  }
   for (const row of f.rows) {
     const r = await fetch(`${BASE}/api/transactions`, { method: "POST", headers: { ...json, cookie }, body: JSON.stringify(row) });
     out.push(r.status);

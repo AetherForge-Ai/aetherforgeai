@@ -163,6 +163,12 @@ export async function planOrApplyLedgerReversal(
 
   if (!apply) return preview;
   if (plan.blockedReason) throw new ReversalBlockedError(plan.blockedReason);
+  // b26: removing a deposit must not leave the book with negative cash (later buys spent it).
+  if (cashAfter < -0.009) {
+    throw new ReversalBlockedError(
+      `Removing this row would take cash to NZ$${cashAfter.toFixed(2)}. Remove or edit the later trades that used this cash first.`
+    );
+  }
 
   // b25 G-10: the holding write and the cash write are independent; run them together,
   // then remove the ledger row last so a failure never leaves a row without its effects.

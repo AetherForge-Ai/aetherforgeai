@@ -31,6 +31,33 @@ function hardReload(): void {
   window.location.replace(`${window.location.pathname}${window.location.search}`);
 }
 
+/** b26 H-4: the session check never holds the page for more than 5 s. */
+export const SESSION_CHECK_TIMEOUT_MS = 5000;
+const TIMED_OUT = Symbol("session-check-timeout");
+function withinSessionBudget<T>(work: Promise<T>): Promise<T | typeof TIMED_OUT> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  return Promise.race([
+    work,
+    new Promise<typeof TIMED_OUT>((resolve) => {
+      timer = setTimeout(() => resolve(TIMED_OUT), SESSION_CHECK_TIMEOUT_MS);
+    }),
+  ]).finally(() => timer && clearTimeout(timer));
+}
+
+function SessionSlowNotice({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div className="flex min-h-[40vh] items-center justify-center px-4 py-16" role="alert">
+      <div className="w-full max-w-md rounded-3xl border border-border/70 bg-card/80 px-6 py-8 text-center">
+        <p className="text-base font-semibold">Checking this browser session took longer than 5 seconds.</p>
+        <p className="mt-2 text-sm text-muted-foreground">Your paper book is safe. Try again, or refresh the page.</p>
+        <div className="mt-6 flex justify-center">
+          <Button type="button" onClick={onRetry}>Try again</Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /** No name and no figures while the live session owner is still unknown. */
 export function DashboardSessionSkeleton() {
   return (
@@ -85,7 +112,8 @@ export function AccountOwnerGuard({
   children: ReactNode;
 }) {
   const pathname = usePathname();
-  const [phase, setPhase] = useState<AccountPaint>("pending");
+  const [phase, setPhase] = useState<AccountPaint | "slow">("pending");
+  const [attempt, setAttempt] = useState(0);
   const [boundId, setBoundId] = useState(userId);
   if (boundId !== userId) {
     setBoundId(userId);
@@ -94,7 +122,7 @@ export function AccountOwnerGuard({
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+    void withinSessionBudget((async () => {
       const user = await confirmPageSession();
       if (cancelled) return;
       let decision = accountPaintDecision(userId, user?.id ?? null);
@@ -131,12 +159,19 @@ export function AccountOwnerGuard({
         return;
       }
       setPhase("mismatch");
-    })();
+    })()).then((r) => {
+      if (r === TIMED_OUT && !cancelled) {
+        cancelled = true;
+        console.warn("[session] browser session check exceeded 5 s");
+        setPhase("slow");
+      }
+    });
     return () => {
       cancelled = true;
     };
-  }, [pathname, userId]);
+  }, [pathname, userId, attempt]);
 
+  if (phase === "slow") return <SessionSlowNotice onRetry={() => { setPhase("pending"); setAttempt((n) => n + 1); }} />;
   if (phase === "paint") return <>{children}</>;
   if (phase === "signed-out") return <GuestDashboardGate />;
   if (phase === "mismatch") return <SessionConflictNotice />;
@@ -149,11 +184,12 @@ export function AccountOwnerGuard({
  * while the session token is still valid.
  */
 export function DashboardSessionRecovery({ children }: { children: ReactNode }) {
-  const [phase, setPhase] = useState<"pending" | "guest" | "mismatch">("pending");
+  const [phase, setPhase] = useState<"pending" | "guest" | "mismatch" | "slow">("pending");
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+    void withinSessionBudget((async () => {
       let user = await confirmPageSession();
       if (cancelled) return;
       if (!user?.id) {
@@ -178,11 +214,19 @@ export function DashboardSessionRecovery({ children }: { children: ReactNode }) 
         return;
       }
       setPhase("guest");
-    })();
+    })()).then((r) => {
+      if (r === TIMED_OUT && !cancelled) {
+        cancelled = true;
+        console.warn("[session] browser session recovery exceeded 5 s");
+        setPhase("slow");
+      }
+    });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [attempt]);
+
+  if (phase === "slow") return <SessionSlowNotice onRetry={() => { setPhase("pending"); setAttempt((n) => n + 1); }} />;
 
   if (phase === "guest") return <>{children}</>;
   if (phase === "mismatch") return <SessionConflictNotice />;
