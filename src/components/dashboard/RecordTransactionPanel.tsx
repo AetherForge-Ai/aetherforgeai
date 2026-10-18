@@ -679,7 +679,11 @@ export function RecordTransactionPanel({
       // server confirms; the book is painted from the saved response, and a
       // refusal keeps the dialog open with the reason. (The b12 optimistic paint
       // let a refused write show and then vanish.)
-      const optimistic = false as boolean;
+      // b31 G-10: optimistic again, without b20's vanish. The row and the cash change paint
+      // behind the dialog on Confirm; the dialog stays open ("Saving…") until the server
+      // answers. A refusal rolls the paint back and the dialog shows the reason; success
+      // reconciles from the saved row (handleDataChanged rebuilds from the pre-trade base).
+      const optimistic = true as boolean;
       const cashBeforeOptimistic = preview.cashAfterNzd - preview.cashChangeNzd;
       if (optimistic) {
         const row = {
@@ -697,14 +701,12 @@ export function RecordTransactionPanel({
           executed_at: payload.executed_at,
         };
         onDone({ cashBalance: preview.cashAfterNzd, lastTransaction: row, transactions: [row], ledgerPartial: true, optimistic: true });
-        onRequestClose();
       }
       const res = await api.post("/api/transactions", payload);
       console.log(`[write] ${kind} ${typeof payload.ticker === "string" ? payload.ticker : ""} status=${res.status ?? "?"} ok=${res.ok} id=${String((res.data as { lastTransaction?: { _id?: string } } | undefined)?.lastTransaction?._id ?? "")}`);
       if (optimistic && !res.ok) {
+        // Roll back, then fall through: the dialog (still open) shows the refusal reason.
         onDone({ cashBalance: cashBeforeOptimistic, lastTransaction: null, transactions: [], ledgerPartial: true, optimisticRollback: true });
-        toast.error(typeof res.error === "string" ? `Not saved: ${res.error}` : "Not saved. Your book is unchanged.");
-        return;
       }
       const dupRefused =
         !res.ok &&
@@ -727,7 +729,11 @@ export function RecordTransactionPanel({
       toast.success("Transaction recorded");
       console.log(`[confirm] toast=${Date.now() - postedAt} follow-ups=after-toast`);
       onDone(res.data);
-      if (!optimistic) onRequestClose();
+      onRequestClose();
+    } catch (err) {
+      // A network failure after the optimistic paint must not leave the guess on screen.
+      onDone({ cashBalance: undefined, lastTransaction: null, transactions: [], ledgerPartial: true, optimisticRollback: true });
+      throw err;
     } finally {
       setSaving(false);
       releaseCommit();

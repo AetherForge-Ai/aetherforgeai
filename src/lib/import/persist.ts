@@ -26,6 +26,31 @@ import { planOrApplyLedgerReversal } from "@/lib/ledger-reversal-apply";
 import { applyTransaction } from "@/lib/transactions";
 import { totalumSdk } from "@/lib/totalum";
 import { formatNzd } from "@/lib/currency";
+import { lotCivilDay } from "@/lib/executed-at";
+import { takeRateLimit } from "@/lib/ip-rate-limit";
+
+/** b31 H-10: commits and undos per member per 10 minutes. Preview is not counted. */
+export const IMPORT_WRITE_LIMIT = 20;
+export const IMPORT_WRITE_WINDOW_MS = 10 * 60 * 1000;
+
+/** b31 H-10: strip a leading formula character from text taken from a file (CSV injection). */
+export function safeImportText(value: string | undefined): string | undefined {
+  if (value == null) return value;
+  return String(value).replace(/^[\s=+\-@\t\r]+/, "").slice(0, 120);
+}
+
+/** b31 H-10: one trade, as a key that matches across two files (overlapping exports). */
+export function tradeKey(t: { ticker?: string; side?: string; type?: string; quantity?: number; price?: number; date?: string; executed_at?: string }): string {
+  const day = lotCivilDay(String(t.date || t.executed_at || ""));
+  const qty = Math.round((Number(t.quantity) || 0) * 1e8);
+  const px = Math.round((Number(t.price) || 0) * 1e6);
+  return `${String(t.ticker || "").toUpperCase()}|${String(t.side || t.type || "").toLowerCase()}|${qty}|${px}|${day}`;
+}
+
+/** Ref token as stamped by stampImportNote. */
+function refOf(notes: string | null | undefined): string {
+  return /(?:^|\s)ref=(\S+)/.exec(String(notes || ""))?.[1] || "";
+}
 
 type ImportUser = Parameters<typeof applyTransaction>[0];
 
@@ -36,6 +61,7 @@ interface LedgerRow {
   quantity?: number;
   notes?: string | null;
   executed_at?: string;
+  price?: number;
 }
 
 function mappingOf(value: unknown): ColumnMap | undefined {
@@ -143,6 +169,15 @@ export async function runH10Import(user: ImportUser, text: string, body: unknown
   }
   const input = (body && typeof body === "object" ? body : {}) as { action?: unknown; mapping?: unknown; batchId?: unknown };
   const action = input.action === "commit" || input.action === "undo" ? input.action : "preview";
+  if (action !== "preview") {
+    const limit = await takeRateLimit(`import:${user._id}`, IMPORT_WRITE_LIMIT, IMPORT_WRITE_WINDOW_MS);
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { ok: false, error: "Too many imports in a short time. Wait a few minutes. Nothing was written." },
+        { status: 429, headers: { "Retry-After": String(limit.resetSec) } }
+      );
+    }
+  }
 
   if (action === "undo") {
     const batchId = typeof input.batchId === "string" ? input.batchId.trim() : "";
@@ -182,6 +217,22 @@ export async function runH10Import(user: ImportUser, text: string, body: unknown
   if (stored.some((row) => notesHaveFile(row.notes, fileHash))) {
     return NextResponse.json({ ok: false, error: IMPORT_DUPLICATE_FILE, code: "duplicate_file", data: { written: 0 } }, { status: 409 });
   }
+  // b31 H-10: row-level duplicates. A trade already in the book from another file (same broker
+  // ref, or same ticker/side/units/price/day on an imported row) is skipped and listed.
+  const importedRows = stored.filter((row) => /(?:^|\s)batch=/.test(String(row.notes || "")));
+  const knownRefs = new Set(importedRows.map((row) => refOf(row.notes)).filter(Boolean));
+  const knownTrades = new Set(importedRows.map((row) => tradeKey(row)));
+  const duplicates: number[] = [];
+  const fresh = preview.toWrite.filter((row) => {
+    const ref = String(row.brokerRef || "").trim().replace(/\s+/g, "");
+    const dup = (ref && knownRefs.has(ref)) || knownTrades.has(tradeKey(row));
+    if (dup) duplicates.push(row.line);
+    return !dup;
+  });
+  if (!fresh.length) {
+    return NextResponse.json({ ok: false, error: IMPORT_DUPLICATE_FILE, code: "duplicate_rows", data: { written: 0, duplicates } }, { status: 409 });
+  }
+  preview.toWrite = fresh;
   const cap = await capRefusal(user, preview.toWrite);
   if (cap) return cap;
 
@@ -195,7 +246,7 @@ export async function runH10Import(user: ImportUser, text: string, body: unknown
         type: row.side,
         ticker: row.ticker,
         asset_type: assetClassForSymbol(row.ticker),
-        asset_name: row.assetName,
+        asset_name: safeImportText(row.assetName),
         quantity: row.quantity,
         price: row.price,
         fees: row.fee,
@@ -218,6 +269,7 @@ export async function runH10Import(user: ImportUser, text: string, body: unknown
       );
     }
     if (!saved.ledgerId || saved.pendingCash == null || saved.previousCash == null) {
+      invalidateBookCache(user._id);
       return NextResponse.json({ ok: false, error: `Line ${row.line} was not saved.`, data: { written: written.length, batchId } }, { status: 400 });
     }
     try {
@@ -236,13 +288,15 @@ export async function runH10Import(user: ImportUser, text: string, body: unknown
     written.push(row);
   }
   invalidateBookCache(user._id);
-  const cash = written.reduce((sum, row) => sum + row.cashEffectNzd, 0);
+  // Sum in cents so the total matches the rows to NZ$0.01.
+  const cash = written.reduce((sum, row) => sum + Math.round(row.cashEffectNzd * 100), 0) / 100;
   return NextResponse.json({
     ok: true,
     data: {
       ...publicPreview(preview),
       written: written.length,
       batchId,
+      duplicates,
       summary: `${written.length} trade${written.length === 1 ? "" : "s"} saved. Cash effect ${formatNzd(cash)}.`,
     },
   });
