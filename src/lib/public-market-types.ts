@@ -3,6 +3,8 @@ export const MARKET_INDEX_PAGE = 50;
 export const PUBLIC_SEED_ROWS = 25;
 
 export interface PublicPriceRow {
+  /** b38 H-1: this row's own quote is over 15 minutes old; the table shows "delayed". */
+  delayed?: boolean;
   symbol: string;
   name: string;
   price: string;

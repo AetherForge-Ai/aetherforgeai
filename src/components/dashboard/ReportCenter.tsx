@@ -97,6 +97,9 @@ interface BotQuota {
   reportsLimit?: number;
 }
 
+/** b38 H-4: after this long without a count the "quota did not load" fallback shows. */
+export const QUOTA_FALLBACK_MS = 3_000;
+
 interface FreeQuota {
   used: number;
   limit: number;
@@ -634,6 +637,29 @@ export function ReportCenter({
 
   const stoxControl = controlFor("stock", "Stox");
   const koinsControl = controlFor("crypto", "Koins");
+  // b38 H-4: the count arrives within 1 s from the light quota route (one indexed count, per-user
+  // cache), in parallel with the full report list. After 3 s with no figure, the fallback text shows.
+  const [quotaSlow, setQuotaSlow] = React.useState(false);
+  React.useEffect(() => {
+    if (preview) return;
+    let live = true;
+    const slow = window.setTimeout(() => live && setQuotaSlow(true), QUOTA_FALLBACK_MS);
+    void api
+      .get<{ used: number | null; limit: number | null; remaining?: number }>("/api/reports/quota", { signal: AbortSignal.timeout(QUOTA_FALLBACK_MS) })
+      .then((res) => {
+        if (!live || !res.ok || !res.data) return;
+        const d = res.data as { used: number | null; limit: number | null; remaining?: number };
+        if (d.limit == null || d.used == null) return;
+        const limit = d.limit;
+        const used = d.used;
+        setFreeQuota((cur) => cur ?? { used, limit, remaining: d.remaining ?? Math.max(0, limit - used), monthKey: "" });
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+      window.clearTimeout(slow);
+    };
+  }, [preview]);
   const sharedRemaining = freeQuota?.remaining ?? (serverQuota?.stock?.reportsLimit != null && serverQuota.stock.reportsUsed != null
     ? Math.max(0, serverQuota.stock.reportsLimit - serverQuota.stock.reportsUsed)
     : null);
@@ -735,9 +761,9 @@ export function ReportCenter({
               {cadence.unit === "month" && (sharedLimit == null || sharedRemaining == null) && !preview ? (
                 // b6 H-4: a loading line, never the default allowance, until the real count arrives.
                 <span className="text-muted-foreground" aria-live="polite">
-                  {historyError || historyLoaded ? (
+                  {historyError || historyLoaded || quotaSlow ? (
                     <>
-                      Your report count did not load.{" "}
+                      Your report quota did not load.{" "}
                       <button type="button" className="underline" onClick={() => { setHistoryError(""); setHistoryLoaded(false); void loadHistory().catch(() => {}); }}>
                         Try again
                       </button>

@@ -1,5 +1,6 @@
 "use client";
 
+import { noteWrite, WRITE_TIMEOUT_CODE, WRITE_TIMEOUT_MESSAGE, WRITE_TIMEOUT_MS, clearPendingWrite, isDefiniteRefusal, journalPendingWrite, newWriteKey, withWriteTimeout } from "@/lib/write-journal";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,7 +43,6 @@ import { markDialogSearchGuard, noteDialogSearchQuery } from "@/lib/dialog-guard
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
-import { noteWrite } from "@/lib/write-journal";
 import { getActiveAccountUserId } from "@/lib/account-identity";
 
 type BookHolding = {
@@ -682,6 +682,11 @@ export function RecordTransactionPanel({
           delete payload.amount;
         }
       }
+      // b37 G-10: every write is an explicit confirm with this Review's idempotency key, so a 401 is
+      // retried once with the same key after the session check, and the server dedupes any repeat.
+      payload.confirm = true;
+      if (!reviewKey.current) reviewKey.current = newWriteKey();
+      payload.idempotency_key = reviewKey.current;
       // Goal b19 CR-6: a new holding past the plan cap is refused before anything
       // paints. The server's dry run runs the same cap check and writes nothing,
       // so the cap message shows in this dialog instead of a flash-and-rollback.
@@ -732,45 +737,16 @@ export function RecordTransactionPanel({
         };
         onDone({ cashBalance: preview.cashAfterNzd, lastTransaction: row, transactions: [row], ledgerPartial: true, optimistic: true });
       }
-      const pending = api.post("/api/transactions", payload);
-      if (optimistic) {
-        // b31 G-10: the paint is already on screen. If the server has not answered within
-        // CONFIRM_HOLD_MS, close the dialog and finish in the background: success reconciles
-        // from the saved row; a refusal rolls the paint back with the reason in a toast.
-        const early = await Promise.race([pending.then(() => "answered" as const), sleepMs(CONFIRM_HOLD_MS).then(() => "slow" as const)]);
-        if (early === "slow") {
-          onRequestClose();
-          // Not a success: a loading toast until the server answers.
-          const toastId = toast.loading("Saving…");
-          void pending
-            .then((late) => {
-              const savedId = acknowledgedId(late);
-              if (savedId) {
-                if (showQty) bumpHoldingsGeneration();
-                noteWrite(getActiveAccountUserId(), { createdId: savedId, cashAfter: (late.data as { cashBalance?: number } | undefined)?.cashBalance ?? null });
-                toast.success("Transaction recorded", { id: toastId });
-                onDone(late.data);
-              } else {
-                onDone({ cashBalance: cashBeforeOptimistic, lastTransaction: null, transactions: [], ledgerPartial: true, optimisticRollback: true });
-                toast.error(
-                  !late.ok && late.error === "account-mismatch"
-                    ? SESSION_SWITCHED_ERROR
-                    : !late.ok && typeof late.error === "string"
-                      ? `Not recorded: ${late.error}`
-                      : `Not recorded. ${NOT_ACKNOWLEDGED}`,
-                  { id: toastId }
-                );
-              }
-            })
-            .catch(() => {
-              onDone({ cashBalance: cashBeforeOptimistic, lastTransaction: null, transactions: [], ledgerPartial: true, optimisticRollback: true });
-              toast.error("Not recorded: the connection dropped. Nothing was saved.", { id: toastId });
-            });
-          return;
-        }
-      }
+      // b37 G-10 (P1): journal the write before sending it. If the page reloads or the tab closes
+      // mid-request (TT's lost deposit was a POST the browser dropped: edge 499, no origin response), the
+      // next dashboard load replays it with the same key and the server writes it at most once.
+      const journalUser = getActiveAccountUserId();
+      if (journalUser) journalPendingWrite({ key: String(payload.idempotency_key), userId: journalUser, method: "POST", payload, at: postedAt });
+      // The dialog stays open ("Saving…") until the server answers with the saved row's id. No early close
+      // and no background finish: success is shown only after that, and a failure keeps the form filled.
+      const pending = withWriteTimeout(api.post("/api/transactions", payload), WRITE_TIMEOUT_MS);
       const res = await pending;
-      console.log(`[write] ${kind} ${typeof payload.ticker === "string" ? payload.ticker : ""} status=${res.status ?? "?"} ok=${res.ok} id=${String((res.data as { lastTransaction?: { _id?: string } } | undefined)?.lastTransaction?._id ?? "")}`);
+      console.log(`[write] ${kind} ${typeof payload.ticker === "string" ? payload.ticker : ""} status=${res.status ?? "?"} ok=${res.ok} id=${String((("data" in res ? res.data : undefined) as { lastTransaction?: { _id?: string } } | undefined)?.lastTransaction?._id ?? "")}`);
       const savedId = acknowledgedId(res);
       if (optimistic && !savedId) {
         // Roll back, then fall through: the dialog (still open) shows the refusal reason.
@@ -789,6 +765,13 @@ export function RecordTransactionPanel({
         failSave("This dividend looks like one already recorded. Tick “Save anyway” to keep both.");
         return;
       }
+      if (!res.ok && isDefiniteRefusal(res.status)) clearPendingWrite(String(payload.idempotency_key));
+      if (!res.ok && res.status == null && res.error === WRITE_TIMEOUT_CODE) {
+        // Not a refusal: the answer didn't arrive in time. Keep the form and the journal entry; pressing
+        // Confirm again (or reloading) retries with the same key, so it can't be booked twice.
+        failSave(WRITE_TIMEOUT_MESSAGE);
+        return;
+      }
       if (!res.ok) {
         failSave(writeError(res.error, "Could not record that transaction."));
         return;
@@ -798,6 +781,8 @@ export function RecordTransactionPanel({
         return;
       }
       if (showQty) bumpHoldingsGeneration();
+      clearPendingWrite(String(payload.idempotency_key));
+      reviewKey.current = "";
       noteWrite(getActiveAccountUserId(), { createdId: savedId, cashAfter: (res.data as { cashBalance?: number } | undefined)?.cashBalance ?? null });
       toast.success("Transaction recorded");
       console.log(`[confirm] toast=${Date.now() - postedAt} follow-ups=after-toast`);

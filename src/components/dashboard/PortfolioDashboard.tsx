@@ -1,6 +1,19 @@
 "use client";
 
-import { correctFromJournal, journalDeletedMap, noteWrite, readJournal } from "@/lib/write-journal";
+import {
+  clearPendingWrite,
+  correctFromJournal,
+  isDefiniteRefusal,
+  journalDeletedMap,
+  journalPendingWrite,
+  listPendingWrites,
+  newWriteKey,
+  noteWrite,
+  readJournal,
+  replayPendingWrites,
+  withWriteTimeout,
+  WRITE_TIMEOUT_MS,
+} from "@/lib/write-journal";
 import { reconcileLedger } from "@/lib/ledger-reconcile";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
@@ -1339,6 +1352,36 @@ export function PortfolioDashboard({
   }, [preview, loadPortfolioSnapshot]);
 
   // Called whenever holdings or cash change (transactions, edits, deletes).
+  // b37 G-10 (P1): replay writes this browser confirmed but never heard back about (a reload or closed
+  // tab dropped the request). Same idempotency key, so the server books each one at most once. Then read
+  // the book fresh (bypassing the snapshot cache) so nothing pre-write is shown.
+  const replayedRef = useRef(false);
+  useEffect(() => {
+    if (preview || !userId || replayedRef.current) return;
+    replayedRef.current = true;
+    const pendingCount = listPendingWrites(userId).length;
+    const recentWrite = Date.now() - readJournal(userId).lastAt < 60_000;
+    if (!pendingCount) {
+      if (recentWrite) void loadPortfolioSnapshot({ force: true });
+      return;
+    }
+    const toastId = toast.loading(pendingCount === 1 ? "Finishing 1 entry that wasn't confirmed…" : `Finishing ${pendingCount} entries that weren't confirmed…`);
+    void replayPendingWrites(
+      userId,
+      (payload) => api.post("/api/transactions", payload),
+      undefined,
+      Date.now(),
+      (id) => api.delete(`/api/transactions?id=${encodeURIComponent(id)}`)
+    ).then((out) => {
+      if (out.saved.length) toast.success(out.saved.length === 1 ? "1 entry recorded." : `${out.saved.length} entries recorded.`, { id: toastId });
+      else if (out.refused.length) toast.error(`Not recorded: ${out.refused[0].error}`, { id: toastId });
+      else if (out.kept) toast.error("Some entries still aren't confirmed. They'll be retried; nothing is shown as saved until then.", { id: toastId });
+      else toast.dismiss(toastId);
+      lastMutationAtRef.current = Date.now();
+      void loadPortfolioSnapshot({ force: true });
+    });
+  }, [preview, userId, loadPortfolioSnapshot]);
+
   const applyKnownCash = useCallback(
     (bal: number) => {
       cashEpochRef.current += 1;
@@ -2029,12 +2072,23 @@ export function PortfolioDashboard({
       const trimmed = { ...current, ledger: current.ledger.filter((row) => row.id !== line.id) };
       return optimisticDelta ? withCashDelta(trimmed, optimisticDelta) : trimmed;
     });
-    const res = await api.delete<{ cash?: { after?: number }; alreadyRemoved?: boolean }>(
-      `/api/transactions?id=${encodeURIComponent(line.id)}`
+    // b38 G-10: journal the delete before sending, so a reload mid-request keeps the row hidden
+    // and the next load re-sends it (DELETE is idempotent on the server).
+    const deleteKey = newWriteKey();
+    if (userId) journalPendingWrite({ key: deleteKey, userId, method: "DELETE", payload: {}, deleteId: line.id, at: Date.now() });
+    const res = await withWriteTimeout(
+      api.delete<{ cash?: { after?: number }; alreadyRemoved?: boolean }>(`/api/transactions?id=${encodeURIComponent(line.id)}`),
+      WRITE_TIMEOUT_MS
     );
+    if (res.ok || isDefiniteRefusal(res.status)) clearPendingWrite(deleteKey);
+    if (!res.ok && !isDefiniteRefusal(res.status)) {
+      // No answer yet: the row stays hidden and the delete is retried on the next load.
+      toast.error("The server hasn't confirmed this removal yet. It will be retried; the row stays hidden until then.");
+      return false;
+    }
     console.log(`[write] delete ${line.type} ${line.ticker} id=${line.id} status=${res.status ?? "?"} ok=${res.ok}`);
     const label = line.type ? line.type.charAt(0).toUpperCase() + line.type.slice(1) : "Row";
-    if (res.ok) {
+    if (res.ok && "data" in res) {
       const after = res.data?.cash?.after;
       setBookSnapshot((current) => {
         if (!current) return current;

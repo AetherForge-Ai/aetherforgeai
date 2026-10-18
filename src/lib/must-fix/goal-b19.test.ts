@@ -16,7 +16,7 @@ describe("goal b19", () => {
   it("M-1: ticker and toaster load lazily with a height-holding placeholder", () => {
     expect(read("src/app/page.tsx")).toMatch(/LazyMarketTicker/);
     expect(read("src/app/layout.tsx")).toMatch(/LazyToaster/);
-    expect(read("src/components/LazyMarketTicker.tsx")).toMatch(/min-h-\[213px\]/);
+    expect(read("src/components/LazyMarketTicker.tsx")).toMatch(/min-h-\[231px\]/);
   });
 
   it("CR-6: new holding runs the server dry run before anything paints", () => {

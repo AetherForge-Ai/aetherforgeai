@@ -2,7 +2,7 @@ import "server-only";
 import { headers } from "next/headers";
 import { BOOK_CACHE_MS, readBookCache } from "@/lib/book-cache";
 import { bookNotBeforeFromCookie } from "@/lib/book-write-mark";
-import { readBookVersion } from "@/lib/book-version.server";
+import { readBookVersionKnown } from "@/lib/book-version.server";
 
 /** b29: read the per-user book cache, skipping entries that started before this browser's last write. */
 export async function readBookCacheForRequest<T>(key: string, ttlMs = BOOK_CACHE_MS): Promise<T | null> {
@@ -15,7 +15,9 @@ export async function readBookCacheForRequest<T>(key: string, ttlMs = BOOK_CACHE
   // b30 G-10: a write on another device or isolate bumps the durable book version.
   const userId = key.split(":")[0] || "";
   if (userId && readBookCache<T>(key, ttlMs, notBefore) != null) {
-    const version = await readBookVersion(userId);
+    const version = await readBookVersionKnown(userId);
+    // b37 G-10: an unreadable version means "maybe written elsewhere": skip the cache.
+    if (!version) return null;
     notBefore = Math.max(notBefore, version.at);
   }
   return readBookCache<T>(key, ttlMs, notBefore);

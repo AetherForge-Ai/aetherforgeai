@@ -3,6 +3,7 @@ import { PUBLIC_EQUITY_SOURCE, publicCryptoSourcesLabel } from "@/lib/data-sourc
 import { cryptoVenueForLabel } from "@/lib/crypto-price-chain";
 import { readCryptoSnapshot, snapshotHeaders } from "@/lib/crypto-snapshot";
 import { loadPublicTicker } from "@/lib/public-ticker";
+import { COLD_START_READ_MS, edgeSnapshotGet, edgeSnapshotPut, pickServedSnapshot, TICKER_ROUTE_DEADLINE_MS } from "@/lib/ticker-serve";
 import { snapshotFloorCookie, snapshotFloorFrom } from "@/lib/snapshot-floor";
 import { readFeedForce } from "@/lib/feed-freshness-hook";
 import { feedOffFromCookieHeader } from "@/lib/test-hooks";
@@ -30,29 +31,75 @@ export async function GET(req: Request) {
       { status: 503, headers: { "Cache-Control": "no-store", "CDN-Cache-Control": "no-store" } }
     );
   }
-  // b35 H-1 (GOAL-LOCK #25): read the snapshot ONCE (with this client's version floor) and build
-  // both the crypto rows and the x-af-snapshot headers from it. TT saw rows from one read and
-  // headers from another (v30 headers over an empty list; no headers on a cold isolate).
+  // b37 REG-1: the whole build is bounded. A hang serves this isolate's last good answer (stale),
+  // never a 30 s wait; only a cold isolate with no copy anywhere answers 503.
   const floor = snapshotFloorFrom(req);
-  const snap = await Promise.race([readCryptoSnapshot(undefined, { floor }).catch(() => null), new Promise<null>((r) => setTimeout(() => r(null), 2_000))]);
+  const built = await Promise.race([
+    buildTicker(floor, cookie, hooksAllowed).catch(() => null),
+    new Promise<null>((r) => setTimeout(() => r(null), TICKER_ROUTE_DEADLINE_MS)),
+  ]);
+  if (!built) {
+    if (lastGoodResponse) {
+      return NextResponse.json(lastGoodResponse.body, {
+        headers: { ...lastGoodResponse.headers, "x-af-snapshot-stale": "1", "Set-Cookie": snapshotFloorCookie(Math.max(lastGoodResponse.version, floor)) },
+      });
+    }
+    return noCopyResponse();
+  }
+  return built;
+}
+
+type CryptoSnap = NonNullable<Awaited<ReturnType<typeof readCryptoSnapshot>>>;
+/** b37 H-1: the newest snapshot this isolate has served; a slow or failed read never means 503. */
+let lastGoodSnap: CryptoSnap | null = null;
+let lastEdgePut = 0;
+let lastGoodResponse: { body: unknown; headers: Record<string, string>; version: number } | null = null;
+
+function noCopyResponse() {
+  return NextResponse.json(
+    { ok: false, error: "Crypto prices are not available yet. Retrying shortly." },
+    { status: 503, headers: { "Cache-Control": "no-store", "CDN-Cache-Control": "no-store", "Retry-After": "5" } }
+  );
+}
+
+async function buildTicker(floor: number, cookie: string | null, hooksAllowed: boolean) {
+  // b35 H-1 (GOAL-LOCK #25): read the snapshot ONCE (with this client's version floor) and build
+  // both the crypto rows and the x-af-snapshot headers from it.
+  const read = await Promise.race([readCryptoSnapshot(undefined, { floor }).catch(() => null), new Promise<null>((r) => setTimeout(() => r(null), 2_000))]);
+  // b38 (Chief ruling 2): a cold isolate loads the last saved snapshot from durable storage (longer
+  // bounded read) and serves it as a 200 marked x-af-snapshot-stale with its true time. Only when no
+  // snapshot exists at all is the answer a 503 + Retry-After (the tape shows "Prices loading").
+  const coldStart = !lastGoodSnap;
+  const coldRead = !read && coldStart ? await readCryptoSnapshot(COLD_START_READ_MS).catch(() => null) : null;
+  // b38 (Chief ruling 3): step-backs. A browser sends the af_snap_v floor cookie, so it is never served
+  // a version below one it has seen (floor read above, plus this isolate's newest copy). A client with
+  // no cookie and no x-af-snapshot-floor header (curl, scripts) may see an older version from another
+  // isolate; that is accepted by design and only for no-cookie clients.
+  let snap = pickServedSnapshot(read ?? coldRead, lastGoodSnap);
+  // b38 H-1 (c): a cookie client must never step back. Below its floor, use the colo's newest copy.
+  if ((floor > 0 && (!snap || snap.version < floor)) || !snap) {
+    const edge = await edgeSnapshotGet<CryptoSnap>();
+    snap = pickServedSnapshot(snap, edge);
+  }
+  if (snap) {
+    lastGoodSnap = snap;
+    if (snap.version > lastEdgePut) {
+      lastEdgePut = snap.version;
+      void edgeSnapshotPut(snap);
+    }
+  }
   const feed = await loadPublicTicker({ snapshot: snap });
   // G-05: named stale/failed mark for this browser. Omitted unless the account is allow-listed.
   const testFeedForce = readFeedForce(cookie, hooksAllowed);
   // Never a 200 with an empty crypto list: no copy anywhere is a 503 the tape retries.
-  if (!feed.rows.crypto.length && !snap) {
-    return NextResponse.json(
-      { ok: false, error: "Crypto prices are not available yet. Retrying shortly." },
-      { status: 503, headers: { "Cache-Control": "no-store", "CDN-Cache-Control": "no-store", "Retry-After": "5" } }
-    );
-  }
-  const stale = !!snap && (!feed.rows.crypto.length || !feed.live.crypto);
+  if (!feed.rows.crypto.length && !snap) return noCopyResponse();
+  const stale = !!snap && (coldStart || !feed.rows.crypto.length || !feed.live.crypto);
 
   console.log(
     `[api/ticker] Served rows — crypto ${feed.live.crypto ? "live" : "quiet"} (${feed.rows.crypto.length}), equities ${feed.live.equities ? "live" : "quiet"} (${feed.rows.nzx.length + feed.rows.asx.length})`
   );
 
-  return NextResponse.json(
-    {
+  const body = {
       ok: true,
       data: {
         ...feed,
@@ -66,15 +113,16 @@ export async function GET(req: Request) {
         ...(testFeedForce ? { testFeedForce } : {}),
         ...(stale ? { stale: true } : {}),
       },
-    },
-    {
-      headers: {
+    };
+  const headers: Record<string, string> = {
         "Cache-Control": "no-store, no-cache, must-revalidate",
         "CDN-Cache-Control": "no-store",
-        ...snapshotHeaders(snap),
+        // b37 H-1: every 200 names its snapshot (version 0 = built without a stored list).
+        ...(snap ? snapshotHeaders(snap) : { "x-af-snapshot-at": feed.asOf || new Date().toISOString(), "x-af-snapshot-version": "0" }),
         ...(stale ? { "x-af-snapshot-stale": "1" } : {}),
-        ...(snap ? { "Set-Cookie": snapshotFloorCookie(Math.max(snap.version, floor)) } : {}),
-      },
-    }
-  );
+  };
+  if (snap && !stale && !testFeedForce) lastGoodResponse = { body, headers, version: snap.version };
+  return NextResponse.json(body, {
+    headers: { ...headers, ...(snap ? { "Set-Cookie": snapshotFloorCookie(Math.max(snap.version, floor)) } : {}) },
+  });
 }

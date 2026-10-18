@@ -159,10 +159,10 @@ describe("U3 U7 V1 P1 snapshot", () => {
     expect(rows.find((row) => row.symbol === "QI")?.reserveUsd).toBe(50);
     const fresh = "2026-10-12T03:05:00.000Z";
     const label = pricesAsAtLabel(fresh, Date.parse(fresh) + 60_000);
-    expect(label).toBe("Prices as at 12 Oct 2026, 4:05 pm (NZ).");
+    expect(label).toMatch(/^Prices last updated 4:05 pm NZT(, 12 Oct)?\.$/); // b38 M-2: one wording site-wide
     expect(label).not.toContain("Last good");
     const delayed = pricesAsAtLabel(fresh, Date.parse(fresh) + 31 * 60 * 1000);
-    expect(delayed).toBe("Prices as at 12 Oct 2026, 4:05 pm (NZ). The feed is delayed.");
+    expect(delayed).toMatch(/^Prices last updated 4:05 pm NZT(, 12 Oct)?\. The feed is delayed\.$/);
     expect(countLine("coins", 400)).toBe("400 coins");
     expect(countLine("DEX tokens", 400)).toBe("400 DEX tokens");
     expect(pageRangeLine(0, 25, 400)).toBe("Showing 1–25 of 400");
