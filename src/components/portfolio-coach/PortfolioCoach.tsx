@@ -5,7 +5,8 @@ import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
 import { MessageSquareText } from "lucide-react";
 import { useLiveSessionUser } from "@/lib/use-live-session";
-import { PortfolioCoachChat } from "./PortfolioCoachChat";
+// Goal b18 M-1: the chat panel loads only when the member opens it.
+const PortfolioCoachChat = dynamic(() => import("./PortfolioCoachChat").then((mod) => mod.PortfolioCoachChat), { ssr: false });
 
 const RiseAnimation = dynamic(() => import("./RiseAnimation").then((mod) => mod.RiseAnimation), { ssr: false });
 import "@/components/personal-guide/personal-guide.css";

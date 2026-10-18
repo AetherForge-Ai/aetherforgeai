@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -20,7 +20,7 @@ import { CsvExportButton } from "@/components/tax/CsvExportButton";
 import { TaxSectionNav } from "@/components/tax/TaxSectionNav";
 import { api } from "@/lib/api";
 import { getActiveAccountUserId } from "@/lib/account-identity";
-import { writeCachedCashNZD } from "@/lib/client-user-state";
+import { readCachedCashNZD, writeCachedCashNZD } from "@/lib/client-user-state";
 import { currencyForTicker, formatDisplayDate, formatFxInput, formatNzd, type CurrencyCode } from "@/lib/currency";
 import {
   buildDividendRecord,
@@ -69,8 +69,9 @@ export function DividendLedgerView({
 }) {
   const router = useRouter();
   const [listed, setListed] = useState(rows);
+  const removedRef = useRef<Set<string>>(new Set());
   useEffect(() => {
-    setListed((current) => mergeDividendRows(rows, current));
+    setListed((current) => mergeDividendRows(rows, current).filter((r) => !removedRef.current.has(r.id)));
   }, [rows]);
   const [confirmDuplicate, setConfirmDuplicate] = useState(false);
   const totals = useMemo(() => summariseDividends(listed), [listed]);
@@ -212,9 +213,27 @@ export function DividendLedgerView({
     if (!id) return false;
     setRemovingId(id);
     setMessage("");
+    // Goal b18 G-10: the row leaves at once and stays gone through any refetch;
+    // cash moves at once from the row's own net cash. A refusal restores both.
+    const previous = listed;
+    const row = listed.find((r) => r.id === id);
+    removedRef.current.add(id);
+    setListed((current) => current.filter((r) => r.id !== id));
+    const cashBefore = readCachedCashNZD(getActiveAccountUserId());
+    if (row && cashBefore != null) {
+      const guess = Math.round((cashBefore - row.cashNzd) * 100) / 100;
+      writeCachedCashNZD(getActiveAccountUserId(), guess);
+      window.dispatchEvent(new CustomEvent("aetherforge-book-changed", { detail: { cashBalance: guess, optimistic: true } }));
+    }
     try {
       const res = await api.delete<{ cash?: { after?: number } }>(`/api/transactions?id=${encodeURIComponent(id)}`);
       if (!res.ok) {
+        removedRef.current.delete(id);
+        setListed(previous);
+        if (cashBefore != null) {
+          writeCachedCashNZD(getActiveAccountUserId(), cashBefore);
+          window.dispatchEvent(new CustomEvent("aetherforge-book-changed", { detail: { cashBalance: cashBefore } }));
+        }
         setMessage(typeof res.error === "string" ? res.error : "That dividend was not removed.");
         return false;
       }
@@ -223,9 +242,7 @@ export function DividendLedgerView({
         writeCachedCashNZD(getActiveAccountUserId(), after);
         window.dispatchEvent(new CustomEvent("aetherforge-book-changed", { detail: { cashBalance: after } }));
       }
-      setListed((current) => current.filter((row) => row.id !== id));
       setMessage("Dividend removed.");
-      router.refresh();
       return true;
     } finally {
       setRemovingId("");

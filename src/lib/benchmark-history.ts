@@ -23,7 +23,8 @@ export function storedBenchmarks(raw: Raw = history as unknown as Raw): StoredBe
     id,
     name: raw.series[id].name,
     asOf: raw.series[id].asOf,
-    source: raw.source,
+    // Goal b18 G-02: only the S&P 500 line mentions the NZ$ conversion.
+    source: id === "sp500nzd" ? raw.source : raw.source.split(";")[0].trim(),
     prices: raw.series[id].points.map(([date, level]) => ({ date, level })),
   }));
 }
@@ -56,4 +57,10 @@ export function benchmarkPeriodReturn(
   if (!start || !end) return { value: null, reason: "The stored index history does not cover this period." };
   if (start.date === end.date) return { value: null, reason: "No index close since the start of this period." };
   return { value: end.level / start.level - 1, reason: null };
+}
+
+/** Goal b18 G-02: the last stored close on or before `asOf` (or the latest close). */
+export function alignedAsOf(bench: Pick<StoredBenchmark, "prices" | "asOf">, asOf?: string | null): string {
+  const target = asOf && /^\d{4}-\d{2}-\d{2}$/.test(asOf) ? asOf : bench.asOf;
+  return closeOnOrBefore(bench.prices, target)?.date ?? bench.asOf;
 }

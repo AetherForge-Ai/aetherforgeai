@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 import { FigureReadout } from "@/components/dashboard/ShowTheMaths";
 import { Button } from "@/components/ui/button";
@@ -25,8 +25,8 @@ import { MISSING_MARK, pageLedger, type PortfolioSnapshot, type SnapshotLedgerLi
 const PAGE_SIZES = [25, 50, 100] as const;
 
 export function TransactionsTab({
-  snapshot,
-  loading,
+  snapshot: snapshotProp,
+  loading: loadingProp,
   error = null,
   onRetry,
   onRecord,
@@ -55,6 +55,12 @@ export function TransactionsTab({
   // b7 H-5: rows removed in this session leave the list at once, before the
   // refreshed snapshot arrives, so a stale row can't be deleted twice.
   const [removedIds, setRemovedIds] = useState<ReadonlySet<string>>(() => new Set());
+  // Goal b18 G-10: never blank the list while the book refetches. The last book
+  // shown stays on screen until a new one arrives.
+  const lastSnapshotRef = useRef<PortfolioSnapshot | null>(null);
+  if (snapshotProp) lastSnapshotRef.current = snapshotProp;
+  const snapshot = snapshotProp ?? lastSnapshotRef.current;
+  const loading = loadingProp && !snapshot;
   const [editing, setEditing] = useState<SnapshotLedgerLine | null>(null);
   const [draft, setDraft] = useState({ quantity: "", price: "", fees: "" });
 
