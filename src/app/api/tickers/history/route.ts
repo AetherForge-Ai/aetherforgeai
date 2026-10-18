@@ -47,7 +47,7 @@ export async function GET(req: Request) {
 async function fxOnDate(day: string, currency: CurrencyCode): Promise<number> {
   if (currency === "NZD") return 1;
   try {
-    const res = await fetch(`https://api.frankfurter.app/${day}?from=${currency}&to=NZD`, {
+    const res = await fetch(`https://api.frankfurter.dev/v1/${day}?from=${currency}&to=NZD`, {
       signal: AbortSignal.timeout(8000),
     });
     if (!res.ok) return currency === "USD" ? 1.67 : 1.09;

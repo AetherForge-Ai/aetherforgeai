@@ -2,7 +2,7 @@
   "_note": "Synthetic broker fixtures (goal b8 H-10). cashNzd = sum of NZ$ cash effects of the rows written (buys negative, sells net of fees), hand-worked; planned with NZ$100,000 opening paper cash.",
   "asb.csv": { "broker": "asb", "rows": 3, "cashNzd": -255.0 },
   "jarden.csv": { "broker": "jarden", "rows": 3, "cashNzd": -1240.0 },
-  "commsec.csv": { "broker": "commsec", "rows": 3, "cashNzd": -1628.0 },
+  "commsec.csv": { "broker": "commsec", "rows": 3, "cashNzd": -1761.2 },
   "swyftx.csv": { "broker": "swyftx", "rows": 3, "cashNzd": -2971.5 },
   "stake.csv": { "broker": "stake", "rows": 3, "cashNzd": -763.3 },
   "easycrypto.csv": { "broker": "easycrypto", "rows": 2, "cashNzd": -1148.8 },

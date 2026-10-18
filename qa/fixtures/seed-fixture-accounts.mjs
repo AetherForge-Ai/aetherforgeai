@@ -39,6 +39,16 @@ const FIXTURES = [
     split: { ticker: "FPH.NZ", asset_type: "stock", ratio: 2, date: "2025-11-03" },
   },
   {
+    email: "fixture-g01-dividends@example.test",
+    name: "Fixture Dividends",
+    plan: "starter",
+    rows: [
+      { type: "opening_balance", amount: 20000, executed_at: "2025-01-05", confirm: true },
+      { type: "buy", ticker: "FPH.NZ", asset_type: "stock", asset_name: "Fisher & Paykel Healthcare", quantity: 100, price: 32, fees: 10, executed_at: "2025-03-10", soft_override_confirmed: true, confirm: true },
+      { type: "buy", ticker: "AAPL", asset_type: "stock", asset_name: "Apple Inc", quantity: 10, price: 220, fees: 5, currency: "USD", fx_rate: 1.75, executed_at: "2025-03-12", soft_override_confirmed: true, confirm: true },
+    ],
+  },
+  {
     email: "fixture-h10-import@example.test",
     name: "Fixture Import",
     plan: "starter",

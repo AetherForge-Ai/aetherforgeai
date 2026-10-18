@@ -206,6 +206,7 @@ function rowCash(t: TransactionRow): number {
     cash_nzd: t.cash_nzd,
     fees_nzd: t.fees_nzd ?? t.fees,
     quantity: t.quantity,
+    notes: t.notes,
   });
 }
 
