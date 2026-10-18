@@ -65,7 +65,7 @@ export async function applyFlexStatement(user: SyncUser, statement: string): Pro
   const looksXml = statement.trimStart().startsWith("<");
   const csv = looksXml ? flexTradesCsv(statement) : statement;
   if (csv.split("\n").length > 1) {
-    const res = await runH10Import(user, csv, { engine: "h10", action: "commit" });
+    const res = await runH10Import(user, csv, { engine: "h10", action: "commit" }, "broker-sync");
     const body = (await res.json().catch(() => ({}))) as { ok?: boolean; code?: string; data?: { written?: number; duplicates?: number[] }; error?: string };
     if (body.ok) {
       trades = body.data?.written ?? 0;

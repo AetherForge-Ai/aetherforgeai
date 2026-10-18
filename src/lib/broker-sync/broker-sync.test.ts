@@ -86,3 +86,11 @@ describe("XLSX import", () => {
     expect(detectBroker(parseCsv(text))).toBe("ibkr");
   });
 });
+
+describe("broker sync rate bucket", () => {
+  it("uses its own bucket, separate from manual imports", async () => {
+    const src = readFileSync("src/lib/import/persist.ts", "utf8");
+    expect(src).toContain("broker-sync-write:${user._id}");
+    expect(readFileSync("src/lib/broker-sync/ibkr-sync.server.ts", "utf8")).toContain('"broker-sync");');
+  });
+});

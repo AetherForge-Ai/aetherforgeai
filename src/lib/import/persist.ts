@@ -163,14 +163,22 @@ async function capRefusal(user: ImportUser, rows: readonly ImportRow[]): Promise
 }
 
 /** Preview writes nothing. Commit writes the good rows. Undo removes that batch. */
-export async function runH10Import(user: ImportUser, text: string, body: unknown): Promise<NextResponse> {
+/** Broker sync writes use their own bucket so manual imports and syncs never starve each other. */
+export const BROKER_SYNC_WRITE_LIMIT = 12;
+export const BROKER_SYNC_WRITE_WINDOW_MS = 60 * 60 * 1000;
+
+/** `source` is set by server code only (never read from the request body). */
+export async function runH10Import(user: ImportUser, text: string, body: unknown, source: "manual" | "broker-sync" = "manual"): Promise<NextResponse> {
   if (textTooLarge(text)) {
     return NextResponse.json({ ok: false, error: IMPORT_TOO_LARGE }, { status: 413 });
   }
   const input = (body && typeof body === "object" ? body : {}) as { action?: unknown; mapping?: unknown; batchId?: unknown };
   const action = input.action === "commit" || input.action === "undo" ? input.action : "preview";
   if (action !== "preview") {
-    const limit = await takeRateLimit(`import:${user._id}`, IMPORT_WRITE_LIMIT, IMPORT_WRITE_WINDOW_MS);
+    const limit =
+      source === "broker-sync"
+        ? await takeRateLimit(`broker-sync-write:${user._id}`, BROKER_SYNC_WRITE_LIMIT, BROKER_SYNC_WRITE_WINDOW_MS)
+        : await takeRateLimit(`import:${user._id}`, IMPORT_WRITE_LIMIT, IMPORT_WRITE_WINDOW_MS);
     if (!limit.allowed) {
       return NextResponse.json(
         { ok: false, error: "Too many imports in a short time. Wait a few minutes. Nothing was written." },

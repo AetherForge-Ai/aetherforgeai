@@ -9,15 +9,14 @@ export const dynamic = "force-dynamic";
 
 /**
  * Daily IBKR Flex sync for every active connection. Same CRON_SECRET contract as the other
- * cron routes (?key=, x-cron-secret or Bearer). Disabled (503) without CRON_SECRET or
+ * cron routes (x-cron-secret or Bearer header; no ?key=, per b20 CR-2). Disabled (503) without CRON_SECRET or
  * BROKER_TOKEN_KEY. Members run one at a time, 7 s apart (IBKR: 10 requests/min per token).
  */
 function secretOk(req: Request): boolean {
   const expected = process.env.CRON_SECRET || "";
   if (!expected) return false;
-  const url = new URL(req.url);
   const auth = req.headers.get("authorization");
-  const given = url.searchParams.get("key") || req.headers.get("x-cron-secret") || (auth?.toLowerCase().startsWith("bearer ") ? auth.slice(7).trim() : "");
+  const given = req.headers.get("x-cron-secret") || (auth?.toLowerCase().startsWith("bearer ") ? auth.slice(7).trim() : "");
   const a = Buffer.from(given || "");
   const b = Buffer.from(expected);
   return a.length === b.length && timingSafeEqual(a, b);
