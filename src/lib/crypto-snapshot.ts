@@ -932,6 +932,9 @@ export async function readDexSnapshot(timeoutMs = SNAPSHOT_READ_TIMEOUT_MS): Pro
   return memoryDex;
 }
 
+export { CRYPTO_PARTIAL_REFRESH_AFTER_MS, CRYPTO_ROW_DELAYED_AFTER_MS, mergeStaleCryptoList, cryptoRowDelayed } from "@/lib/crypto-row-delay";
+import { CRYPTO_PARTIAL_REFRESH_AFTER_MS, mergeStaleCryptoList } from "@/lib/crypto-row-delay";
+
 /** A refreshed list must keep at least this share of the saved list's rows to replace it. */
 export const CRYPTO_REPLACE_MIN_SHARE = 0.9;
 /** After this age a shorter verified list may replace the saved one (matches the amber band). */
@@ -959,7 +962,18 @@ export async function persistCryptoSnapshot(coins: CoinMarket[], at = new Date()
     const existingVerified = snapshotWorthSaving(existing.coins);
     const incomingVerified = snapshotWorthSaving(tagged);
     if (!incomingVerified) {
-      recordCryptoAttempt(false, new Error("unavailable: list not verified"));
+      // b38 H-1 (Chief ruling 1): once the saved list is over 10 minutes old, a shorter or unverified
+      // list (e.g. Yahoo's 11 majors) refreshes the coins it matches; every other row keeps its own
+      // true quotedAt, so no old price ever carries a fresh time. Rows over 15 min show "delayed".
+      const staleAge = Date.parse(at) - Date.parse(existing.at || "");
+      const merged = Number.isFinite(staleAge) && staleAge > CRYPTO_PARTIAL_REFRESH_AFTER_MS ? mergeStaleCryptoList(existing, tagged, at) : null;
+      if (!merged) {
+        recordCryptoAttempt(false, new Error("unavailable: list not verified"));
+        return;
+      }
+      const work = persistCryptoDurable(merged, at, existing.version ?? 0);
+      pendingSnapshotWrite = work;
+      await keepAlive(work);
       return;
     }
     // b24 G-05: a verified refresh that is only a few coins shorter (coins drop out of the top

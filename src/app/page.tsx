@@ -87,7 +87,7 @@ function TickerFallback() {
     <div
       aria-hidden="true"
       data-ticker-placeholder
-      className="w-full min-h-[213px] border-b border-emerald-500/20 bg-zinc-950 md:min-h-[149px]"
+      className="w-full min-h-[231px] border-b border-emerald-500/20 bg-zinc-950 md:min-h-[190px] lg:min-h-[149px]"
     />
   );
 }
@@ -102,7 +102,8 @@ async function HomeTickerBand() {
     ]),
   ]);
   const metalsInitial = metals?.live && metals.quotedAt ? metals : null;
-  return <MarketTicker initial={tape} initialMetals={metalsInitial} />;
+  // b38 CLS: hold the band at its loaded height while the footer row fills in.
+  return <MarketTicker initial={tape} initialMetals={metalsInitial} className="min-h-[231px] bg-zinc-950 md:min-h-[190px] lg:min-h-[149px]" />;
 }
 
 /** M-1: spot cards stream after the hero. The same feed and the same copy. */

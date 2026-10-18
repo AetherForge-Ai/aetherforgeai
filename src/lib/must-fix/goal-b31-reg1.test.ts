@@ -139,7 +139,7 @@ describe("b31 REG-1 / H-1: a slow store never blocks a request", () => {
   it("G-05: the tape keeps last-good rows and retries; no stuck Loading prices", () => {
     const tape = read("src/components/MarketTicker.tsx");
     expect(tape).toMatch(/AbortSignal\.timeout\(4_000\)/);
-    expect(tape).toMatch(/setTimeout\(loadFeed, 15_000\)/);
+    expect(tape).toMatch(/setTimeout\(loadFeed, warming \? 5_000 : 15_000\)/);
     expect(tape).toMatch(/Prices are delayed\. Retrying shortly\./);
   });
 });

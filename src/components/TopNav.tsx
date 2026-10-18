@@ -266,7 +266,8 @@ function AccountMenu({
               {initials(user.name)}
             </AvatarFallback>
           </Avatar>
-          <ChevronDown className={`size-4 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`} />
+          {/* b38 M-6: at 360 px the chevron was clipped; the avatar alone opens the menu there. */}
+          <ChevronDown className={`hidden size-4 text-muted-foreground transition-transform min-[400px]:block ${open ? "rotate-180" : ""}`} />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent

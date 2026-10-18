@@ -11,6 +11,7 @@ import { applyTransaction, ledgerAfterBooking, loadLedger } from "@/lib/transact
 import { tradeSchema } from "@/lib/trade-schema";
 import { hasForeignOwner, requestClaimsOtherUser } from "@/lib/account-guard";
 import { accountMismatchResponse, privateJson } from "@/lib/account-response";
+import { findIdempotentRow, writeMarkHeaders } from "@/lib/write-integrity";
 import { TRADE_CONFIRM_REQUIRED } from "@/lib/trade-confirm";
 import { previewActivityEmail } from "@/lib/activity-email";
 import { readActivityEmailPrefs } from "@/lib/activity-email-server";
@@ -182,6 +183,19 @@ export async function POST(req: Request) {
         );
       }
     }
+    // b37 G-10: idempotent replay across isolates. The client sends one key per Confirm and keeps
+    // it on a retry (401 → refresh → retry, a reload replaying its pending-write journal, or a second
+    // click). If a row stamped with that key (notes "idem=<key>") is already in the book, answer with
+    // that row and write nothing.
+    const idemKey = String(input.idempotency_key || "").trim().slice(0, 80);
+    if (idemKey) {
+      const book = await priorLedger;
+      const prior = book ? findIdempotentRow(book.transactions as Array<{ notes?: string }>, idemKey) : null;
+      if (prior && book) {
+        console.info("[write]", JSON.stringify({ action: input.type, outcome: "replayed", id: (prior as { _id?: string })._id ?? null, status: 200 }));
+        return NextResponse.json({ ok: true, data: { ...book, lastTransaction: prior, realizedNZD: 0, holding: null, replayed: true } }, { headers: writeMarkHeaders() });
+      }
+    }
     let priorReady: Awaited<ReturnType<typeof loadLedger>> | null = null;
     void priorLedger.then((book) => {
       if (book) priorReady = book;
@@ -225,12 +239,16 @@ export async function POST(req: Request) {
     // Goal b20 G-10: one line per write with the saved id and cash, so a "painted then
     // vanished" report can be matched to what the server actually stored.
     console.info("[write]", JSON.stringify({ action: input.type, ticker: input.ticker ?? null, id: (result.transaction as { _id?: string } | undefined)?._id ?? null, cash: ledger.cashBalance, status: 200 }));
-    return NextResponse.json({
-      ok: true,
-      data: { ...ledger, lastTransaction: result.transaction, realizedNZD: result.realizedNZD, holding: result.holding ?? null },
-    });
+    return NextResponse.json(
+      {
+        ok: true,
+        data: { ...ledger, lastTransaction: result.transaction, realizedNZD: result.realizedNZD, holding: result.holding ?? null },
+      },
+      { headers: writeMarkHeaders() }
+    );
   } catch (err: any) {
     console.error("[api/transactions] POST error:", err);
+    console.info("[write]", JSON.stringify({ action: "post", outcome: "error", status: 400 }));
     return NextResponse.json(
       { ok: false, error: err?.message || "Failed to record transaction" },
       { status: 400 }
@@ -287,7 +305,7 @@ export async function DELETE(req: Request) {
     const row = (loaded as { data?: { _id?: string; type?: string; user?: string | { _id?: string } } } | null)?.data;
     if (!row?._id) {
       invalidateBookCache(user._id);
-      return NextResponse.json({ ok: true, data: { alreadyRemoved: true } });
+      return NextResponse.json({ ok: true, data: { alreadyRemoved: true } }, { headers: writeMarkHeaders() });
     }
     const owner = typeof row.user === "object" && row.user ? row.user._id : row.user;
     if (String(owner || "") !== String(user._id)) {
@@ -321,7 +339,7 @@ export async function DELETE(req: Request) {
     console.info("[write]", JSON.stringify({ action: "delete", id, status: 200, cashAfter: (result as { cash?: { after?: number } })?.cash?.after ?? null }));
     ledgerAudit("delete", user._id, row, result);
     invalidateBookCache(user._id);
-    return NextResponse.json({ ok: true, data: result });
+    return NextResponse.json({ ok: true, data: result }, { headers: writeMarkHeaders() });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "That dividend was not removed.";
     console.error("[api/transactions] DELETE error:", err);

@@ -1,3 +1,5 @@
+import { MARKETS_SSR_DEADLINE_MS, withDeadline } from "@/lib/ticker-serve";
+import { MarketsAccountPending } from "@/components/markets/MarketsAccountPending";
 import type { Metadata } from "next";
 import { getCurrentUser } from "@/lib/session";
 import { AppShell } from "@/components/AppShell";
@@ -47,14 +49,34 @@ async function marketsMetadata(searchParams: Promise<{ tab?: string }>): Promise
  * sidebar nav). Shows every live ticker across NZX · ASX · Dow Jones · NASDAQ.
  * Logged-out visitors get a read-only preview; members can buy in one click.
  */
+const SESSION_PENDING = "session-pending" as const;
+
+function MarketsTimeout() {
+  return (
+    <AppShell tone="dark" guest user={{ name: "Guest", email: "Sign in to activate your account" }}>
+      <main className="mx-auto max-w-3xl p-6">
+        <h1 className="text-xl font-semibold">Markets</h1>
+        <p className="mt-2 text-sm opacity-80">Prices are taking longer than usual to load. Refresh the page in a few seconds.</p>
+      </main>
+    </AppShell>
+  );
+}
+
 export default async function MarketsPage({
   searchParams,
 }: {
   searchParams: Promise<{ tab?: string }>;
 }) {
-  const user = await getCurrentUser();
-  const tab = parseMarketsTab((await searchParams).tab);
-  const index = await loadPublicMarketIndex();
+  // b37 REG-1: /markets once gave no first byte for 30 s. The session lookup and the index build run in
+  // parallel, each with a hard deadline; a slow session read renders the public view instead of hanging.
+  const [user, tab, index] = await Promise.all([
+    withDeadline<Awaited<ReturnType<typeof getCurrentUser>> | typeof SESSION_PENDING>(getCurrentUser(), MARKETS_SSR_DEADLINE_MS, SESSION_PENDING),
+    searchParams.then((p) => parseMarketsTab(p.tab)),
+    withDeadline(loadPublicMarketIndex(), MARKETS_SSR_DEADLINE_MS + 3_000, null),
+  ]);
+  // b38 (Chief ruling 4): a slow session is never shown as signed out.
+  if (user === SESSION_PENDING) return <MarketsAccountPending />;
+  if (!index) return <MarketsTimeout />;
 
   if (!user) {
     return (

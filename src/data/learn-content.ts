@@ -178,7 +178,7 @@ export const GUIDES: readonly Guide[] = [
       { text: "An individual whose FIF interests cost less than NZ$50,000 in total does not need to calculate income under the FIF rules.", source: IRD_FIF_EXEMPT },
       { text: "Under the threshold, tax is paid on dividends received (and on disposal gains if the shares are held on revenue account) instead of FIF income.", source: IR461 },
       { text: "If the total cost exceeds NZ$50,000 on any day in the year, all attributing interests are subject to the FIF rules; the first NZ$50,000 is not exempt.", source: IR461 },
-      { text: "The threshold is per natural person, based on that person's share of the cost: each owner's share of a joint holding, plus their separate FIF holdings, counts toward their own NZ$50,000. It does not double for a joint portfolio as a whole, and trusts and companies don't get the exemption.", source: IR461 },
+      { text: "The NZ$50,000 threshold applies per person, based on total cost at any time in the year; joint holdings are split between the owners, so 2 equal owners can together hold up to NZ$100,000 in cost; it's not a doubled threshold for the portfolio. Trusts and companies don't get the exemption. Indicative, not tax advice.", source: IR461 },
     ],
   },
   {

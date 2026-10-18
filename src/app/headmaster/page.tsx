@@ -23,7 +23,7 @@ export default async function HeadmasterPage() {
     return (
       <BotGuide
         title="The Headmaster"
-        lede="The Headmaster is the planning bot for the paper book. Signed-out visitors see this explanation and an example book. The member console stays behind sign-in."
+        lede="The Headmaster is the planning bot for the paper book."
         body={BOT_GUIDES.headmaster}
         kind="headmaster"
         screenshots={[{ src: "/screens/demo-book.png", alt: "Screenshot of the read-only example book with synthetic shares, crypto, metal and cash", caption: "Example book. Synthetic rows only.", width: 1200, height: 910 }, { src: "/screens/headmaster-example.png", alt: "Screenshot of the Headmaster example section showing a synthetic book split across a share, a coin and cash, with the example overview", caption: "Example Headmaster overview. Not a member result.", width: 752, height: 363 }]}

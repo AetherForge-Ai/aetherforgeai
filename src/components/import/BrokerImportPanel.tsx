@@ -3,7 +3,7 @@
 import { importFileProblem } from "@/lib/import-limits";
 import { useEffect, useRef, useState } from "react";
 import { importOversells } from "@/lib/import-oversell";
-import { nzToday, withDate } from "@/lib/paste-date";
+import { datelessCsvRows, nzToday, withRowDates } from "@/lib/paste-date";
 import { PASTE_IMPORT_AI_ENABLED, parsePastedTrades, pastedRowsToCsv, type PastedRow } from "@/lib/paste-import";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -70,6 +70,8 @@ export function BrokerImportPanel({
   // editable date (default today, NZ), never dropped as "No trades found".
   const [pastedRows, setPastedRows] = useState<PastedRow[]>([]);
   const [missingDate, setMissingDate] = useState("");
+  // b38 G-24: each dateless row can take its own date (falls back to the shared one).
+  const [rowDates, setRowDates] = useState<Record<number, string>>({});
   const [mapping, setMapping] = useState<Record<string, string>>({});
   const [preview, setPreview] = useState<Preview | null>(null);
   const [message, setMessage] = useState("");
@@ -141,6 +143,14 @@ export function BrokerImportPanel({
       return;
     }
     const body = await file.text();
+    // b38 G-24: a file of trades with no date column (or raw dateless lines) goes to the
+    // per-row date prompt instead of being rejected whole or silently ignored.
+    const firstLine = body.split(/\r?\n/, 1)[0] || "";
+    const dateless = datelessCsvRows(body) ?? (firstLine.includes(",") ? null : parsePastedTrades(body).rows.filter((r) => !r.date));
+    if (dateless && dateless.length) {
+      adoptPasted(dateless, [], file.name);
+      return;
+    }
     setText(body);
     setFileName(file.name);
     setPreview(null);
@@ -158,24 +168,36 @@ export function BrokerImportPanel({
       setPasteNote("No trades found in that text. Paste lines like “Bought 25 FPH.NZ at NZ$28.50 on 13 Oct 2026”.");
       return;
     }
+    adoptPasted(rows, unread, "Pasted text");
+  }
+
+  function adoptPasted(rows: PastedRow[], unread: string[], name: string) {
     const dateless = rows.filter((r) => !r.date).length;
     const fill = missingDate || nzToday();
     if (dateless && !missingDate) setMissingDate(fill);
+    setRowDates({});
     setPastedRows(rows);
-    setText(pastedRowsToCsv(withDate(rows, fill)));
-    setFileName("Pasted text");
+    setText(pastedRowsToCsv(withRowDates(rows, {}, fill)));
+    setFileName(name);
     setPreview(null);
     setMessage("");
     setImportError("");
     setConsent(false);
     setAcknowledgeSkipped(false);
-    setPasteNote(`${rows.length} trade${rows.length === 1 ? "" : "s"} read from the text${unread.length ? `; ${unread.length} part${unread.length === 1 ? "" : "s"} could not be read` : ""}. Review them below before anything is saved.${dateless ? ` Date missing on ${dateless} trade${dateless === 1 ? "" : "s"}: set it below.` : ""}`);
+    setPasteNote(`${rows.length} trade${rows.length === 1 ? "" : "s"} read${name === "Pasted text" ? " from the text" : ` from ${name}`}${unread.length ? `; ${unread.length} part${unread.length === 1 ? "" : "s"} could not be read` : ""}. Review them below before anything is saved.${dateless ? ` Date missing on ${dateless} trade${dateless === 1 ? "" : "s"}: set each date below.` : ""}`);
+  }
+
+  function changeRowDate(index: number, value: string) {
+    const next = { ...rowDates, [index]: value };
+    setRowDates(next);
+    setText(pastedRowsToCsv(withRowDates(pastedRows, next, missingDate)));
+    setPreview(null);
   }
 
   function changeMissingDate(value: string) {
     setMissingDate(value);
     if (pastedRows.some((r) => !r.date)) {
-      setText(pastedRowsToCsv(withDate(pastedRows, value)));
+      setText(pastedRowsToCsv(withRowDates(pastedRows, rowDates, value)));
       setPreview(null);
     }
   }
@@ -381,10 +403,31 @@ export function BrokerImportPanel({
             <button type="button" onClick={readPasted} className="mt-2 h-9 rounded-md border px-3 text-sm font-semibold">Read trades from text</button>
             {pasteNote ? <p className="mt-2 text-sm" role="status">{pasteNote}</p> : null}
             {pastedRows.some((r) => !r.date) ? (
-              <label className="mt-2 flex items-center gap-2 text-sm" data-paste-date-missing>
-                <span className="font-medium text-rose-700">Date missing</span>
-                <input type="date" className="rounded border px-2 py-1" value={missingDate} onChange={(e) => changeMissingDate(e.target.value)} aria-label="Trade date for pasted lines with no date" />
-              </label>
+              <div className="mt-2 space-y-1 text-sm" data-paste-date-missing>
+                <label className="flex items-center gap-2">
+                  <span className="font-medium text-rose-700">Date missing</span>
+                  <input type="date" className="rounded border px-2 py-1" value={missingDate} onChange={(e) => changeMissingDate(e.target.value)} aria-label="Trade date for all rows with no date" />
+                  <span className="text-xs text-muted-foreground">(all rows below unless set per row)</span>
+                </label>
+                <ul className="space-y-1" data-paste-row-dates>
+                  {pastedRows.map((r, i) =>
+                    r.date ? null : (
+                      <li key={i} className="flex flex-wrap items-center gap-2">
+                        <span>
+                          {r.type} {r.quantity} {r.ticker} @ {r.price}
+                        </span>
+                        <input
+                          type="date"
+                          className="rounded border px-2 py-1"
+                          value={rowDates[i] || missingDate}
+                          onChange={(e) => changeRowDate(i, e.target.value)}
+                          aria-label={`Trade date for ${r.type} ${r.quantity} ${r.ticker}`}
+                        />
+                      </li>
+                    )
+                  )}
+                </ul>
+              </div>
             ) : null}
             <p className="mt-2 text-xs text-muted-foreground">
               {PASTE_IMPORT_AI_ENABLED

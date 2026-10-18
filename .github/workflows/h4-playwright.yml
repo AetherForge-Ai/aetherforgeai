@@ -1,0 +1,36 @@
+# b38 H-4 (GOAL-LOCK #11): "Playwright passes 3 runs", in CI against production.
+# Credentials come only from repository secrets (an allow-listed fixture account). Nothing is written:
+# the spec only loads /dashboard/transactions?fixture=500 and reads timings.
+# Needs secrets H4_EMAIL and H4_PASSWORD (set by Lukas/Chief; not created by the build).
+name: h4-playwright
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "41 */6 * * *"
+permissions:
+  contents: read
+jobs:
+  h4:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    if: ${{ github.ref == 'refs/heads/main' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npx playwright install --with-deps chromium
+      - name: Check secrets are set
+        env:
+          H4_EMAIL: ${{ secrets.H4_EMAIL }}
+          H4_PASSWORD: ${{ secrets.H4_PASSWORD }}
+        run: |
+          if [ -z "$H4_EMAIL" ] || [ -z "$H4_PASSWORD" ]; then echo "H4_EMAIL / H4_PASSWORD secrets are not set"; exit 1; fi
+      - name: Playwright H-4 (3 runs)
+        env:
+          BASE: https://aetherforgeai.co.nz
+          H4_EMAIL: ${{ secrets.H4_EMAIL }}
+          H4_PASSWORD: ${{ secrets.H4_PASSWORD }}
+        run: npx playwright test -c qa/playwright

@@ -1,6 +1,6 @@
 /**
  * Goal loop batch b11 (GOAL-LOCK G-10 G-11 G-14 G-15 G-17).
- * pull-check:v3-goal-b37-2026-10-19
+ * pull-check:v3-goal-b38-2026-10-19
  */
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
@@ -12,15 +12,15 @@ const read = (p: string) => readFileSync(p, "utf8");
 
 describe("b11 pins", () => {
   it("build version", () => {
-    expect(read("public/build-version.txt").trim()).toBe("v3-goal-b37-2026-10-19");
-    expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-goal-b37-2026-10-19");
+    expect(read("public/build-version.txt").trim()).toBe("v3-goal-b38-2026-10-19");
+    expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-goal-b38-2026-10-19");
   });
 });
 
 describe("G-15 schema", () => {
   it("breadcrumb items are absolute URLs", () => {
     const b = breadcrumbJsonLd([{ name: "Home", path: "/" }, { name: "Pricing", path: "/pricing" }]);
-    for (const item of b.itemListElement) expect(item.item).toMatch(/^https?:\/\/[^/]+\//);
+    for (const item of b.itemListElement) expect(item.item["@id"]).toMatch(/^https?:\/\/[^/]+\//); // b38: item is a named WebPage
     expect(absoluteUrl("https://x.test/a")).toBe("https://x.test/a");
   });
   it("FAQ has question and answer text; no rating schema anywhere", () => {
