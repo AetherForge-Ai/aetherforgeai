@@ -384,3 +384,19 @@ export async function loadSavedQuoteLine(ticker: string, now = Date.now()): Prom
   const source = print.source;
   return `${key} ${formatMarketPrice(print.price, currency)} ${formatSignedPercent(print.changePct)} ${rowAsOf(print.quotedAt)} · ${source}`;
 }
+
+
+/**
+ * b34 M-2 (GOAL-LOCK #16, Chief ruling): the newest saved NZX/ASX print time (this isolate's saved
+ * prints, else the bundled saved snapshot). Used by /status instead of "unavailable".
+ */
+export function latestSavedEquityAt(): string | null {
+  let best: string | null = null;
+  const consider = (ticker: string, print: SavedPrint | undefined) => {
+    if (!print?.quotedAt || !/\.(NZ|AX)$/i.test(ticker)) return;
+    if (!best || print.quotedAt > best) best = print.quotedAt;
+  };
+  for (const [t, p] of Object.entries(seed)) consider(t, p);
+  for (const [t, p] of memory) consider(t, p);
+  return best;
+}

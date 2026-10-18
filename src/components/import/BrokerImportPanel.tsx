@@ -324,8 +324,8 @@ export function BrokerImportPanel({
       {embedded ? null : <p className="text-xs font-semibold uppercase tracking-wide text-primary">Paper book</p>}
       {embedded ? null : <h1 className="mt-2 font-display text-3xl font-bold">Import trades</h1>}
       <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
-        Upload a Sharesies, Hatch, Kernel, Stake, IBKR, Binance, Easy Crypto, or AetherForge export, or map the columns
-        yourself. Review the rows
+        Upload a broker export (Hatch, Swyftx and IBKR layouts are checked against their published columns) or an AetherForge export, or map the columns
+        yourself. Other layouts are read by column name, so check every row. Review the rows
         before anything is saved. A split, a dividend, or a row this page cannot read is listed and left
         out until you acknowledge it. A duplicate in this file, or a fill already on the book, is skipped.
         Nothing is saved before you confirm.

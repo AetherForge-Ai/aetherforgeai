@@ -1,0 +1,2 @@
+Order ID,Trade date,Instrument name,Market code,Quantity,Price,Transaction type,Exchange rate,Exchange fee,Transaction fee,Currency,Amount,Transaction method
+SS-3001,21/01/2026,Air New Zealand,NZX,100,0.80,BUY,1,0.00,0.50,NZD,80.00,Trade

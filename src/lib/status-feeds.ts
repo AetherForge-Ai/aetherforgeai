@@ -108,3 +108,18 @@ export function latestIso(values: Array<string | null | undefined>): string | nu
   }
   return iso;
 }
+
+
+/**
+ * b34 M-2 (Chief ruling): honest label for the saved equity snapshot time — never implies live.
+ * "Prices last updated 6:32 am NZT" today, "Prices last updated 6:32 am NZT, 13 Oct" otherwise.
+ */
+export function savedSnapshotLabel(at: string, now = Date.now()): string {
+  const d = new Date(at);
+  const tz = "Pacific/Auckland";
+  const time = new Intl.DateTimeFormat("en-NZ", { timeZone: tz, hour: "numeric", minute: "2-digit", hour12: true }).format(d).replace(/\s+/g, " ").toLowerCase();
+  const day = (x: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(x);
+  const sameDay = day(d) === day(new Date(now));
+  const date = new Intl.DateTimeFormat("en-NZ", { timeZone: tz, day: "numeric", month: "short" }).format(d);
+  return `Prices last updated ${time} NZT${sameDay ? "" : `, ${date}`}`;
+}

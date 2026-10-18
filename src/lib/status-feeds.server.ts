@@ -8,7 +8,7 @@ import { FEED_FORCE_LABEL, FEED_FRESHNESS_WINDOWS } from "@/lib/feed-freshness-h
 // b28 G-05: registers the durable attempt store this page reads.
 import "@/lib/crypto-snapshot";
 import { formatDisplayDateTime } from "@/lib/currency";
-import { latestIso, shapeStatusFeed, type StatusFeedRow } from "@/lib/status-feeds";
+import { latestIso, savedSnapshotLabel, shapeStatusFeed, type StatusFeedRow } from "@/lib/status-feeds";
 
 /** b31 M-2/REG-1: a probe waits at most this long; on a timeout the last OK time is shown. */
 export const STATUS_PROBE_TIMEOUT_MS = 1_500;
@@ -29,6 +29,14 @@ async function within<T>(work: Promise<T>, ms = STATUS_PROBE_TIMEOUT_MS): Promis
     work.then((value) => value).catch(() => null),
     new Promise<null>((resolve) => setTimeout(() => resolve(null), ms)),
   ]);
+}
+
+/** b34 M-2: never "unavailable" for equities while a saved snapshot time exists. */
+async function equityRow(row: StatusFeedRow, now: number): Promise<StatusFeedRow> {
+  if (!/^unavailable/.test(row.text)) return row;
+  const { latestSavedEquityAt } = await import("@/lib/stock-board.server");
+  const at = latestSavedEquityAt();
+  return at ? { ...row, tone: "amber", text: savedSnapshotLabel(at, now) } : row;
 }
 
 /** Provider timestamps only. A failed or baseline feed is unavailable. */
@@ -58,7 +66,7 @@ export async function loadStatusFeeds(now = Date.now()): Promise<StatusFeedRow[]
   const metalsAt = metalsTimedOut ? lastOk.metals ?? null : remember("metals", metals?.live ? metals.quotedAt : null);
   const killed = cryptoFeedKilled();
   return [
-    withLastOk(shapeStatusFeed({ label: FEED_FORCE_LABEL.equity, at: equityAt, now, ...FEED_FRESHNESS_WINDOWS.equity }), tapeTimedOut),
+    await equityRow(withLastOk(shapeStatusFeed({ label: FEED_FORCE_LABEL.equity, at: equityAt, now, ...FEED_FRESHNESS_WINDOWS.equity }), tapeTimedOut), now),
     withLastOk(shapeStatusFeed({
       label: FEED_FORCE_LABEL.crypto,
       at: cryptoAt,
