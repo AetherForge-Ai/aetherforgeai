@@ -29,7 +29,29 @@ function withDeadline<T>(work: Promise<T>, ms: number): Promise<T> {
 
 type Row = { _id: string; count?: number | null; bucket_key?: string | null };
 
+type SlidingRow = { _id: string; bucket_key?: string | null; expires_at?: string | null };
+
+/** b25 CR-2: one row per hit with expires_at = hit + window; the live hits are the unexpired rows. */
+async function slidingRows(storageKey: string, windowMs: number, now: number): Promise<number[]> {
+  await totalumSdk.crud.createRecord(TABLE, { bucket_key: storageKey, count: 1, expires_at: new Date(now + windowMs).toISOString() });
+  const res = await totalumSdk.crud.query(TABLE, { _filter: { bucket_key: storageKey }, _limit: DURABLE_COUNT_SCAN } as never);
+  const rows = ((res?.data as SlidingRow[] | undefined) || []).filter((r) => r.bucket_key == null || r.bucket_key === storageKey);
+  const live = rows.map((r) => Date.parse(String(r.expires_at || ""))).filter((t) => Number.isFinite(t) && t > now);
+  if (live.length < 1) throw new Error("sliding window read did not see its own row");
+  return live;
+}
+
 export const totalumCounterStore: DurableCounterStore = {
+  async slidingHits(storageKey, windowMs, now) {
+    if (Date.now() < disabledUntil) throw new Error("durable counter off");
+    try {
+      return await withDeadline(slidingRows(storageKey, windowMs, now), DURABLE_COUNTER_TIMEOUT_MS);
+    } catch (err) {
+      disabledUntil = Date.now() + 5 * 60 * 1000;
+      console.warn("[rate-limit] durable sliding window unavailable; using memory", err instanceof Error ? err.message : "error");
+      throw err;
+    }
+  },
   async increment(storageKey, windowMs, now) {
     if (Date.now() < disabledUntil) throw new Error("durable counter off");
     try {

@@ -1,4 +1,5 @@
 import { formatDisplayDateTime } from "@/lib/currency";
+import { XAI_CHAT_ENDPOINT, guideModel, lastGuideFailure } from "@/lib/grok";
 
 /**
  * Goal b8 CR-2 / K-10: a key-free health check of the AI guide provider for /status.
@@ -7,12 +8,13 @@ import { formatDisplayDateTime } from "@/lib/currency";
  * for five minutes. When Lukas fixes the key, this turns OK and the guide
  * answers with no code change.
  */
-const MODELS_ENDPOINT = "https://api.x.ai/v1/models";
+// b25 CR-2: /status said "OK" from /v1/models while every guide call got http_404. The probe now
+// makes the guide's own call: same endpoint (chat/completions), same model, one output token.
 export const AI_HEALTH_TTL_MS = 5 * 60 * 1000;
 
 export type AiProviderHealth =
-  | { state: "ok"; checkedAt: string }
-  | { state: "unavailable"; code: string; checkedAt: string }
+  | { state: "ok"; checkedAt: string; model?: string }
+  | { state: "unavailable"; code: string; checkedAt: string; model?: string; endpoint?: string }
   | { state: "not_configured"; checkedAt: string };
 
 let cached: { at: number; value: AiProviderHealth } | null = null;
@@ -33,11 +35,17 @@ export async function aiProviderHealth(
     value = { state: "not_configured", checkedAt };
   } else {
     try {
-      const res = await fetchImpl(MODELS_ENDPOINT, {
-        headers: { Authorization: `Bearer ${apiKey}` },
-        signal: AbortSignal.timeout(4000),
+      const model = guideModel();
+      const res = await fetchImpl(XAI_CHAT_ENDPOINT, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ model, messages: [{ role: "user", content: "ping" }], max_tokens: 1, stream: false }),
+        signal: AbortSignal.timeout(6000),
       });
-      value = res.ok ? { state: "ok", checkedAt } : { state: "unavailable", code: `http_${res.status}`, checkedAt };
+      value = res.ok
+        ? { state: "ok", checkedAt, model }
+        : { state: "unavailable", code: `http_${res.status}`, checkedAt, model, endpoint: XAI_CHAT_ENDPOINT };
+      if (!res.ok) console.warn(`[ai-health] guide probe failed model=${model} endpoint=${XAI_CHAT_ENDPOINT} code=http_${res.status}`);
     } catch (err) {
       const timedOut = err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError");
       value = { state: "unavailable", code: timedOut ? "timeout" : "network", checkedAt };
@@ -50,7 +58,10 @@ export async function aiProviderHealth(
 /** One line for /status. No secrets and no provider error text. */
 export function aiProviderStatusLine(h: AiProviderHealth): { body: string; tone?: "amber" } {
   const when = `${formatDisplayDateTime(h.checkedAt)} (NZ time)`;
-  if (h.state === "ok") return { body: `OK, checked ${when}` };
+  const fail = lastGuideFailure();
+  const lastFail = fail ? ` Last guide failure: ${fail.code} (model ${fail.model}) at ${formatDisplayDateTime(fail.at)} (NZ time).` : "";
+  if (h.state === "ok") return { body: `OK${h.model ? ` (model ${h.model})` : ""}, checked ${when}.${lastFail}`, ...(fail ? { tone: "amber" as const } : {}) };
   if (h.state === "not_configured") return { body: `Not configured, checked ${when}. The guide answers from built-in help.`, tone: "amber" };
-  return { body: `Unavailable (${h.code}), checked ${when}. The guide answers from built-in help until this is fixed.`, tone: "amber" };
+  const where = h.model ? ` from model ${h.model} at ${h.endpoint ?? XAI_CHAT_ENDPOINT}` : "";
+  return { body: `Unavailable (${h.code})${where}, checked ${when}. The guide answers from built-in help until this is fixed.${lastFail}`, tone: "amber" };
 }
