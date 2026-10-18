@@ -19,7 +19,7 @@ import { AnalyticsNotice } from "@/components/AnalyticsNotice";
 import { SiteFooter } from "@/components/SiteFooter";
 import { Toaster } from "@/components/ui/sonner";
 import { PortfolioCoach } from "@/components/portfolio-coach";
-import { TransactionDialogHost } from "@/components/dashboard/TransactionDialogHost";
+import { LazyTransactionDialogHost } from "@/components/dashboard/LazyTransactionDialogHost";
 import { PwaRegister } from "@/components/PwaRegister";
 import { LEGAL_ENTITY_NAME, NZBN } from "@/lib/company";
 
@@ -141,7 +141,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           {/* Single Buy/Add host for every dashboard subpage. Lives outside
               PortfolioDashboard so the stocks hub's live-price hydrate cannot
               remount the dialog mid ticker-search. */}
-          <TransactionDialogHost />
+          <LazyTransactionDialogHost />
           <Toaster position="top-center" richColors />
           <PwaRegister />
         </DocumentSessionProvider>

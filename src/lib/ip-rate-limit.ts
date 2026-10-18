@@ -306,6 +306,9 @@ export function classifyTableError(err: unknown): string {
   if (msg.includes("durable counter off")) return lastTableState;
   if (status === 401 || status === 403 || /unauthori|forbidden|permission|api key|apikey/.test(msg)) return "error:permission";
   if (status === 404 || /not found|does not exist|unknown (table|type)|no such table|table .*missing/.test(msg)) return "missing";
+  const missing = /columns missing=([a-z_,]+)/.exec(msg);
+  if (missing) return `error:columns(missing=${missing[1]})`;
+  if (/filter on bucket_key returned nothing/.test(msg)) return "error:columns(filter-ignored)";
   if (/no rows|column|field|schema|validation|invalid property|unknown property/.test(msg)) return "error:columns";
   if (/timeout|deadline|timed out/.test(msg)) return "error:timeout";
   if (status) return `error:http-${status}`;
