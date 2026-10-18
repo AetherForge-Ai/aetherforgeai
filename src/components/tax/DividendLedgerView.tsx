@@ -173,9 +173,15 @@ export function DividendLedgerView({
         ...(Number(drpShares) > 0 ? { dividend_drp_shares: Number(drpShares) } : {}),
         fx_rate: preview.parts.fx,
         fx_source: currency === "NZD" ? "nzd" : "payment-date",
+        // Goal b20 G-10: "Save anyway" must tell the server the duplicate was confirmed,
+        // otherwise the server's own duplicate check refuses it (409) and nothing is saved.
+        ...(duplicate ? { allow_duplicate: true } : {}),
       });
+      console.log(`[write] dividend ${selected.ticker} status=${res.status ?? "?"} ok=${res.ok} id=${String((res.data as { lastTransaction?: { _id?: string } } | undefined)?.lastTransaction?._id ?? "")}`);
       if (!res.ok) {
-        setMessage(typeof res.error === "string" ? res.error : "That dividend was not saved.");
+        const why = typeof res.error === "string" ? res.error : "That dividend was not saved.";
+        setMessage(`Not saved: ${why}`);
+        toast.error(`Not saved: ${why}`);
         return;
       }
       setGross("");
@@ -213,30 +219,19 @@ export function DividendLedgerView({
     if (!id) return false;
     setRemovingId(id);
     setMessage("");
-    // Goal b18 G-10: the row leaves at once and stays gone through any refetch;
-    // cash moves at once from the row's own net cash. A refusal restores both.
-    const previous = listed;
-    const row = listed.find((r) => r.id === id);
-    removedRef.current.add(id);
-    setListed((current) => current.filter((r) => r.id !== id));
-    const cashBefore = readCachedCashNZD(getActiveAccountUserId());
-    if (row && cashBefore != null) {
-      const guess = Math.round((cashBefore - row.cashNzd) * 100) / 100;
-      writeCachedCashNZD(getActiveAccountUserId(), guess);
-      window.dispatchEvent(new CustomEvent("aetherforge-book-changed", { detail: { cashBalance: guess, optimistic: true } }));
-    }
+    // Goal b20 G-10: authoritative delete. The row shows "Removing…" until the
+    // server confirms, then leaves; cash is painted from the server's figure.
     try {
       const res = await api.delete<{ cash?: { after?: number } }>(`/api/transactions?id=${encodeURIComponent(id)}`);
+      console.log(`[write] delete dividend id=${id} status=${res.status ?? "?"} ok=${res.ok}`);
       if (!res.ok) {
-        removedRef.current.delete(id);
-        setListed(previous);
-        if (cashBefore != null) {
-          writeCachedCashNZD(getActiveAccountUserId(), cashBefore);
-          window.dispatchEvent(new CustomEvent("aetherforge-book-changed", { detail: { cashBalance: cashBefore } }));
-        }
-        setMessage(typeof res.error === "string" ? res.error : "That dividend was not removed.");
+        const why = typeof res.error === "string" ? res.error : "That dividend was not removed.";
+        setMessage(`Not removed: ${why}`);
+        toast.error(`Not removed: ${why}`);
         return false;
       }
+      removedRef.current.add(id);
+      setListed((current) => current.filter((r) => r.id !== id));
       const after = res.data?.cash?.after;
       if (typeof after === "number") {
         writeCachedCashNZD(getActiveAccountUserId(), after);

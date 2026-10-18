@@ -1986,35 +1986,35 @@ export function PortfolioDashboard({
   }
 
   async function handleDeleteDividend(line: SnapshotLedgerLine): Promise<boolean> {
-    // Goal b13 G-10: remove the row and move cash on click; the list is never
-    // cleared while the server confirms, and a refusal puts both back.
-    const previousSnapshot = bookSnapshot;
-    const previousCash = cashBalance;
+    // Goal b20 G-10: authoritative delete. The row stays (marked "Removing…" by the
+    // ledger view) until the server confirms; then it leaves and cash is painted from
+    // the server's figure. A refusal leaves the row where it was with the reason.
     lastMutationAtRef.current = Date.now();
-    setBookSnapshot((current) => {
-      if (!current) return current;
-      const trimmed = { ...current, ledger: current.ledger.filter((row) => row.id !== line.id) };
-      const next = Number.isFinite(line.cashNzd) ? withCashDelta(trimmed, -line.cashNzd) : trimmed;
-      writePortfolioSnapshotCache(userId, next);
-      return next;
-    });
-    if (Number.isFinite(line.cashNzd)) applyKnownCash(Math.round((cashBalance - line.cashNzd) * 100) / 100);
     const res = await api.delete<{ cash?: { after?: number }; alreadyRemoved?: boolean }>(
       `/api/transactions?id=${encodeURIComponent(line.id)}`
     );
+    console.log(`[write] delete ${line.type} ${line.ticker} id=${line.id} status=${res.status ?? "?"} ok=${res.ok}`);
     const label = line.type === "dividend" ? "Dividend" : line.type === "buy" ? "Buy" : "Sell";
-    if (!res.ok) {
-      setBookSnapshot(previousSnapshot);
-      applyKnownCash(previousCash);
-    }
     if (res.ok) {
-      // b7 H-5: an id that is already gone is a success (idempotent), not "not found".
-      toast.success(res.data?.alreadyRemoved ? `${label} was already removed` : `${label} removed`);
       const after = res.data?.cash?.after;
+      setBookSnapshot((current) => {
+        if (!current) return current;
+        const trimmed = { ...current, ledger: current.ledger.filter((row) => row.id !== line.id) };
+        const next =
+          typeof after === "number"
+            ? withCashDelta(trimmed, after - cashBalance)
+            : Number.isFinite(line.cashNzd)
+              ? withCashDelta(trimmed, -line.cashNzd)
+              : trimmed;
+        writePortfolioSnapshotCache(userId, next);
+        return next;
+      });
+      if (typeof after === "number") applyKnownCash(after);
+      toast.success(res.data?.alreadyRemoved ? `${label} was already removed` : `${label} removed`);
       handleDataChanged(typeof after === "number" ? { cashBalance: after } : undefined);
       return true;
     }
-    toast.error(typeof res.error === "string" ? res.error : `That ${label.toLowerCase()} was not removed.`);
+    toast.error(`Not removed: ${typeof res.error === "string" ? res.error : `the server refused this ${label.toLowerCase()}.`}`);
     return false;
   }
 
@@ -2146,37 +2146,34 @@ export function PortfolioDashboard({
   async function confirmDelete() {
     if (!deleteTarget) return;
     setDeleting(true);
-    // Goal b18 G-10: the row leaves the table on click; a refusal puts it back.
+    // Goal b20 G-10: authoritative delete. The dialog shows "Removing…" until the
+    // server confirms, then the row leaves; a refusal keeps it with the reason.
     lastMutationAtRef.current = Date.now();
     const target = deleteTarget;
-    const previousStocks = allStocks;
-    const previousSnapshot = bookSnapshot;
-    setAllStocks((rows) => rows.filter((row) => row._id !== target._id));
-    setBookSnapshot((current) =>
-      current
-        ? {
-            ...current,
-            groups: current.groups.map((group) => ({
-              ...group,
-              positions: group.positions.filter((p) => !(p.holdingId === target._id || (p.holdingId == null && p.ticker.toUpperCase() === String(target.ticker).toUpperCase()))),
-            })),
-          }
-        : current
-    );
     const res = await api.delete(`/api/stocks/${target._id}`);
+    console.log(`[write] delete holding ${target.ticker} id=${target._id} status=${res.status ?? "?"} ok=${res.ok}`);
     setDeleting(false);
-    if (!res.ok) {
-      setAllStocks(previousStocks);
-      setBookSnapshot(previousSnapshot);
-    }
     if (res.ok) {
-      toast.success(`${deleteTarget.ticker} removed`);
+      setAllStocks((rows) => rows.filter((row) => row._id !== target._id));
+      setBookSnapshot((current) =>
+        current
+          ? {
+              ...current,
+              groups: current.groups.map((group) => ({
+                ...group,
+                positions: group.positions.filter((p) => !(p.holdingId === target._id || (p.holdingId == null && p.ticker.toUpperCase() === String(target.ticker).toUpperCase()))),
+              })),
+            }
+          : current
+      );
+      toast.success(`${target.ticker} removed`);
       setDeleteTarget(null);
       setBookedGuard(bookedGuardAfterEvent(bookedGuardRef.current, { type: "delete" }));
+      lastMutationAtRef.current = Date.now();
       handleDataChanged();
     } else {
       console.error("[dashboard] Delete failed:", res.error);
-      toast.error("Could not remove holding.");
+      toast.error(`Not removed: ${typeof res.error === "string" ? res.error : "the server refused it."}`);
     }
   }
 
@@ -2381,6 +2378,7 @@ export function PortfolioDashboard({
                   <Button type="button" variant="outline" className="h-auto min-h-11 whitespace-normal" onClick={() => handleCalculatorCash("deposit")}>Deposit/Withdraw</Button>
                   <a href="/dashboard/split" className="inline-flex min-h-11 items-center justify-center rounded-md border px-4 text-sm font-medium">Record split</a>
                   <Button type="button" variant="outline" className="h-auto min-h-11 whitespace-normal" onClick={() => void exportLedger()} disabled={freePlan} aria-label={freePlan ? csvLockAccessibleName("Transactions CSV") : undefined} title={freePlan ? CSV_LOCK_LABEL : undefined}>{freePlan ? CSV_LOCK_LABEL : "Export"}</Button>
+                  <Button type="button" variant="outline" className="h-auto min-h-11 whitespace-normal" data-xero-export onClick={() => void exportLedger("xero")} disabled={freePlan} aria-label={freePlan ? csvLockAccessibleName("Xero CSV") : undefined} title={freePlan ? CSV_LOCK_LABEL : "Xero bank-statement import: Date, Amount, Payee, Description, Reference (NZD cash movements)"}>{freePlan ? "Xero CSV: Starter and above" : "Xero CSV"}</Button>
                   <Button type="button" variant="outline" className="h-auto min-h-11 whitespace-normal" disabled={(reportDesk?.stox ?? unloadedReportControl("Stox")).disabled} title={(reportDesk?.stox ?? unloadedReportControl("Stox")).title} onClick={() => handleReport({ ticker: "", name: "Portfolio", assetClass: "shares", kind: "position" } as HoldingsRowModel, "stox")}>{(reportDesk?.stox ?? unloadedReportControl("Stox")).label}</Button>
                   <Button type="button" variant="outline" className="h-auto min-h-11 whitespace-normal" disabled={(reportDesk?.koins ?? unloadedReportControl("Koins")).disabled} title={(reportDesk?.koins ?? unloadedReportControl("Koins")).title} onClick={() => handleReport({ ticker: "", name: "Portfolio", assetClass: "crypto", kind: "position" } as HoldingsRowModel, "koins")}>{(reportDesk?.koins ?? unloadedReportControl("Koins")).label}</Button>
                 </div>
@@ -2393,11 +2391,10 @@ export function PortfolioDashboard({
               <Button type="button" variant="outline" className="h-auto min-h-11 max-w-full whitespace-normal" onClick={() => void exportLedger()} disabled={freePlan} aria-label={freePlan ? csvLockAccessibleName("Transactions CSV") : undefined} title={freePlan ? CSV_LOCK_LABEL : undefined}>
                 {freePlan ? CSV_LOCK_LABEL : "Export"}
               </Button>
-              {!freePlan ? (
-                <Button type="button" variant="outline" className="h-auto min-h-11 max-w-full whitespace-normal" onClick={() => void exportLedger("xero")} title="Bank-statement CSV of NZD cash movements for a Xero import">
-                  Xero CSV
-                </Button>
-              ) : null}
+              {/* Goal b20 G-29: shown on every plan; Free sees the lock, the same way as Export. */}
+              <Button type="button" variant="outline" className="h-auto min-h-11 max-w-full whitespace-normal" data-xero-export onClick={() => void exportLedger("xero")} disabled={freePlan} aria-label={freePlan ? csvLockAccessibleName("Xero CSV") : undefined} title={freePlan ? CSV_LOCK_LABEL : "Xero bank-statement import: Date, Amount, Payee, Description, Reference (NZD cash movements)"}>
+                {freePlan ? "Xero CSV: Starter and above" : "Xero CSV"}
+              </Button>
               <Button
                 type="button"
                 variant="outline"
@@ -2803,6 +2800,9 @@ export function PortfolioDashboard({
       )}
 
       {/* Stocks hub return split and holdings table stay until PR5. */}
+      {bookSnapshot?.removedNote ? (
+        <p className="mb-2 text-xs text-muted-foreground" data-removed-note>{bookSnapshot.removedNote}</p>
+      ) : null}
       <HoldingsOwnedTable
         title="Stocks you own"
         emptyLabel="No stocks in this portfolio yet"
@@ -2932,6 +2932,9 @@ export function PortfolioDashboard({
       )}
 
       {/* Crypto hub return split and holdings table stay until PR5. */}
+      {bookSnapshot?.removedNote ? (
+        <p className="mb-2 text-xs text-muted-foreground" data-removed-note>{bookSnapshot.removedNote}</p>
+      ) : null}
       <HoldingsOwnedTable
         title="Crypto you own"
         emptyLabel="No crypto in this portfolio yet"

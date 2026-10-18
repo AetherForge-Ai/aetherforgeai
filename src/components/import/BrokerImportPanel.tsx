@@ -2,6 +2,7 @@
 
 import { importFileProblem } from "@/lib/import-limits";
 import { useEffect, useRef, useState } from "react";
+import { importOversells } from "@/lib/import-oversell";
 import { PASTE_IMPORT_AI_ENABLED, parsePastedTrades, pastedRowsToCsv } from "@/lib/paste-import";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -76,6 +77,35 @@ export function BrokerImportPanel({
   const [tickerFixes, setTickerFixes] = useState<Record<string, string>>({});
   const [result, setResult] = useState<{ written: number; batchId: string; summary: string } | null>(null);
   const pendingDraft = useRef<string | null>(null);
+  // Goal b20 G-24: what the member holds now, for the review's oversell check.
+  const [heldShares, setHeldShares] = useState<Record<string, number> | null>(null);
+  useEffect(() => {
+    if (!preview || preview.needsMapping) return;
+    let live = true;
+    fetch("/api/stocks", { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: { data?: Array<{ ticker?: string; shares?: number }> } | null) => {
+        if (!live || !j || !Array.isArray(j.data)) return;
+        const held: Record<string, number> = {};
+        for (const row of j.data) {
+          const t = String(row.ticker || "").toUpperCase();
+          if (t) held[t] = (held[t] || 0) + (Number(row.shares) || 0);
+        }
+        setHeldShares(held);
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [preview]);
+  const oversells =
+    preview && !preview.needsMapping && heldShares
+      ? importOversells(
+          preview.toWrite.map((r) => ({ line: r.line, ticker: r.ticker, side: String(r.side), quantity: Number(r.quantity), date: r.date, executedAt: r.executedAt ?? null })),
+          heldShares
+        )
+      : {};
+  const oversellCount = Object.keys(oversells).length;
 
   useEffect(() => {
     if (initialText) {
@@ -448,7 +478,11 @@ export function BrokerImportPanel({
                       {row.nativeValue.toFixed(2)} {row.currency}
                     </td>
                     <td className="tnum px-3 py-2 text-right">{formatNzd(row.cashEffectNzd)}</td>
-                    <td className="px-3 py-2 text-muted-foreground">—</td>
+                    {oversells[row.line] ? (
+                      <td className="px-3 py-2 text-rose-700" data-import-oversell>{oversells[row.line]}</td>
+                    ) : (
+                      <td className="px-3 py-2 text-muted-foreground">—</td>
+                    )}
                   </tr>
                 ))}
                 {preview.unsupported
@@ -528,9 +562,15 @@ export function BrokerImportPanel({
               </label>
             </>
           ) : null}
+          {oversellCount > 0 ? (
+            <p role="alert" className="text-sm text-rose-700" data-import-oversell-block>
+              {oversellCount === 1 ? "One sell is" : `${oversellCount} sells are`} more than you hold. Fix or remove{" "}
+              {oversellCount === 1 ? "it" : "them"} before you confirm; nothing has been saved.
+            </p>
+          ) : null}
           <Button
             type="button"
-            disabled={busy || preview.toWrite.length === 0 || (preview.unsupported.length > 0 && !acknowledgeSkipped)}
+            disabled={busy || oversellCount > 0 || preview.toWrite.length === 0 || (preview.unsupported.length > 0 && !acknowledgeSkipped)}
             onClick={() => void run(true)}
           >
             {busy ? "Saving…" : "Confirm"}

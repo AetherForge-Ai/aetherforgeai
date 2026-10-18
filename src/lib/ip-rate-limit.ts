@@ -192,7 +192,9 @@ export async function takeRateLimit(
       durable = await durableStore.increment(storageKey, windowMs, now);
     } catch (err) {
       durable = null;
-      lastTableState = classifyTableError(err);
+      const code = classifyTableError(err);
+      // Goal b20 CR-2: carry the real (trimmed, redacted) error text with the code.
+      lastTableState = code.startsWith("error:") && !code.includes("(") ? `${code}(detail=${tableErrorDetail(err)})` : code;
     }
   }
   const cacheAvailable = sharedCache() != null;
@@ -313,4 +315,22 @@ export function classifyTableError(err: unknown): string {
   if (/timeout|deadline|timed out/.test(msg)) return "error:timeout";
   if (status) return `error:http-${status}`;
   return "error:other";
+}
+
+/**
+ * Goal b20 CR-2: the table's own error text, trimmed and redacted so it can be
+ * shown on /status: no URLs, emails, long tokens or digits runs that could be ids
+ * or keys; at most 80 characters; separators that would break the status line removed.
+ */
+export function tableErrorDetail(err: unknown): string {
+  const raw = err instanceof Error ? err.message : String(err ?? "");
+  const cleaned = raw
+    .replace(/https?:\/\/\S+/gi, "<url>")
+    .replace(/[\w.+-]+@[\w-]+(\.[\w-]+)+/g, "<email>")
+    .replace(/\b(bearer|key|token|secret|password|apikey)\b\s*[:=]?\s*\S+/gi, "$1=<redacted>")
+    .replace(/[A-Za-z0-9_\-]{20,}/g, "<redacted>")
+    .replace(/[;()\n\r]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return (cleaned || "empty").slice(0, 80);
 }

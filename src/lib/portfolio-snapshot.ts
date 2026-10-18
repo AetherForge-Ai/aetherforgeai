@@ -161,6 +161,8 @@ export interface PortfolioSnapshot {
   ledger: SnapshotLedgerLine[];
   importKeys: string[];
   filteredNote: string | null;
+  /** Goal b20 G-10: open positions hidden because their holding was removed (ledger lines kept). */
+  removedNote?: string | null;
   reconciliation: {
     ok: boolean;
     label: string;
@@ -248,6 +250,12 @@ export interface SnapshotInput {
   benchmark?: { name: string; portfolioPct: number | null; benchmarkPct: number | null; reason?: string | null } | null;
   period?: { start?: string | null; end?: string | null; label?: string };
   filter?: SnapshotFilter;
+  /**
+   * Goal b20 G-10: tickers whose holding row was removed. Their open shares or
+   * crypto stay off the book (ledger lines and cash are kept, realised stays);
+   * the snapshot names them in removedNote so nothing disappears silently.
+   */
+  removedTickers?: readonly string[];
 }
 
 const CLASS_ORDER: SnapshotClass[] = ["shares", "crypto", "metals", "cash"];
@@ -1043,11 +1051,17 @@ export function buildPortfolioSnapshot(input: SnapshotInput): PortfolioSnapshot 
   }
 
   const seenTickers = new Set<string>();
+  const removedSet = new Set((input.removedTickers ?? []).map((t) => t.toUpperCase()));
+  const hiddenRemoved: string[] = [];
   for (const [ticker, lots] of books) {
     seenTickers.add(ticker);
     const open = lots.filter((lot) => lot.qty > 1e-9);
     const sample = open[0] || lots[0];
     if (!sample) continue;
+    if (open.length && sample.assetClass !== "metals" && removedSet.has(ticker.toUpperCase())) {
+      hiddenRemoved.push(ticker);
+      continue;
+    }
     const assetClass = sample.assetClass;
     const mark = markFor(marks, ticker);
     const currency = sample.currency;
@@ -1658,6 +1672,9 @@ export function buildPortfolioSnapshot(input: SnapshotInput): PortfolioSnapshot 
     ledger,
     importKeys,
     filteredNote: null,
+    removedNote: hiddenRemoved.length
+      ? `Removed from holdings: ${hiddenRemoved.join(", ")}. Their ledger lines and cash are kept; realised stays on the ledger.`
+      : null,
     reconciliation: { ok: false, label: "⚠ Incomplete", outBy: null, invariants: [] },
   };
 

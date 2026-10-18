@@ -675,7 +675,11 @@ export function RecordTransactionPanel({
       const postedAt = Date.now();
       // Goal b12 G-10: paint cash, the holding and the ledger row now from the
       // reviewed figures. The saved row replaces it; a refusal rolls it back.
-      const optimistic = (kind === "buy" || kind === "sell" || kind === "deposit" || (kind === "dividend" && dupAck)) && Number.isFinite(preview.cashAfterNzd);
+      // Goal b20 G-10: writes are authoritative. Nothing is painted before the
+      // server confirms; the book is painted from the saved response, and a
+      // refusal keeps the dialog open with the reason. (The b12 optimistic paint
+      // let a refused write show and then vanish.)
+      const optimistic = false as boolean;
       const cashBeforeOptimistic = preview.cashAfterNzd - preview.cashChangeNzd;
       if (optimistic) {
         const row = {
@@ -696,6 +700,7 @@ export function RecordTransactionPanel({
         onRequestClose();
       }
       const res = await api.post("/api/transactions", payload);
+      console.log(`[write] ${kind} ${typeof payload.ticker === "string" ? payload.ticker : ""} status=${res.status ?? "?"} ok=${res.ok} id=${String((res.data as { lastTransaction?: { _id?: string } } | undefined)?.lastTransaction?._id ?? "")}`);
       if (optimistic && !res.ok) {
         onDone({ cashBalance: cashBeforeOptimistic, lastTransaction: null, transactions: [], ledgerPartial: true, optimisticRollback: true });
         toast.error(typeof res.error === "string" ? `Not saved: ${res.error}` : "Not saved. Your book is unchanged.");

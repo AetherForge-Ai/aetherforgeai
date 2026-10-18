@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Goal b16: test-mode fixture accounts for H-9 (tax pack: DRP + 2:1 split), H-10
-// (broker import: preview / commit / duplicate / undo) and L-4 (paid plans).
+// (broker import: preview / commit / duplicate / undo), L-4 (paid plans) and, from b20,
+// CR-6 (Free account at the 10-holding cap).
 //
 // Safety:
 // - Runs against the LOCAL harness by default (BASE_URL http://localhost:3917, mock
@@ -44,6 +45,21 @@ const FIXTURES = [
     rows: [{ type: "opening_balance", amount: 10000, executed_at: "2026-01-05", confirm: true }],
   },
   { email: "fixture-l4-starter@example.test", name: "Fixture Starter", plan: "starter", rows: [{ type: "opening_balance", amount: 5000, executed_at: "2026-02-02", confirm: true }] },
+  // Goal b20 CR-6: Free plan at its 10-holding cap, for the 11th-holding UI check and the holding delete.
+  // FPH.NZ uses NZ$30 because a fill far from the delayed close is refused by fill integrity.
+  {
+    email: "fixture-cr6-free@example.test",
+    name: "Fixture Free Cap",
+    plan: "free",
+    rows: [
+      { type: "opening_balance", amount: 20000, executed_at: "2026-09-01", confirm: true },
+      ...["AIR.NZ", "SPK.NZ", "FPH.NZ", "MEL.NZ", "IFT.NZ", "CEN.NZ", "MFT.NZ", "ATM.NZ", "KMD.NZ", "CNU.NZ"].map((ticker, i) => ({
+        type: "buy", ticker, asset_type: "stock", asset_name: ticker, quantity: 10, price: ticker === "FPH.NZ" ? 30 : 2 + i, fees: 0, executed_at: "2026-09-02", soft_override_confirmed: true, confirm: true,
+      })),
+    ],
+  },
+  // Goal b20 SECURITY: an allow-listed test-hooks account (domain @example.invalid).
+  { email: "fixture-hooks@example.invalid", name: "Fixture Hooks", plan: "free", rows: [{ type: "opening_balance", amount: 1000, executed_at: "2026-02-02", confirm: true }] },
   { email: "fixture-l4-pro@example.test", name: "Fixture Pro", plan: "pro", rows: [{ type: "opening_balance", amount: 5000, executed_at: "2026-02-02", confirm: true }] },
 ];
 
@@ -55,7 +71,7 @@ async function signIn(email) {
 }
 
 for (const f of FIXTURES) {
-  if (!/@example\.test$/.test(f.email)) throw new Error("fixture emails must be @example.test");
+  if (!/@example\.(test|invalid)$/.test(f.email)) throw new Error("fixture emails must be @example.test or @example.invalid");
   const up = await fetch(`${BASE}/api/auth/sign-up/email`, { method: "POST", headers: json, body: JSON.stringify({ email: f.email, password: PASSWORD, name: f.name, age_confirmed: true }) });
   if (local) {
     await fetch(`${MOCK}/__mock/patch`, { method: "POST", body: JSON.stringify({ table: "user", filter: { email: f.email }, set: { email_verified: true, subscription_plan: f.plan, subscription_status: "active" } }) });

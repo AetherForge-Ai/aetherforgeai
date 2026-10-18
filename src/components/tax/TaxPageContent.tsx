@@ -47,7 +47,7 @@ const SOURCES = [
   },
 ] as const;
 
-export function TaxPageContent({ book = null }: { book?: TaxBookFigures | null }) {
+export function TaxPageContent({ book = null, xero = "guest" }: { book?: TaxBookFigures | null; xero?: "paid" | "free" | "guest" }) {
   return (
     <article className="mx-auto w-full max-w-3xl px-4 py-10 sm:px-6">
       <p className="text-xs font-semibold uppercase tracking-wide text-primary">New Zealand</p>
@@ -57,6 +57,27 @@ export function TaxPageContent({ book = null }: { book?: TaxBookFigures | null }
         This is general information and not personal tax advice. Last reviewed 8 Oct 2026.
       </p>
       <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{TAX_INDICATIVE_LABEL}</p>
+      {/* Goal b20 G-29: the Xero export where accountants look; Free sees the lock. */}
+      <section className="mt-4 rounded-md border p-3 text-sm" data-tax-xero>
+        <h2 className="font-semibold">Xero CSV (for your accountant)</h2>
+        <p className="mt-1 text-muted-foreground">
+          A Xero bank-statement import file of NZD cash movements. Columns: Date, Amount, Payee, Description, Reference.
+          In Xero, use Import a statement on the bank account.
+        </p>
+        {xero === "paid" ? (
+          <a href="/api/transactions/export?format=xero" className="mt-2 inline-flex min-h-11 items-center rounded-md border px-4 font-medium" data-xero-export>
+            Download Xero CSV
+          </a>
+        ) : xero === "free" ? (
+          <span aria-disabled="true" className="mt-2 inline-flex min-h-11 items-center rounded-md border px-4 font-medium text-muted-foreground" data-xero-export aria-label="Xero CSV: CSV export: Starter and above">
+            Xero CSV: Starter and above
+          </span>
+        ) : (
+          <Link href="/login?redirect=/tax" className="mt-2 inline-flex min-h-11 items-center rounded-md border px-4 font-medium">
+            Sign in to export
+          </Link>
+        )}
+      </section>
       <ul className="mt-4 list-disc space-y-1 pl-5 text-sm">
         <li>
           <Link href="/tax/dividends" className="text-primary underline-offset-4 hover:underline">
