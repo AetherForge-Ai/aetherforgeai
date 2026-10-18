@@ -1967,3 +1967,22 @@ export function withLedgerLine(
   const kept = snapshot.ledger.filter((row) => row.id !== id && !row.id.startsWith("optimistic-"));
   return { ...snapshot, ledger: [line, ...kept] };
 }
+
+/**
+ * Goal b18 G-10: move the cash and net-worth figures by a known NZ$ amount, so a
+ * delete or a booking shows its cash effect in the same paint as the row change.
+ * A figure that was "—" stays "—".
+ */
+export function withCashDelta(snapshot: PortfolioSnapshot, deltaNzd: number): PortfolioSnapshot {
+  if (!Number.isFinite(deltaNzd) || deltaNzd === 0) return snapshot;
+  const bump = (fig: SnapshotFigure): SnapshotFigure => {
+    if (fig.value == null) return fig;
+    const value = Math.round((fig.value + deltaNzd) * 100) / 100;
+    return { ...fig, value, display: formatNzd(value) };
+  };
+  return {
+    ...snapshot,
+    kpis: { ...snapshot.kpis, cash: bump(snapshot.kpis.cash), netWorth: bump(snapshot.kpis.netWorth) },
+    grand: bump(snapshot.grand),
+  };
+}

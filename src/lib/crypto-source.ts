@@ -380,12 +380,29 @@ function storedListNeedsUpgrade(coins: { source?: string | null }[]): boolean {
   return coins.every((coin) => (coin.source || "") === "yahoo");
 }
 
+export const CRYPTO_REQUEST_REFRESH_MS = 5 * 60 * 1000;
+let cryptoRequestRefresh: Promise<void> | null = null;
+export function cryptoListOlderThan(at: string | null | undefined, ms: number, now = Date.now()): boolean {
+  const t = at ? Date.parse(at) : NaN;
+  return Number.isFinite(t) && now - t > ms;
+}
+
 export async function loadTop400Markets(): Promise<RankedCryptoPage> {
   const { readSharedCryptoBoard, upgradeStoredCryptoBoard, refreshMarketSnapshotsNow } = await import("@/lib/crypto-board-store");
   const board = await readSharedCryptoBoard({ seed: false });
-  if (board.coins.length && board.delayed) {
+  // Goal b18: refresh on request once the list is older than 5 minutes; one refresh
+  // at a time per isolate (single flight), and the reader waits at most 1.5 s.
+  if (board.coins.length && (board.delayed || cryptoListOlderThan(board.at, CRYPTO_REQUEST_REFRESH_MS))) {
+    if (!cryptoRequestRefresh) {
+      cryptoRequestRefresh = refreshMarketSnapshotsNow()
+        .then(() => undefined)
+        .catch(() => undefined)
+        .finally(() => {
+          cryptoRequestRefresh = null;
+        });
+    }
     await Promise.race([
-      refreshMarketSnapshotsNow().catch(() => undefined),
+      cryptoRequestRefresh,
       new Promise<void>((resolve) => setTimeout(resolve, 1_500)),
     ]);
     const fresh = await readSharedCryptoBoard({ seed: false });
