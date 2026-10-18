@@ -1,5 +1,6 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { tickerLiveLabel } from "@/lib/ticker-feed";
@@ -67,6 +68,10 @@ function TickerCell({
   const flat = hasChange && Number(q.change.toFixed(2)) === 0;
   const up = hasChange && !flat && q.change > 0;
   const asOf = formatAsOf(q.quotedAt);
+  // b38 H-1: a crypto price whose own quote is over 15 min old says "delayed" on the tape. Equity
+  // rows already carry the exchange delay wording, so they are not marked twice.
+  const quotedMs = q.quotedAt ? Date.parse(q.quotedAt) : NaN;
+  const rowDelayed = !/delayed/i.test(delay) && Number.isFinite(quotedMs) && Date.now() - quotedMs > TAPE_ROW_DELAYED_MS;
   // Goal b10 G-05: per-price badge. Amber after one missed refresh, red after two.
   const badge = priceBadge({
     source,
@@ -104,10 +109,14 @@ function TickerCell({
         <span aria-hidden="true">{!hasChange || flat ? "·" : up ? "▲" : "▼"}</span>
         {q.change == null ? "—" : formatSignedPercent(q.change)}
         {asOf ? <span className="ml-1 font-medium normal-case">as of {asOf}</span> : null}
+        {rowDelayed ? <span className="ml-1 rounded bg-amber-500/20 px-1 font-semibold text-amber-300" data-tape-delayed>delayed</span> : null}
       </span>
     </span>
   );
 }
+
+/** b38 H-1: per-row delayed marker threshold (Chief ruling: 15 min). */
+const TAPE_ROW_DELAYED_MS = 15 * 60 * 1000;
 
 function TickerRow({
   quotes,
@@ -320,6 +329,7 @@ export function MarketTicker({ className, compact = false, initial = null, initi
   const [loaded, setLoaded] = useState(hasTape(initial));
   // b38 (Chief ruling 2): the server has no snapshot at all yet (503): a friendly loading line.
   const [pricesWarming, setPricesWarming] = useState(false);
+  const onMarketsPage = (usePathname() || "").startsWith("/markets");
   const [failedRefreshes, setFailedRefreshes] = useState(0);
   const [feedForce, setFeedForce] = useState<FeedForce | null>(null);
   const [showNzd, setShowNzd] = useState(false);
@@ -450,7 +460,8 @@ export function MarketTicker({ className, compact = false, initial = null, initi
             {display === "NZD" ? "Showing NZ$" : "Show NZ$"}
           </button>
           <span>{fxReady ? fxRateLine(fx.rates) : "Loading today's NZ$ exchange rate…"}</span>
-          <span data-prices-last-updated>{pricesUpdatedAt ? savedSnapshotLabel(pricesUpdatedAt.toISOString()) : "Prices last updated: loading…"}</span>
+          {/* b38 M-2: /markets shows its own single "Prices last updated" line; the tape does not repeat it. */}
+          {onMarketsPage ? null : <span data-prices-last-updated>{pricesUpdatedAt ? savedSnapshotLabel(pricesUpdatedAt.toISOString()) : "Prices last updated: loading…"}</span>}
         </div>
       </div>
     );

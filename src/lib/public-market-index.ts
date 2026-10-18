@@ -1,4 +1,4 @@
-import { cryptoRowDelayed } from "@/lib/crypto-snapshot";
+import { cryptoRowDelayed } from "@/lib/crypto-row-delay";
 import "server-only";
 
 import { coinDepthComplete, isDuplicateOrTokenisedCoin, isJunkCoin } from "@/lib/coin-junk";
@@ -365,16 +365,8 @@ function remember(fresh: PublicMarketIndex) {
   nextRefreshAt = now + (stockTabsNeedQuotes(value) ? QUOTE_RETRY_MS : INDEX_TTL_MS);
 }
 
-/** b37 H-1: keep each tab's previous rows when the rebuild came back empty for that tab. */
-export function mergeIndexTabs(fresh: PublicMarketIndex, prev: PublicMarketIndex | null): PublicMarketIndex {
-  if (!prev) return fresh;
-  const tabs = fresh.tabs.map((tab) => {
-    if (tab.rows.length) return tab;
-    const old = prev.tabs.find((t) => t.id === tab.id);
-    return old?.rows.length ? old : tab;
-  });
-  return { tabs, priceRowCount: tabs.reduce((sum, tab) => sum + tab.rows.length, 0) };
-}
+export { mergeIndexTabs } from "@/lib/ticker-serve";
+import { mergeIndexTabs } from "@/lib/ticker-serve";
 
 function startBuild(): Promise<PublicMarketIndex> {
   if (!inflight) {

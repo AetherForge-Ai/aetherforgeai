@@ -2,10 +2,11 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { FIF_CORE_RULE, FIF_STATIC_ANSWER, fifStaticReply } from "@/lib/guide-facts";
 import { pickServedSnapshot, withDeadline } from "@/lib/ticker-serve";
-import { mergeIndexTabs } from "@/lib/public-market-index";
+import { mergeIndexTabs } from "@/lib/ticker-serve";
 import { QUOTE_DELAY_TABLE } from "@/lib/market-freshness";
 import { journalDeletedMap, journalPendingWrite, listPendingWrites, pendingDeleteIds, replayPendingWrites } from "@/lib/write-journal";
 
+// pull-check:v3-goal-b38-2026-10-19
 const read = (p: string) => readFileSync(p, "utf8");
 function mem() {
   const m = new Map<string, string>();
@@ -81,7 +82,7 @@ describe("b38 REG-1 / H-1: never hang, never step back, never 503 with a copy", 
   });
   it("/markets bounds the session and index reads", () => {
     const p = read("src/app/markets/page.tsx");
-    expect(p).toMatch(/withDeadline\(getCurrentUser\(\), MARKETS_SSR_DEADLINE_MS, null\)/);
+    expect(p).toMatch(/\(getCurrentUser\(\), MARKETS_SSR_DEADLINE_MS, SESSION_PENDING\)/);
   });
   it("a rebuild never empties a tab that had rows", () => {
     const tab = (id: string, n: number) => ({ id, title: id, asOf: "", rows: Array.from({ length: n }, () => ({}) as never) });
@@ -112,7 +113,7 @@ describe("b38 H-15 / M-3 / headers", () => {
   });
 });
 
-import { cryptoRowDelayed, mergeStaleCryptoList, CRYPTO_PARTIAL_REFRESH_AFTER_MS } from "@/lib/crypto-snapshot";
+import { cryptoRowDelayed, mergeStaleCryptoList, CRYPTO_PARTIAL_REFRESH_AFTER_MS } from "@/lib/crypto-row-delay";
 import { datelessCsvRows, withRowDates } from "@/lib/paste-date";
 import { breadcrumbJsonLd, helpFaqJsonLd } from "@/lib/public-schema";
 import { helpArticles } from "@/lib/help-index";
@@ -198,5 +199,65 @@ describe("b38 G-15: structured data", () => {
     const all = JSON.stringify(faq) + read("src/lib/public-schema.ts");
     expect(all).not.toMatch(/aggregateRating|"Review"/);
     expect(read("src/app/help/page.tsx")).toMatch(/helpFaqJsonLd\(articles\)/);
+  });
+});
+
+import { jointAmountLine, questionAmountNzd } from "@/lib/guide-facts";
+
+describe("b38 CR-2: couple with an amount is answered directly", () => {
+  it("NZ$80,000 joint: each owns NZ$40,000, under the per-person NZ$50,000", () => {
+    const a = fifStaticReply("couple, joint Sharesies, ~NZ$80,000 US shares at cost — do the FIF rules apply?") || "";
+    expect(a).toMatch(/each of you holds NZ\$40,000 of the NZ\$80,000 cost, which is under the per-person NZ\$50,000 threshold/);
+    expect(a.trim().endsWith("Indicative, not tax advice.")).toBe(true);
+  });
+  it("NZ$120k joint is over", () => {
+    expect(jointAmountLine("my partner and i hold $120k together")).toMatch(/NZ\$60,000 .* over/);
+    expect(questionAmountNzd("about 80k")).toBe(80_000);
+    expect(jointAmountLine("what is the fif rule for couples")).toBeNull();
+  });
+});
+
+describe("b38 H-1 (c), H-4, session, M-2, M-6, tape marker", () => {
+  it("cookie clients below their floor use the colo's newest copy", () => {
+    const r = read("src/app/api/ticker/route.ts");
+    expect(r).toMatch(/floor > 0 && \(!snap \|\| snap\.version < floor\)/);
+    expect(r).toMatch(/edgeSnapshotGet<CryptoSnap>\(\)/);
+  });
+  it("H-4: quota comes from the light route, with a 3 s 'did not load' fallback, and a CI workflow", () => {
+    const rc = read("src/components/dashboard/ReportCenter.tsx");
+    expect(rc).toMatch(/QUOTA_FALLBACK_MS = 3_000/);
+    expect(rc).toMatch(/"\/api\/reports\/quota"/);
+    expect(rc).toMatch(/Your report quota did not load\./);
+    expect(read("src/app/api/reports/quota/route.ts")).toMatch(/readReportQuota\(900, 1\)/);
+    const wf = read(".github/workflows/h4-playwright.yml");
+    expect(wf).toMatch(/secrets\.H4_EMAIL/);
+    expect(wf).toMatch(/npx playwright test -c qa\/playwright/);
+    expect(wf).not.toMatch(/password:\s*\S+@|H4_PASSWORD:\s*[^$\s]/);
+  });
+  it("the session notice only shows after quiet retries", () => {
+    const g = read("src/components/dashboard/AccountOwnerGuard.tsx");
+    expect(g).toMatch(/QUIET_SESSION_RETRIES = 2/);
+    expect(g.match(/slowOrRetry\(\)/g)?.length).toBe(4);
+  });
+  it("M-2: one 'Prices last updated' wording; the tape does not repeat it on /markets", () => {
+    expect(read("src/lib/crypto-board.ts")).toMatch(/savedSnapshotLabel\(iso, now\)/);
+    expect(read("src/components/MarketTicker.tsx")).toMatch(/onMarketsPage \? null/);
+  });
+  it("M-6: chevron hidden under 400 px; the mobile chip sits on the right edge", () => {
+    expect(read("src/components/TopNav.tsx")).toMatch(/hidden size-4 text-muted-foreground transition-transform min-\[400px\]:block/);
+    expect(read("src/components/portfolio-coach/PortfolioCoach.tsx")).toMatch(/fixed bottom-24 right-0 z-30/);
+  });
+  it("the tape marks a crypto price over 15 min old as delayed", () => {
+    const t = read("src/components/MarketTicker.tsx");
+    expect(t).toMatch(/TAPE_ROW_DELAYED_MS = 15 \* 60 \* 1000/);
+    expect(t).toMatch(/data-tape-delayed>delayed</);
+  });
+});
+
+describe("b38 CLS — ticker placeholder matches rendered tape height", () => {
+  it("reserves 231/190/149 px in both placeholders", () => {
+    for (const f of ["src/components/LazyMarketTicker.tsx", "src/app/page.tsx"]) {
+      expect(read(f)).toMatch(/min-h-\[231px\][^"]*md:min-h-\[190px\][^"]*lg:min-h-\[149px\]/);
+    }
   });
 });

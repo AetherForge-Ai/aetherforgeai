@@ -227,7 +227,7 @@ describe("b32 addendum: CR-2 FIF facts and BS-01 error mapping", () => {
     expect(r).toMatch(/including fees/);
     expect(r).toMatch(/at any time in the income year/);
     expect(r).toMatch(/New Zealand shares and most ASX-listed shares/);
-    expect(r).toContain("NZ$50,000 per natural person"); // b37 CR-2 (Chief): per-person rule
+    expect(r).toContain("The NZ$50,000 threshold applies per person") /* b38 CR-2 exact wording */; // b37 CR-2 (Chief): per-person rule
     expect(r).toMatch(/Indicative, not tax advice/);
   });
   it("IBKR: User-Agent sent; XML ErrorCode on a non-200 is parsed; bare 403 is not a token error", () => {

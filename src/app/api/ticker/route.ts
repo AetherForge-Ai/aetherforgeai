@@ -3,7 +3,7 @@ import { PUBLIC_EQUITY_SOURCE, publicCryptoSourcesLabel } from "@/lib/data-sourc
 import { cryptoVenueForLabel } from "@/lib/crypto-price-chain";
 import { readCryptoSnapshot, snapshotHeaders } from "@/lib/crypto-snapshot";
 import { loadPublicTicker } from "@/lib/public-ticker";
-import { COLD_START_READ_MS, pickServedSnapshot, TICKER_ROUTE_DEADLINE_MS } from "@/lib/ticker-serve";
+import { COLD_START_READ_MS, edgeSnapshotGet, edgeSnapshotPut, pickServedSnapshot, TICKER_ROUTE_DEADLINE_MS } from "@/lib/ticker-serve";
 import { snapshotFloorCookie, snapshotFloorFrom } from "@/lib/snapshot-floor";
 import { readFeedForce } from "@/lib/feed-freshness-hook";
 import { feedOffFromCookieHeader } from "@/lib/test-hooks";
@@ -52,6 +52,7 @@ export async function GET(req: Request) {
 type CryptoSnap = NonNullable<Awaited<ReturnType<typeof readCryptoSnapshot>>>;
 /** b37 H-1: the newest snapshot this isolate has served; a slow or failed read never means 503. */
 let lastGoodSnap: CryptoSnap | null = null;
+let lastEdgePut = 0;
 let lastGoodResponse: { body: unknown; headers: Record<string, string>; version: number } | null = null;
 
 function noCopyResponse() {
@@ -74,8 +75,19 @@ async function buildTicker(floor: number, cookie: string | null, hooksAllowed: b
   // a version below one it has seen (floor read above, plus this isolate's newest copy). A client with
   // no cookie and no x-af-snapshot-floor header (curl, scripts) may see an older version from another
   // isolate; that is accepted by design and only for no-cookie clients.
-  const snap = pickServedSnapshot(read ?? coldRead, lastGoodSnap);
-  if (snap) lastGoodSnap = snap;
+  let snap = pickServedSnapshot(read ?? coldRead, lastGoodSnap);
+  // b38 H-1 (c): a cookie client must never step back. Below its floor, use the colo's newest copy.
+  if ((floor > 0 && (!snap || snap.version < floor)) || !snap) {
+    const edge = await edgeSnapshotGet<CryptoSnap>();
+    snap = pickServedSnapshot(snap, edge);
+  }
+  if (snap) {
+    lastGoodSnap = snap;
+    if (snap.version > lastEdgePut) {
+      lastEdgePut = snap.version;
+      void edgeSnapshotPut(snap);
+    }
+  }
   const feed = await loadPublicTicker({ snapshot: snap });
   // G-05: named stale/failed mark for this browser. Omitted unless the account is allow-listed.
   const testFeedForce = readFeedForce(cookie, hooksAllowed);

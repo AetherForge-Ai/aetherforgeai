@@ -25,9 +25,36 @@ export const FIF_CORE_RULE =
 export const FIF_STATIC_ANSWER =
   `${FIF_CORE_RULE} Cost means purchase price including fees, at any time in the income year (1 April to 31 March). New Zealand shares and most ASX-listed shares (Australian-resident, on the approved list) are excluded and add nothing to that cost. Trusts and companies don't get the NZ$50,000 exemption. Indicative, not tax advice`;
 
+const fmtNz = (n: number) => `NZ$${Math.round(n).toLocaleString("en-NZ")}`;
+
+/** b38 CR-2: the first NZ$ amount in the question ("NZ$80,000", "$80k", "80 000"), or null. */
+export function questionAmountNzd(q: string): number | null {
+  const m = q.match(/(?:nz)?\$?\s?(\d{1,3}(?:[ ,]\d{3})+|\d+(?:\.\d+)?)\s?(k|thousand)?\b/i);
+  if (!m) return null;
+  const n = Number(m[1].replace(/[ ,]/g, "")) * (m[2] ? 1000 : 1);
+  return n >= 1000 && n <= 100_000_000 ? n : null;
+}
+
+/**
+ * b38 CR-2 (TT b37): "a couple with ~NZ$80,000 at cost" is answered directly first: each of 2 equal
+ * owners holds half the cost, measured against their own NZ$50,000.
+ */
+export function jointAmountLine(q: string): string | null {
+  if (!/couple|partner|spouse|joint|both of us|together|2 of us|two of us/.test(q)) return null;
+  const total = questionAmountNzd(q.replace(/50,?000|50k|100,?000|100k/g, " "));
+  if (total == null) return null;
+  const each = total / 2;
+  const under = each <= FIF_THRESHOLD_NZD;
+  return `If you own it in equal shares, each of you holds ${fmtNz(each)} of the ${fmtNz(total)} cost, which is ${
+    under ? "under" : "over"
+  } the per-person ${fmtNz(FIF_THRESHOLD_NZD)} threshold${under ? " (as long as neither of you holds other FIF interests that take your own total over it)" : ", so the FIF rules apply to each of you"}.`;
+}
+
 export function fifStaticReply(userMessage: string): string | null {
   const q = String(userMessage || "").toLowerCase();
   if (!FIF_INTENT_RE.test(q)) return null;
+  const direct = JOINT_ASK_RE.test(q) ? jointAmountLine(q) : null;
+  if (direct) return `${direct} ${FIF_STATIC_ANSWER}.`;
   return JOINT_ASK_RE.test(q) ? `${FIF_JOINT_NO} ${FIF_STATIC_ANSWER}.` : `${FIF_STATIC_ANSWER}.`;
 }
 

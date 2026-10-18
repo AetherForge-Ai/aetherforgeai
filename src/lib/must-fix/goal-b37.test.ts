@@ -34,8 +34,8 @@ describe("b37 item 2 (CR-2): joint FIF answer", () => {
       expect(r!).toMatch(/Indicative, not tax advice\.$/);
       expect(r!).toContain("including fees");
       expect(r!).toContain("New Zealand shares and most ASX-listed shares");
-      expect(r!).toContain("NZ$50,000 per natural person");
-      expect(r!).toContain("each owner's share of the joint cost, plus their separate FIF holdings, counts toward their own NZ$50,000");
+      expect(r!).toContain("The NZ$50,000 threshold applies per person") /* b38 CR-2 exact wording */;
+      expect(r!).toContain("joint holdings are split between the owners, so 2 equal owners can together hold up to NZ$100,000 in cost; it's not a doubled threshold for the portfolio.");
       expect(r!).toContain("Trusts and companies don't get the NZ$50,000 exemption");
       expect(r!).not.toMatch(/doubles to|\bYes\b|indicative only|quickly/i);
     }
@@ -53,7 +53,7 @@ describe("b37 item 2 (CR-2): joint FIF answer", () => {
       const r = fifStaticReply(q)!;
       expect(r, q).toMatch(/^No, a jointly held portfolio does not get a doubled NZ\$100,000 threshold\./);
       expect(r).toContain(FIF_JOINT_NO);
-      expect(r).toContain("NZ$50,000 per natural person");
+      expect(r).toContain("The NZ$50,000 threshold applies per person") /* b38 CR-2 exact wording */;
       expect(r).toMatch(/Indicative, not tax advice\.$/);
     }
     expect(fifStaticReply("What is the FIF threshold?")!).not.toMatch(/^No,/);
@@ -70,13 +70,13 @@ describe("b37 item 2 (CR-2): joint FIF answer", () => {
     const { guideFactsBlock } = await import("@/lib/guide-facts");
     const b = guideFactsBlock();
     expect(b).not.toMatch(/when the portfolio is set to jointly held/);
-    expect(b).toContain("per natural person");
-    expect(b).toContain("It never doubles for a joint portfolio as a whole");
+    expect(b).toContain("applies per person");
+    expect(b).toContain("it's not a doubled threshold for the portfolio");
     expect(b).toContain("Trusts and companies don't get the exemption");
     expect(b).toContain("Indicative, not tax advice");
   });
   it("the knowledge base (/learn FIF page) and the /tax/fif setting use the per-person rule", () => {
-    expect(read("src/data/learn-content.ts")).toContain("The threshold is per natural person");
+    expect(read("src/data/learn-content.ts")).toContain("The NZ$50,000 threshold applies per person");
     expect(read("src/components/tax/FifThresholdSetting.tsx")).toContain("NZ$100,000 (2 equal owners, no other FIF holdings)");
   });
   it("model replies lose soft speed words", async () => {

@@ -127,7 +127,7 @@ describe("b37 G-10 P1: failure surfacing", () => {
   });
   it("the dashboard replays pending writes on load and reads fresh", () => {
     const dash = src("src/components/dashboard/PortfolioDashboard.tsx");
-    expect(dash).toMatch(/replayPendingWrites\(userId/);
+    expect(dash).toMatch(/replayPendingWrites\(\s*userId/);
     expect(dash).toMatch(/loadPortfolioSnapshot\(\{ force: true \}\)/);
   });
 });

@@ -168,7 +168,8 @@ describe("pull-check:v3-crypto-seed-2026-10-12", () => {
     clearSnapshotMemory();
     const still = await readCryptoSnapshot(50);
     expect(still?.coins).toHaveLength(89);
-    expect(still?.at).toBe(at);
+    // b38 H-1 (Chief ruling 1): after 10 min the shorter list refreshes matching coins; the 89 rows stay.
+    expect(Date.parse(still?.at || "")).toBeGreaterThanOrEqual(Date.parse(at));
   });
 
   it("does not replace a fresh 400-coin verified list with a shorter verified page", async () => {
@@ -262,7 +263,7 @@ describe("pull-check:v3-crypto-seed-2026-10-12", () => {
     const board = await readSharedCryptoBoard();
     expect(board.coins.length).toBeGreaterThanOrEqual(50);
     expect(board.coins.every((row) => row.price > 0)).toBe(true);
-    expect(board.notice).toMatch(/Prices as at /);
+    expect(board.notice).toMatch(/Prices last updated /);
     expect(board.notice).not.toContain("CoinPaprika");
     expect(board.at).toBeTruthy();
   });
@@ -313,7 +314,7 @@ describe("pull-check:v3-crypto-seed-2026-10-12", () => {
     const board = await readSharedCryptoBoard();
     expect(board.coins).toHaveLength(40);
     expect(board.at).toBe(at);
-    expect(board.notice).toContain("Prices as at");
+    expect(board.notice).toContain("Prices last updated");
     expect(board.notice).toContain("The feed is delayed.");
     expect(board.notice).toContain("Source: CoinGecko.");
     expect(board.coins.every((row) => row.price > 0)).toBe(true);
@@ -358,7 +359,7 @@ describe("pull-check:v3-crypto-seed-2026-10-12", () => {
     const board = await readSharedDexBoard();
     expect(board.rows.length).toBeGreaterThan(0);
     expect(board.rows.every((row) => (row.price || 0) > 0)).toBe(true);
-    expect(board.notice).toMatch(/Prices as at /);
+    expect(board.notice).toMatch(/Prices last updated /);
     expect(board.notice).toContain("Source: DexPaprika.");
     expect(urls.some((url) => url.includes("dexscreener.com"))).toBe(false);
   });

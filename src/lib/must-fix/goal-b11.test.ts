@@ -20,7 +20,7 @@ describe("b11 pins", () => {
 describe("G-15 schema", () => {
   it("breadcrumb items are absolute URLs", () => {
     const b = breadcrumbJsonLd([{ name: "Home", path: "/" }, { name: "Pricing", path: "/pricing" }]);
-    for (const item of b.itemListElement) expect(item.item).toMatch(/^https?:\/\/[^/]+\//);
+    for (const item of b.itemListElement) expect(item.item["@id"]).toMatch(/^https?:\/\/[^/]+\//); // b38: item is a named WebPage
     expect(absoluteUrl("https://x.test/a")).toBe("https://x.test/a");
   });
   it("FAQ has question and answer text; no rating schema anywhere", () => {

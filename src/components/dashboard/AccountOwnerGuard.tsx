@@ -33,6 +33,9 @@ function hardReload(): void {
 
 /** b26 H-4: the session check never holds the page for more than 5 s. */
 export const SESSION_CHECK_TIMEOUT_MS = 5000;
+/** b38: quiet retries before "could not reach the sign-in service" shows. */
+export const QUIET_SESSION_RETRIES = 2;
+export const QUIET_RETRY_DELAY_MS = 800;
 const TIMED_OUT = Symbol("session-check-timeout");
 function withinSessionBudget<T>(work: Promise<T>): Promise<T | typeof TIMED_OUT> {
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -122,6 +125,13 @@ export function AccountOwnerGuard({
   const pathname = usePathname();
   const [phase, setPhase] = useState<AccountPaint | "slow">("pending");
   const [attempt, setAttempt] = useState(0);
+  // b38 (TT b37 M-8 P2): a slow or failed session read retries quietly before any notice shows.
+  const slowOrRetry = () => {
+    if (attempt < QUIET_SESSION_RETRIES) {
+      invalidateLiveSessionProbe();
+      window.setTimeout(() => setAttempt((n) => n + 1), QUIET_RETRY_DELAY_MS);
+    } else setPhase("slow");
+  };
   const [boundId, setBoundId] = useState(userId);
   if (boundId !== userId) {
     setBoundId(userId);
@@ -171,11 +181,11 @@ export function AccountOwnerGuard({
       if (r === TIMED_OUT && !cancelled) {
         cancelled = true;
         console.warn("[session] browser session check exceeded 5 s");
-        setPhase("slow");
+        slowOrRetry();
       }
     }, () => {
       // b27 H-4: the store could not confirm the session; retry, never sign out.
-      if (!cancelled) setPhase("slow");
+      if (!cancelled) slowOrRetry();
     });
     return () => {
       cancelled = true;
@@ -197,6 +207,13 @@ export function AccountOwnerGuard({
 export function DashboardSessionRecovery({ children }: { children: ReactNode }) {
   const [phase, setPhase] = useState<"pending" | "guest" | "mismatch" | "slow">("pending");
   const [attempt, setAttempt] = useState(0);
+  // b38 (TT b37 M-8 P2): a slow or failed session read retries quietly before any notice shows.
+  const slowOrRetry = () => {
+    if (attempt < QUIET_SESSION_RETRIES) {
+      invalidateLiveSessionProbe();
+      window.setTimeout(() => setAttempt((n) => n + 1), QUIET_RETRY_DELAY_MS);
+    } else setPhase("slow");
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -229,10 +246,10 @@ export function DashboardSessionRecovery({ children }: { children: ReactNode }) 
       if (r === TIMED_OUT && !cancelled) {
         cancelled = true;
         console.warn("[session] browser session recovery exceeded 5 s");
-        setPhase("slow");
+        slowOrRetry();
       }
     }, () => {
-      if (!cancelled) setPhase("slow");
+      if (!cancelled) slowOrRetry();
     });
     return () => {
       cancelled = true;
