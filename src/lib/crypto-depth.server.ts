@@ -159,7 +159,7 @@ export async function ensureCoinDepth(opts: {
   });
   if (pageDepthComplete(ready) || (opts.budgetMs ?? 2_200) <= 0) {
     rememberCoinDepth(ready);
-    return { ...ready, checkedAt: ready.quotedAt || checkedAt };
+    return { ...ready, checkedAt };
   }
   const fetched = await withTimeout(() => fetchFallbacks(slug, opts.budgetMs ?? 2_200), opts.budgetMs ?? 2_200, {
     gecko: null,
@@ -176,5 +176,5 @@ export async function ensureCoinDepth(opts: {
   });
   const final = chosen.id ? chosen : emptyCoinDetail(slug, checkedAt);
   rememberCoinDepth(final);
-  return { ...final, checkedAt: final.quotedAt || checkedAt };
+  return { ...final, checkedAt };
 }

@@ -210,7 +210,10 @@ describe("G-17 fallback", () => {
     const next = [
       listed({ id: "bitcoin", symbol: "BTC", name: "Bitcoin", rank: 1, price: 60000, marketCap: 1.2e12, volume24h: 20e9, circulatingSupply: 19e6, change1h: 0.2, moves: { h24: 1, d7: 2, d30: 3 } }),
     ];
-    const kept = retainDepthCoins(next, [tether]);
+    const kept = retainDepthCoins(next, [{ ...tether, quotedAt: new Date().toISOString() }]);
+    // b28 review: an undated or stale previous row is not carried into a new snapshot.
+    expect(retainDepthCoins(next, [{ ...tether, quotedAt: null }]).map((c) => c.id)).not.toContain("tether");
+    expect(retainDepthCoins(next, [{ ...tether, quotedAt: new Date(Date.now() - 7 * 3600_000).toISOString() }]).map((c) => c.id)).not.toContain("tether");
     expect(kept.map((coin) => coin.id)).toContain("tether");
     expect(kept.find((coin) => coin.id === "tether")?.volume24h).toBe(80e9);
   });

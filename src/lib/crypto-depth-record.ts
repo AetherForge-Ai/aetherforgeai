@@ -192,7 +192,8 @@ export function chooseCoinDepth(input: DepthChoice): CoinDetail {
   if (!current) return emptyCoinDetail(input.slug, input.checkedAt);
   return {
     ...withSlug(current, input.slug),
-    checkedAt: current.quotedAt || current.checkedAt || input.checkedAt,
+    // b28 review: checkedAt is when this page checked the feeds, not the quote time.
+    checkedAt: input.checkedAt,
   };
 }
 
@@ -229,7 +230,10 @@ export function resetCoinDepthMemory(): void {
  * b24 kept the list refresh alive, so a short seed could replace the snapshot
  * and drop tether, rain, and figure-heloc until the next lucky fetch.
  */
-export function retainDepthCoins(next: CoinMarket[], previous: CoinMarket[], limit = 400): CoinMarket[] {
+/** b28 review: a retained row older than this is dropped rather than carried into a new snapshot. */
+export const RETAIN_MAX_AGE_MS = 6 * 60 * 60 * 1000;
+
+export function retainDepthCoins(next: CoinMarket[], previous: CoinMarket[], limit = 400, now = Date.now()): CoinMarket[] {
   const symbols = new Set(next.map((coin) => (coin.symbol || "").toUpperCase()).filter(Boolean));
   const ids = new Set(next.map((coin) => (coin.id || "").toLowerCase()).filter(Boolean));
   const kept = previous.filter((coin) => {
@@ -237,6 +241,10 @@ export function retainDepthCoins(next: CoinMarket[], previous: CoinMarket[], lim
     const id = (coin.id || "").toLowerCase();
     if (!symbol || !id) return false;
     if (symbols.has(symbol) || ids.has(id)) return false;
+    // b28 review (honesty): only a row that carries its own quote time, younger than 6 h, is kept,
+    // and it keeps that time, so the page never shows old figures as of the new snapshot.
+    const quoted = Date.parse(coin.quotedAt || "");
+    if (!Number.isFinite(quoted) || now - quoted > RETAIN_MAX_AGE_MS) return false;
     return marketDepthComplete(coin);
   });
   if (!kept.length) return next.slice(0, Math.max(0, limit));

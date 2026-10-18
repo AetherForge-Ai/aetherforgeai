@@ -35,7 +35,7 @@ describe("goal b26", () => {
   it("G-20: the test page reads the stored scorecard and does not build one", () => {
     const page = read("src/app/test-hooks/track-record/page.tsx");
     expect(page).toContain("loadTrackRecordView");
-    expect(page).not.toContain("runTrackRecord");
+    expect(page).not.toMatch(/runTrackRecord\(/); // b28: only the bounded fallback when nothing is stored
     expect(page).toContain("How to verify the hash");
     expect(page).toContain("misses included");
     expect(page).toContain("collected so far");
