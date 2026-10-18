@@ -655,6 +655,23 @@ export function RecordTransactionPanel({
           delete payload.amount;
         }
       }
+      // Goal b19 CR-6: a new holding past the plan cap is refused before anything
+      // paints. The server's dry run runs the same cap check and writes nothing,
+      // so the cap message shows in this dialog instead of a flash-and-rollback.
+      const newSleeve =
+        (kind === "buy" || kind === "opening_balance") &&
+        typeof payload.ticker === "string" &&
+        payload.asset_type !== "metal" &&
+        !holdings.some(
+          (h) => h.ticker.toUpperCase() === String(payload.ticker).toUpperCase() && h.assetType === (payload.asset_type ?? "stock")
+        );
+      if (newSleeve) {
+        const check = await api.post("/api/transactions?dryRun=1", payload);
+        if (!check.ok && check.status === 403) {
+          failSave(typeof check.error === "string" ? check.error : "You've reached your plan's holding limit.");
+          return;
+        }
+      }
       const postedAt = Date.now();
       // Goal b12 G-10: paint cash, the holding and the ledger row now from the
       // reviewed figures. The saved row replaces it; a refusal rolls it back.

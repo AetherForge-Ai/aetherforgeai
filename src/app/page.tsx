@@ -5,7 +5,7 @@ import { getMetalsSpot } from "@/lib/metals";
 import { publicPageMetadata } from "@/lib/reviewed-book";
 import { SiteHeader } from "@/components/SiteHeader";
 import { DisclaimerNotice } from "@/components/legal/DisclaimerNotice";
-import { MarketTicker } from "@/components/MarketTicker";
+import { LazyMarketTicker as MarketTicker } from "@/components/LazyMarketTicker";
 import { HomeBottomCta, HomeHeroCtas } from "@/components/home/HomeSessionCtas";
 import { LazyPersonalGuide as PersonalGuide } from "@/components/personal-guide/LazyPersonalGuide";
 import { HomeMetalsPrices } from "@/components/home/HomeMetalsPrices";

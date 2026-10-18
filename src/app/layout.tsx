@@ -17,7 +17,7 @@ import { GoogleTag } from "@/components/GoogleTag";
 import { CONSENT_DEFAULT_DENIED_SNIPPET } from "@/lib/analytics-consent";
 import { AnalyticsNotice } from "@/components/AnalyticsNotice";
 import { SiteFooter } from "@/components/SiteFooter";
-import { Toaster } from "@/components/ui/sonner";
+import { LazyToaster as Toaster } from "@/components/ui/LazyToaster";
 import { PortfolioCoach } from "@/components/portfolio-coach";
 import { LazyTransactionDialogHost } from "@/components/dashboard/LazyTransactionDialogHost";
 import { PwaRegister } from "@/components/PwaRegister";

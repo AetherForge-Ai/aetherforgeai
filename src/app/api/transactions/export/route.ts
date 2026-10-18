@@ -9,6 +9,8 @@ import { CSV_EXPORT_COLUMNS } from "@/lib/ledger-schema";
 import { csvEscape, transactionCsvCells, type CsvRow } from "@/lib/transaction-csv";
 import type { TaxLedgerRow } from "@/lib/taxable-income";
 import { aucklandDateISO } from "@/lib/fill-integrity";
+import { buildPortfolioSnapshot, type SnapshotLedgerRow } from "@/lib/portfolio-snapshot";
+import { xeroStatementCsv } from "@/lib/xero-csv";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +39,21 @@ export async function GET(req: Request) {
     }
 
     const ledger = await loadLedger(user, 5000);
+    // Goal b19 G-29: ?format=xero returns a Xero bank-statement CSV of NZD cash movements.
+    if (new URL(req.url).searchParams.get("format") === "xero") {
+      const snap = buildPortfolioSnapshot({ rows: ledger.transactions as SnapshotLedgerRow[], asOf: new Date().toISOString() });
+      const { csv, rows: count, skipped } = xeroStatementCsv(snap.ledger);
+      return new NextResponse(csv, {
+        status: 200,
+        headers: {
+          "Content-Type": "text/csv; charset=utf-8",
+          "Content-Disposition": `attachment; filename="xero-statement-${aucklandDateISO()}.csv"`,
+          "Cache-Control": "no-store",
+          "X-Xero-Rows": String(count),
+          "X-Xero-Skipped": String(skipped),
+        },
+      });
+    }
     const rows = attachFifoRealised(ledger.transactions as unknown as TaxLedgerRow[]);
     const lines = rows.map((t) => rowCells(t as TransactionRow).join(","));
     const csv = `${[HEADERS.join(","), ...lines].join("\n")}\n`;
