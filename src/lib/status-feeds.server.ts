@@ -1,3 +1,4 @@
+import { attemptLabel, attemptIsGuard } from "@/lib/crypto-attempts";
 import "server-only";
 
 import { getFxSnapshot } from "@/lib/fx";
@@ -97,7 +98,7 @@ async function cryptoAttemptRow(): Promise<StatusFeedRow> {
   if (!last) return { label: "Crypto list last attempt", tone: "amber", text: "— no refresh attempt recorded yet" };
   return {
     label: "Crypto list last attempt",
-    tone: last.ok ? "ok" : "red",
-    text: `${formatDisplayDateTime(last.at)} · ${last.ok ? "succeeded" : `failed (${last.code})`}`,
+    tone: last.ok || attemptIsGuard(last.code) ? "ok" : "red",
+    text: `${formatDisplayDateTime(last.at)} · ${attemptLabel(last)}`,
   };
 }

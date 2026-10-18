@@ -26,8 +26,28 @@ export function attemptCode(err: unknown): string {
   if (status) return `http-${status}`;
   if (/timeout|abort/i.test(msg)) return "timeout";
   if (/non-JSON/i.test(msg)) return "non-json";
+  // b35 H-1 (GOAL-LOCK #25): TT's /status said "failed (empty)" while a full list was served.
+  // Those were guard refusals, not provider failures. Name them.
+  if (/another server|newer list is already saved|refresh lease held/i.test(msg)) return "lost-race";
+  if (/kept the previous one|kept the fresher|list not verified/i.test(msg)) return "guarded";
   if (/unavailable/i.test(msg)) return "empty";
   return "error";
+}
+
+/** b35 H-1: a lost race or a guard keeping a list is not a failure of the feed. */
+export function attemptIsGuard(code: string): boolean {
+  return code === "lost-race" || code === "guarded";
+}
+
+/** b35 H-1: plain /status wording for an attempt code. */
+export function attemptLabel(attempt: Pick<CryptoAttempt, "ok" | "code">): string {
+  if (attempt.ok) return "succeeded";
+  if (attempt.code === "lost-race") return "skipped: another server saved a newer list first (list still served)";
+  if (attempt.code === "guarded") return "kept the saved list: the new one was shorter or unverified (list still served)";
+  if (attempt.code === "empty") return "failed: provider returned no priced coins";
+  if (attempt.code === "timeout") return "failed: provider timed out";
+  if (attempt.code.startsWith("http-")) return `failed: provider answered HTTP ${attempt.code.slice(5)}`;
+  return `failed (${attempt.code})`;
 }
 
 export function recordCryptoAttempt(ok: boolean, err?: unknown, now = Date.now()): CryptoAttempt {

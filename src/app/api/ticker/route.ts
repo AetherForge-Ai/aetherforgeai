@@ -3,6 +3,7 @@ import { PUBLIC_EQUITY_SOURCE, publicCryptoSourcesLabel } from "@/lib/data-sourc
 import { cryptoVenueForLabel } from "@/lib/crypto-price-chain";
 import { readCryptoSnapshot, snapshotHeaders } from "@/lib/crypto-snapshot";
 import { loadPublicTicker } from "@/lib/public-ticker";
+import { snapshotFloorCookie, snapshotFloorFrom } from "@/lib/snapshot-floor";
 import { readFeedForce } from "@/lib/feed-freshness-hook";
 import { feedOffFromCookieHeader } from "@/lib/test-hooks";
 import { currentUserMayUseTestHooks } from "@/lib/test-hooks.server";
@@ -29,10 +30,22 @@ export async function GET(req: Request) {
       { status: 503, headers: { "Cache-Control": "no-store", "CDN-Cache-Control": "no-store" } }
     );
   }
-  const feed = await loadPublicTicker();
+  // b35 H-1 (GOAL-LOCK #25): read the snapshot ONCE (with this client's version floor) and build
+  // both the crypto rows and the x-af-snapshot headers from it. TT saw rows from one read and
+  // headers from another (v30 headers over an empty list; no headers on a cold isolate).
+  const floor = snapshotFloorFrom(req);
+  const snap = await Promise.race([readCryptoSnapshot(undefined, { floor }).catch(() => null), new Promise<null>((r) => setTimeout(() => r(null), 2_000))]);
+  const feed = await loadPublicTicker({ snapshot: snap });
   // G-05: named stale/failed mark for this browser. Omitted unless the account is allow-listed.
   const testFeedForce = readFeedForce(cookie, hooksAllowed);
-  const snap = await Promise.race([readCryptoSnapshot().catch(() => null), new Promise<null>((r) => setTimeout(() => r(null), 1_500))]);
+  // Never a 200 with an empty crypto list: no copy anywhere is a 503 the tape retries.
+  if (!feed.rows.crypto.length && !snap) {
+    return NextResponse.json(
+      { ok: false, error: "Crypto prices are not available yet. Retrying shortly." },
+      { status: 503, headers: { "Cache-Control": "no-store", "CDN-Cache-Control": "no-store", "Retry-After": "5" } }
+    );
+  }
+  const stale = !!snap && (!feed.rows.crypto.length || !feed.live.crypto);
 
   console.log(
     `[api/ticker] Served rows — crypto ${feed.live.crypto ? "live" : "quiet"} (${feed.rows.crypto.length}), equities ${feed.live.equities ? "live" : "quiet"} (${feed.rows.nzx.length + feed.rows.asx.length})`
@@ -51,6 +64,7 @@ export async function GET(req: Request) {
           cryptoVenue: cryptoVenueForLabel(feed.providers.crypto).href,
         },
         ...(testFeedForce ? { testFeedForce } : {}),
+        ...(stale ? { stale: true } : {}),
       },
     },
     {
@@ -58,6 +72,8 @@ export async function GET(req: Request) {
         "Cache-Control": "no-store, no-cache, must-revalidate",
         "CDN-Cache-Control": "no-store",
         ...snapshotHeaders(snap),
+        ...(stale ? { "x-af-snapshot-stale": "1" } : {}),
+        ...(snap ? { "Set-Cookie": snapshotFloorCookie(Math.max(snap.version, floor)) } : {}),
       },
     }
   );

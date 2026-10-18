@@ -863,6 +863,16 @@ export async function snapshotQuotesForSymbols(
   symbols: string[]
 ): Promise<Record<string, { price: number; changePct?: number; source: string; quotedAt: string | null }>> {
   const board = await readSharedCryptoBoard({ seed: false });
+  return quotesFromCoins(board.coins, board.at, symbols);
+}
+
+/** b35 H-1: tape quotes from one list (the request's single snapshot read). */
+export function quotesFromCoins(
+  coins: CoinMarket[],
+  at: string | null,
+  symbols: string[]
+): Record<string, { price: number; changePct?: number; source: string; quotedAt: string | null }> {
+  const board = { coins, at };
   const out: Record<string, { price: number; changePct?: number; source: string; quotedAt: string | null }> = {};
   for (const raw of symbols) {
     const symbol = raw.trim().toUpperCase();
