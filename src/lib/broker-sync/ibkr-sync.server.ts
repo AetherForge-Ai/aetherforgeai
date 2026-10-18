@@ -35,7 +35,7 @@ async function flexGet(url: string): Promise<string> {
   // b32 BS-01: IBKR reports token problems as XML ErrorCode (1012 expired, 1015 invalid), even on a
   // non-200. Hand that to the parser; a bare HTTP 403 with no ErrorCode is not a token error.
   if (!res.ok && /<ErrorCode>\s*\d+\s*<\/ErrorCode>/.test(body)) return body;
-  if (!res.ok) throw new Error(`IBKR answered HTTP ${res.status}${res.status === 403 ? " (refused the request; this is not a token error)" : ""}. Try again later.`);
+  if (!res.ok) throw new Error(`IBKR answered HTTP ${res.status}${res.status === 403 ? ": IBKR refused the request. Check your Flex token and Query ID in Client Portal → Flex Web Service, then try again" : ". Try again later"}.`);
   return body;
 }
 

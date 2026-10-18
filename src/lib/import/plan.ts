@@ -87,6 +87,9 @@ export function keepCovered(rows: readonly ImportRow[], held: Record<string, num
   return { toWrite, errors };
 }
 
+/** b34 H-10: layouts whose headers are verified (BROKER-CSV-COLUMNS.md, 19 Oct 2026). */
+export const VERIFIED_LAYOUTS: readonly string[] = ["hatch", "swyftx", "ibkr"];
+
 /** Leading comment (# …) or empty rows, at most 5, are not the header. */
 export function stripPreamble(grid: string[][]): string[][] {
   let i = 0;
@@ -128,7 +131,9 @@ export async function previewImport(text: string, options: PlanOptions = {}): Pr
   const fileHash = await contentHash(text);
   return {
     broker,
-    label: BROKER_LABEL[broker],
+    // b34 H-10 (Research 19 Oct): only Hatch, Swyftx and IBKR layouts are verified; others are read
+    // by column name and must be checked row by row. No "supported" claim for them.
+    label: VERIFIED_LAYOUTS.includes(broker) ? BROKER_LABEL[broker] : `${BROKER_LABEL[broker]}-style columns (layout not verified against a real export; check every row)`,
     error: toWrite.length ? null : errors[0]?.message || draft.skipped[0]?.message || "No buy or sell rows could be read. Nothing was written.",
     headers,
     needsMapping: false,
