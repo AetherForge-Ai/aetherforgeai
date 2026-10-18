@@ -37,7 +37,7 @@ export function fifThresholdNzd(env: Record<string, string | undefined> = proces
  */
 export function fifThresholdText(nzd = fifThresholdNzd()): string {
   const money = `NZ$${nzd.toLocaleString("en-NZ", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  return nzd === FIF_COST_THRESHOLD_NZD ? money : `${money} (jointly held)`;
+  return nzd === FIF_COST_THRESHOLD_NZD ? money : `${money} (2 equal owners, no other FIF holdings)`;
 }
 
 export const FIF_SOURCES = [

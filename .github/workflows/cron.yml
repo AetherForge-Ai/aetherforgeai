@@ -1,12 +1,16 @@
 # Scheduled calls to the app's cron routes (GOAL-LOCK G-20 track record; broker sync).
-# GitHub runs scheduled workflows only from the default branch (main), so this
-# activates once the b31 line is mirrored to main. No email routes are called.
+# GitHub runs scheduled workflows only from the default branch (main). No email routes are called.
+# b37: as of b33 there were 0 scheduled runs. main is the default branch, the workflow is active and the
+# syntax is valid, but the only commit that touched this file on main was the b32 mirror force-push.
+# Schedules are registered when a push to the default branch changes the workflow, so this edit lands
+# through a normal develop → main PR merge. It also moves the times off :00 and :15, which GitHub
+# delays or drops under load.
 name: cron
 
 on:
   schedule:
-    - cron: "0 16 * * *"   # broker sync, daily 16:00 UTC (05:00 NZDT / 04:00 NZST)
-    - cron: "15 */6 * * *" # track record, every 6 hours
+    - cron: "7 16 * * *"   # broker sync, daily 16:07 UTC (05:07 NZDT / 04:07 NZST)
+    - cron: "23 */6 * * *" # track record, every 6 hours at :23 UTC
   workflow_dispatch:
     inputs:
       job:
@@ -28,7 +32,7 @@ env:
 
 jobs:
   broker-sync:
-    if: github.event.schedule == '0 16 * * *' || (github.event_name == 'workflow_dispatch' && github.event.inputs.job != 'track-record')
+    if: github.event.schedule == '7 16 * * *' || (github.event_name == 'workflow_dispatch' && github.event.inputs.job != 'track-record')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -46,7 +50,7 @@ jobs:
           head -c 500 /tmp/out.json; echo
 
   track-record:
-    if: github.event.schedule == '15 */6 * * *' || (github.event_name == 'workflow_dispatch' && github.event.inputs.job != 'broker-sync')
+    if: github.event.schedule == '23 */6 * * *' || (github.event_name == 'workflow_dispatch' && github.event.inputs.job != 'broker-sync')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

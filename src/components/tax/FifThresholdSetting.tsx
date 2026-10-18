@@ -41,7 +41,7 @@ export function FifThresholdSetting({ initialNzd }: { initialNzd: number }) {
       </label>
       <label className="inline-flex items-center gap-2">
         <input type="radio" name="fif-threshold" checked={value === 100000} disabled={state === "saving"} onChange={() => void save(100000)} />
-        NZ$100,000 (jointly held)
+        NZ$100,000 (2 equal owners, no other FIF holdings)
       </label>
       <p className="mt-2 text-xs text-muted-foreground" aria-live="polite">
         {state === "saving" ? "Saving…" : message || "Saved for this portfolio. The working paper and the tax pack print the value used."}

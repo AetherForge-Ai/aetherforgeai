@@ -1,4 +1,4 @@
-// pull-check:v3-goal-b36-2026-10-19
+// pull-check:v3-goal-b37-2026-10-19
 import { describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 import { readFileSync } from "node:fs";
@@ -76,7 +76,7 @@ describe("b27 H-9 FIF threshold config", () => {
 
 describe("b27 version bump", () => {
   it("pins the build everywhere", () => {
-    expect(read("public/build-version.txt").trim()).toBe("v3-goal-b36-2026-10-19");
-    expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-goal-b36-2026-10-19");
+    expect(read("public/build-version.txt").trim()).toBe("v3-goal-b37-2026-10-19");
+    expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-goal-b37-2026-10-19");
   });
 });

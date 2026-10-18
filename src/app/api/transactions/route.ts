@@ -71,6 +71,13 @@ export async function POST(req: Request) {
     if (!user) {
       return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
     }
+    // b37 G-10: the same account check as GET/DELETE/PATCH. If the session cookie now belongs to a different
+    // account than the one the form was opened in (x-af-user-id), refuse with 409. Otherwise a deposit
+    // confirmed after a mid-flow session switch is written into the other account's book.
+    if (user.identityConflict || requestClaimsOtherUser(req, user._id)) {
+      console.warn("[api/transactions] write refused: session account changed", { outcome: "account-mismatch" });
+      return accountMismatchResponse(user._id);
+    }
 
     const body = (await req.json().catch(() => ({}))) as unknown;
     const parsed = tradeSchema.safeParse(body);

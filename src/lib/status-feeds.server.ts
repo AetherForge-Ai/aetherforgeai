@@ -32,13 +32,21 @@ async function within<T>(work: Promise<T>, ms = STATUS_PROBE_TIMEOUT_MS): Promis
   ]);
 }
 
-/** b34 M-2: never "unavailable" for equities while a saved snapshot time exists. */
+/**
+ * b34 M-2: never "unavailable" for equities while a saved snapshot time exists.
+ * b37 M-2: the "unavailable" fallback is gone. The saved time is always considered (seed plus memory), and
+ * with no time anywhere the row says so plainly instead of reading as an outage.
+ */
 async function equityRow(row: StatusFeedRow, now: number): Promise<StatusFeedRow> {
   if (!/^unavailable/.test(row.text)) return row;
   const { latestSavedEquityAt } = await import("@/lib/stock-board.server");
   const at = latestSavedEquityAt();
-  return at ? { ...row, tone: "amber", text: savedSnapshotLabel(at, now) } : row;
+  return at
+    ? { ...row, tone: "amber", text: savedSnapshotLabel(at, now) }
+    : { ...row, tone: "amber", text: EQUITY_NO_TIME_TEXT };
 }
+
+export const EQUITY_NO_TIME_TEXT = "— no saved quote time yet";
 
 /** Provider timestamps only. A failed or baseline feed is unavailable. */
 export async function loadStatusFeeds(now = Date.now()): Promise<StatusFeedRow[]> {
@@ -56,12 +64,13 @@ export async function loadStatusFeeds(now = Date.now()): Promise<StatusFeedRow[]
         ...(tape?.rows.nzx ?? []).map((row) => row.quotedAt),
         ...(tape?.rows.asx ?? []).map((row) => row.quotedAt),
       ]));
-  let cryptoAt = tapeTimedOut ? lastOk.crypto ?? null : remember("crypto", latestIso((tape?.rows.crypto ?? []).map((row) => row.quotedAt)));
+  // b37 M-2: crypto "Last OK" comes from the shared snapshot, the same source as the page's
+  // x-af-snapshot-at stamp, so the two times can't disagree. The tape is used only when there's no snapshot.
+  const { readCryptoSnapshot } = await import("@/lib/crypto-snapshot");
+  const snap = await within(readCryptoSnapshot());
+  let cryptoAt = remember("crypto", snap?.at ?? null);
   if (!cryptoAt) {
-    // The shared snapshot in memory is the crypto feed's last OK time.
-    const { readCryptoSnapshot } = await import("@/lib/crypto-snapshot");
-    const snap = await within(readCryptoSnapshot());
-    cryptoAt = remember("crypto", snap?.at ?? null);
+    cryptoAt = tapeTimedOut ? lastOk.crypto ?? null : remember("crypto", latestIso((tape?.rows.crypto ?? []).map((row) => row.quotedAt)));
   }
   const fxAt = fxTimedOut ? lastOk.fx ?? null : remember("fx", fx?.sourced ? fx.asOf : null);
   const metalsAt = metalsTimedOut ? lastOk.metals ?? null : remember("metals", metals?.live ? metals.quotedAt : null);

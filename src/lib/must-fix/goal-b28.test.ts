@@ -101,9 +101,9 @@ describe("b28 H-11 goals survive a reload", () => {
 describe("b28 H-9 threshold text from the setting", () => {
   it("50k default; any other value is labelled jointly held and printed in the sentence", () => {
     expect(fifThresholdText(50000)).toBe("NZ$50,000.00");
-    expect(fifThresholdText(100000)).toBe("NZ$100,000.00 (jointly held)");
+    expect(fifThresholdText(100000)).toBe("NZ$100,000.00 (2 equal owners, no other FIF holdings)");
     const s = fifThresholdSentence({ peakCostNzd: 24000, threshold: "under", attributing: [{} as never], peakCostDay: "2025-05-01", thresholdNzd: 100000 });
-    expect(s).toContain("NZ$100,000.00 (jointly held)");
+    expect(s).toContain("NZ$100,000.00 (2 equal owners, no other FIF holdings)");
     expect(s).toContain("reached 2025-05-01");
   });
 });

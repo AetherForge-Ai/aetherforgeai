@@ -50,8 +50,8 @@ describe("b32 H-4: 500-row ledger at /dashboard/transactions, quota within 1 s",
     expect(page).toMatch(/currentUserMayUseTestHooks\(\)/);
     expect(page).toMatch(/permanentRedirect\(dashboardRedirectHref/);
   });
-  it("the quota read on the 500-row page is one bounded read under 1 s", () => {
-    expect(read("src/components/dashboard/Fixture500Page.tsx")).toMatch(/readReportQuota\(900, 1\)/);
+  it("the quota read on the 500-row page is bounded (b37: streamed in Suspense, 2 attempts)", () => {
+    expect(read("src/components/dashboard/Fixture500Page.tsx")).toMatch(/readReportQuota\(FIXTURE_QUOTA_ATTEMPT_MS, 2\)/);
     expect(read("src/lib/dashboard-quota.server.ts")).toMatch(/attempts = 2/);
   });
   it("the 3-run LCP/CLS harness checks LCP < 2.5 s and CLS < 0.1", () => {
@@ -229,7 +229,7 @@ describe("b32 addendum: CR-2 FIF facts and BS-01 error mapping", () => {
     expect(r).toMatch(/including fees/);
     expect(r).toMatch(/at any time in the income year/);
     expect(r).toMatch(/New Zealand shares and most ASX-listed shares/);
-    expect(r).toMatch(/NZ\$100,000 figure applies only to two equal joint owners with no other FIF holdings/);
+    expect(r).toContain("NZ$50,000 per natural person"); // b37 CR-2 (Chief): per-person rule
     expect(r).toMatch(/Indicative, not tax advice/);
   });
   it("IBKR: User-Agent sent; XML ErrorCode on a non-200 is parsed; bare 403 is not a token error", () => {

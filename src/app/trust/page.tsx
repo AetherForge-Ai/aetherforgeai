@@ -23,7 +23,7 @@ import { AI_PROVIDER_API_SENTENCE, nameAiProvider } from "@/lib/ai-provider-disc
 import {
   TRUST_HOSTING_LINE,
   TRUST_PAGE_LOG,
-  trustBreachLine,
+  trustBreachParts,
   trustDeletionLine,
   trustExportLine,
   trustRetentionLine,
@@ -167,7 +167,11 @@ export default function TrustPage() {
 
           <section className="mt-8 space-y-2">
             <h2 className="font-display text-lg font-bold">Report a vulnerability</h2>
-            <p className="text-sm leading-relaxed text-muted-foreground">{trustBreachLine()}</p>
+            <p className="text-sm leading-relaxed text-muted-foreground" data-trust-breach>
+              {trustBreachParts().before}
+              <EmailAddress email={trustBreachParts().email} />
+              {trustBreachParts().after}
+            </p>
             <p className="text-sm leading-relaxed text-muted-foreground">
               The contact file is{" "}
               <Link href="/.well-known/security.txt" className="font-semibold text-primary underline-offset-2 hover:underline">

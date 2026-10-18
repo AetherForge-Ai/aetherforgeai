@@ -68,22 +68,44 @@ export function TransactionDialog({
   // behind. The keydown trap cannot see focus moves the browser makes itself (native date
   // segments), so a focusin guard pulls any focus that leaves the panel back inside, except into
   // the panel's own popovers (search results render in a portal).
+  // b37 G-14: the guard used to send stray focus to the first field. Now it goes to the field after
+  // the last one focused inside the panel, so Tab after the Date segments lands on the next field
+  // (or the one before it, for Shift+Tab).
   useEffect(() => {
     if (!open || typeof document === "undefined") return;
+    let lastInside: HTMLElement | null = null;
+    let backwards = false;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Tab") backwards = event.shiftKey;
+    };
     const onFocusIn = (event: FocusEvent) => {
       const panel = document.querySelector<HTMLElement>('[data-testid="record-transaction-dialog"]');
       const target = event.target as HTMLElement | null;
-      if (!panel || !target || panel.contains(target)) return;
+      if (!panel || !target) return;
+      if (panel.contains(target)) {
+        lastInside = target;
+        return;
+      }
       if (target.closest("[data-radix-popper-content-wrapper], [role='listbox'], [data-sonner-toaster]")) return;
       const items = Array.from(
         panel.querySelectorAll<HTMLElement>(
           'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
         )
       ).filter((el) => el.offsetParent !== null);
-      (items[0] ?? panel).focus();
+      if (!items.length) {
+        panel.focus();
+        return;
+      }
+      const at = lastInside ? items.indexOf(lastInside) : -1;
+      const next = at === -1 ? items[0] : items[(at + (backwards ? -1 : 1) + items.length) % items.length];
+      next.focus();
     };
+    document.addEventListener("keydown", onKey, true);
     document.addEventListener("focusin", onFocusIn);
-    return () => document.removeEventListener("focusin", onFocusIn);
+    return () => {
+      document.removeEventListener("keydown", onKey, true);
+      document.removeEventListener("focusin", onFocusIn);
+    };
   }, [open]);
 
   /** b31 G-10: keep Tab and Shift+Tab inside the panel (the dialog is non-modal for search popovers). */

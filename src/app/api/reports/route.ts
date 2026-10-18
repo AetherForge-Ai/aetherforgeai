@@ -1,4 +1,5 @@
 import { cleanReportProse, cleanStoredReport } from "@/lib/report-prose";
+import { forgetReportQuota } from "@/lib/dashboard-quota.server";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentUser, isStripeConfigured, hasActiveSubscription } from "@/lib/session";
@@ -88,6 +89,8 @@ export async function POST(req: Request) {
   try {
     const user = await getCurrentUser();
     if (!user) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    // b37 H-4: a generate attempt changes the count; drop this isolate's cached quota for the member.
+    forgetReportQuota(String(user._id));
     if (user.identityConflict || requestClaimsOtherUser(req, user._id)) {
       console.error("[api/reports] Refusing cross-account generate", {
         sessionUserId: user._id,

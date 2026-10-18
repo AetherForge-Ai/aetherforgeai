@@ -60,7 +60,7 @@ describe("trust page facts", () => {
     expect(page).toContain("trustRetentionLine");
     expect(page).toContain("trustDeletionLine");
     expect(page).toContain("trustExportLine");
-    expect(page).toContain("trustBreachLine");
+    expect(page).toContain("trustBreachParts");
     expect(page).toContain("TRUST_PAGE_LOG");
     expect(page).toContain('href="/.well-known/security.txt"');
     expect(page).toContain('href="/privacy-policy"');

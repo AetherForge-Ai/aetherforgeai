@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { SiteHeader } from "@/components/SiteHeader";
+import { ScheduleRunsCard } from "@/components/methodology/ScheduleRunsCard";
 import { FmcStatement } from "@/components/legal/DisclaimerNotice";
 import { publicPageMetadata } from "@/lib/reviewed-book";
 import { DATA_TOO_OLD_HOLD } from "@/lib/market-intel";
@@ -68,6 +69,7 @@ export default function MethodologyPage() {
             figures until they are computed. When they are, the hit rate, drawdowns and bad-period results appear here
             with their data source and as-of date.
           </p>
+          <ScheduleRunsCard />
           <p className="text-sm leading-relaxed text-muted-foreground">
             Past results do not predict future results. General information, not financial advice.
           </p>
