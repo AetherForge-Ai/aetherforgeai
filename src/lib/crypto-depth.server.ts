@@ -67,10 +67,16 @@ function findListed(coins: CoinMarket[] | undefined, slug: string): CoinMarket |
 }
 
 async function readListed(slug: string): Promise<CoinMarket | null> {
-  const peeked = findListed(peekTop400()?.coins, slug);
-  if (peeked) return peeked;
+  // b31 H-1: the shared snapshot first, so the coin page shows the same price as /markets.
   const saved = await withTimeout(() => readCryptoSnapshot(), 1_500, null);
-  return findListed(saved?.coins, slug);
+  return findListed(saved?.coins, slug) ?? findListed(peekTop400()?.coins, slug);
+}
+
+/** b31 H-1: this coin's row in the shared snapshot, with the snapshot's as-at and version. */
+export async function snapshotCoinFor(slug: string): Promise<{ coin: CoinMarket; at: string; version: number } | null> {
+  const saved = await withTimeout(() => readCryptoSnapshot(), 1_500, null);
+  const coin = findListed(saved?.coins, slug);
+  return coin && saved && coin.price > 0 ? { coin, at: saved.at, version: saved.version } : null;
 }
 
 async function fetchJson(url: string, headers: Record<string, string>, ms: number): Promise<unknown | null> {

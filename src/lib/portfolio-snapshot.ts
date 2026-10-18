@@ -1948,6 +1948,15 @@ export function returnPercentFigure(
  * An existing line with the same id is replaced; a pending optimistic line is
  * dropped when the saved one arrives.
  */
+/** b31 G-10: Pacific/Auckland calendar day for a date-only value or a stored instant. */
+export function ledgerCivilDay(value: string | null | undefined, now = new Date()): string {
+  const text = String(value || "").trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+  const at = text ? new Date(text) : now;
+  const instant = Number.isNaN(at.getTime()) ? now : at;
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Pacific/Auckland", year: "numeric", month: "2-digit", day: "2-digit" }).format(instant);
+}
+
 export function withLedgerLine(
   snapshot: PortfolioSnapshot,
   trade: {
@@ -1963,12 +1972,15 @@ export function withLedgerLine(
     trade_date?: string | null;
     total?: number | null;
     amount?: number | null;
+    realized_pnl_nzd?: number | null;
+    realized_pnl?: number | null;
   },
   cashNzd: number | null
 ): PortfolioSnapshot {
   const id = String(trade._id || "");
   if (!id) return snapshot;
-  const day = String(trade.trade_date || trade.executed_at || new Date().toISOString()).slice(0, 10);
+  // b31 G-10: the NZ local (Pacific/Auckland) day, not the UTC day of the stored instant.
+  const day = ledgerCivilDay(trade.trade_date || trade.executed_at || null);
   const fx = Number(trade.fx_rate) > 0 ? Number(trade.fx_rate) : 1;
   const line: SnapshotLedgerLine = {
     id,
@@ -1981,7 +1993,14 @@ export function withLedgerLine(
     fx,
     fxDisplay: fx.toFixed(4),
     cashNzd: cashNzd ?? Number(trade.total ?? 0),
-    realisedNzd: null,
+    // b31 G-10: a saved sell shows its stored realised NZ$ at once, not "—" until a reload.
+    realisedNzd:
+      String(trade.type || "") === "sell" && !id.startsWith("optimistic-")
+        ? (() => {
+            const raw = trade.realized_pnl_nzd ?? trade.realized_pnl;
+            return raw != null && Number.isFinite(Number(raw)) ? Math.round(Number(raw) * 100) / 100 : null;
+          })()
+        : null,
     when: day,
     whenLabel: formatDisplayDate(day),
   };

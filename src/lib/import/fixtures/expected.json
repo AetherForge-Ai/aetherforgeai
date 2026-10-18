@@ -1,0 +1,24 @@
+{
+  "sharesies.csv": { "broker": "sharesies", "rows": 3, "cashNzd": -380.8, "skipped": 1 },
+  "hatch.csv": { "broker": "hatch", "rows": 2, "cashNzd": -158.4 },
+  "ibkr.csv": { "broker": "ibkr", "rows": 3, "cashNzd": -588.9 },
+  "stake.csv": { "broker": "stake", "rows": 2, "cashNzd": -238 },
+  "asb.csv": { "broker": "asb", "rows": 2, "cashNzd": -202 },
+  "jarden.csv": { "broker": "jarden", "rows": 2, "cashNzd": -458 },
+  "commsec.csv": {
+    "broker": "commsec",
+    "rows": 2,
+    "cashNzd": -659.89,
+    "rates": { "AUD|2026-03-15": 1.1, "AUD|2026-06-16": 1.1 }
+  },
+  "swyftx.csv": {
+    "broker": "swyftx",
+    "rows": 2,
+    "cashNzd": -496.04,
+    "skipped": 1,
+    "rates": { "AUD|2026-01-15": 1.08, "AUD|2026-02-20": 1.08 }
+  },
+  "easycrypto.csv": { "broker": "easycrypto", "rows": 2, "cashNzd": -931, "skipped": 1 },
+  "generic.csv": { "broker": "generic", "rows": 2, "cashNzd": -206.28 },
+  "bad-rows.csv": { "broker": "sharesies", "rows": 2, "cashNzd": -125, "errors": 3 }
+}

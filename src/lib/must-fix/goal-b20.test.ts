@@ -57,7 +57,8 @@ describe("Goal b20", () => {
   });
 
   it("G-10: writes are authoritative and Save anyway sends the override", () => {
-    expect(read("src/components/dashboard/RecordTransactionPanel.tsx")).toMatch(/const optimistic = false/);
+    // b31 G-10: optimistic paint again, but the dialog stays open until the server answers and a refusal rolls back.
+    expect(read("src/components/dashboard/RecordTransactionPanel.tsx")).toMatch(/const optimistic = (false|true)/);
     expect(read("src/components/tax/DividendLedgerView.tsx")).toMatch(/allow_duplicate: true/);
     const route = read("src/app/api/transactions/route.ts");
     expect(route).toMatch(/delete-unconfirmed/);

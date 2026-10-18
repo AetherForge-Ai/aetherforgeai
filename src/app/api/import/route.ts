@@ -37,6 +37,7 @@ import { lotCivilDay } from "@/lib/executed-at";
 import { historicalNzdPerUnit } from "@/lib/fx";
 import { getTradeSessionUser } from "@/lib/session";
 import { totalumSdk } from "@/lib/totalum";
+import { runH10Import } from "@/lib/import/persist";
 import { applyTransaction } from "@/lib/transactions";
 
 export const dynamic = "force-dynamic";
@@ -211,6 +212,10 @@ export async function POST(req: Request) {
     const text = typeof body.text === "string" ? body.text : "";
     if (importTextTooLarge(text)) {
       return NextResponse.json({ ok: false, error: IMPORT_TOO_LARGE }, { status: 413 });
+    }
+
+    if ((body as { engine?: unknown }).engine === "h10") {
+      return runH10Import(user, text, body);
     }
 
     if (body.action === "hold") {

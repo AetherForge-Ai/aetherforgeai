@@ -90,7 +90,7 @@ export function TransactionsTab({
   }, [snapshot, q, type, removedIds]);
 
   const paged = pageLedger(filtered, { page, pageSize, showAll });
-  const effect = pending ? dividendDeleteEffect(snapshot?.kpis.cash.value ?? null, pending.cashNzd) : null;
+  const effect = pending ? dividendDeleteEffect(snapshot?.kpis.cash.value ?? null, pending.cashNzd, pending.type) : null;
 
   return (
     <section className="space-y-4" data-section="transactions-tab" aria-busy={loading || undefined}>
@@ -304,9 +304,9 @@ export function TransactionsTab({
                   <>
                     <p>Cash before {effect?.cashBefore}. Cash impact {effect?.lineImpact}. Cash after {effect?.cashAfter}.</p>
                     <p>{effect?.reason}</p>
+                    <p>Cancel changes nothing.</p>
                   </>
                 )}
-                <p>Cancel changes nothing.</p>
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -335,7 +335,7 @@ export function TransactionsTab({
                 });
               }}
             >
-              {busy ? "Removing…" : pending && pending.type !== "dividend" ? `Remove ${pending.type}` : "Remove dividend"}
+              {busy ? "Removing…" : pending ? `Remove ${pending.type === "withdraw" ? "withdrawal" : pending.type}` : "Remove"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

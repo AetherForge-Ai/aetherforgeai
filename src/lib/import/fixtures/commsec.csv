@@ -1,0 +1,3 @@
+Confirmation Number,Order Number,Trade Date,Buy/Sell,Security,Units,Average Price ($),Brokerage (inc GST.),Net Proceeds ($),Settlement Date,Confirmation Status
+900001,N1001,15/03/2026,B,CBA,10,100.00,19.95,1019.95,17/03/2026,Confirmed
+900002,N1002,16/06/2026,S,CBA,4,110.00,19.95,420.05,18/06/2026,Confirmed

@@ -1,0 +1,6 @@
+Order ID,Trade date,Instrument code,Market code,Quantity,Price,Transaction type,Exchange rate,Exchange fee,Transaction fee,Currency,Amount,Transaction method
+BAD-1,02/03/2026,AIR,NZX,100,0.65,BUY,1,0,0,NZD,65.00,Trade
+BAD-2,03/03/2026,FPH,NZX,-5,30.00,BUY,1,0,0,NZD,150.00,Trade
+BAD-3,2026-13-40,FPH,NZX,1,30.00,BUY,1,0,0,NZD,30.00,Trade
+BAD-4,04/03/2026,FPH,NZX,2,abc,BUY,1,0,0,NZD,60.00,Trade
+BAD-5,05/03/2026,FPH,NZX,2,30.00,BUY,1,0,0,NZD,60.00,Trade

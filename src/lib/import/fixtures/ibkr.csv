@@ -1,0 +1,4 @@
+ClientAccountID,AssetClass,Symbol,Description,TradeDate,Quantity,TradePrice,IBCommission,Buy/Sell,CurrencyPrimary,FXRateToBase,Proceeds
+U1111111,STK,BHP.AX,BHP Group,20260302,10,40.00,-1.50,BUY,AUD,1.1000,-400.00
+U1111111,STK,BHP.AX,BHP Group,20260320,-4,40.00,-1.50,SELL,AUD,1.1000,160.00
+U1111111,STK,NVDA,NVIDIA,20260401,2,100.00,-1.00,BUY,USD,1.6000,-200.00

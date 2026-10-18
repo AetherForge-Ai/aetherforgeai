@@ -15,7 +15,7 @@ import { pageTitle } from "@/lib/page-title";
 import { isJunkCoin } from "@/lib/coin-junk";
 import { withTimeout } from "@/lib/with-timeout";
 import { cryptoDetailCopy, cryptoDetailJsonLd, vendorByCoingeckoId, type CryptoDetailFacts } from "@/lib/crypto-public-meta";
-import { ensureCoinDepth } from "@/lib/crypto-depth.server";
+import { ensureCoinDepth, snapshotCoinFor } from "@/lib/crypto-depth.server";
 import { CoinDepthFacts } from "@/components/markets/CoinDepthFacts";
 
 export const dynamic = "force-dynamic";
@@ -33,20 +33,29 @@ const loadCryptoDetailFacts = cache(async (id: string): Promise<{ facts: CryptoD
   const slug = resolvableCoinId(id) || decodeURIComponent(id).trim().toLowerCase();
   const vendor = vendorByCoingeckoId(slug);
   const coinId = resolvableCoinId(id);
-  const depth = await withTimeout(() => ensureCoinDepth({ slug, budgetMs: 2_500 }), 3_500, null);
-  const listed = depth && depth.price > 0 ? depth : null;
+  // b31 REG-1/H-1: every read is bounded and they run side by side (worst case about 2.5 s).
+  // The shared snapshot drives the price and its as-at; a live print is used only for a coin
+  // that is not in the snapshot.
+  const [snap, depth, fx] = await Promise.all([
+    snapshotCoinFor(slug).catch(() => null),
+    withTimeout(() => ensureCoinDepth({ slug, budgetMs: 1_200 }), 1_500, null),
+    withTimeout(() => getFxSnapshot(), 1_500, null),
+  ]);
+  const depthListed = depth && depth.price > 0 ? depth : null;
+  const listed = snap
+    ? { ...(depthListed ?? ({} as NonNullable<typeof depth>)), ...(depthListed ? {} : snap.coin), price: snap.coin.price, change24h: snap.coin.change24h ?? depthListed?.change24h ?? null, source: snap.coin.source || depthListed?.source || "", quotedAt: snap.at, symbol: depthListed?.symbol || snap.coin.symbol } as NonNullable<typeof depth>
+    : depthListed;
   const print =
     listed && listed.price > 0
       ? null
       : coinId
-        ? await withTimeout(() => loadPublicCryptoPrint(coinId), 2500, null)
+        ? await withTimeout(() => loadPublicCryptoPrint(coinId), 1_000, null)
         : null;
   const priceUsd = listed && listed.price > 0 ? listed.price : print && print.price > 0 ? print.price : null;
   const priceSource = listed && listed.price > 0 ? listed.source || "" : print?.source || "";
   let priceNzd: number | null = null;
   let nzdSourced = false;
   if (priceUsd != null) {
-    const fx = await withTimeout(() => getFxSnapshot(), 1500, null);
     const perUsd = fx?.ratesToNZD.USD ?? 0;
     if (fx?.sourced && perUsd > 0) {
       nzdSourced = true;

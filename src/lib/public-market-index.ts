@@ -111,6 +111,8 @@ async function loadEquityTab(board: StockBoard): Promise<PublicPriceTab> {
   };
 }
 
+let lastCryptoAsAt = "";
+
 async function loadCryptoTab(): Promise<PublicPriceTab> {
   try {
     const page = await loadTop400Markets();
@@ -127,6 +129,14 @@ async function loadCryptoTab(): Promise<PublicPriceTab> {
       }
     }
     const quotedAt = page.at || latestIso(coins.map((coin) => coin.quotedAt)) || new Date().toISOString();
+    // b31 H-1: "Prices as at" never steps backwards on this server. An older list than one
+    // already shown serves the remembered tab instead.
+    if (lastCryptoAsAt && quotedAt < lastCryptoAsAt) {
+      const kept = recallPublicTab("CRYPTO");
+      if (kept?.rows.length) return kept;
+    } else {
+      lastCryptoAsAt = quotedAt;
+    }
     noteListedPrices(
       coins.map((coin) => ({
         symbol: coin.symbol,

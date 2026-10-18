@@ -67,7 +67,9 @@ export interface DividendDeleteEffect {
 }
 
 /** A dividend delete reverses that line's cash. Both numbers have to be on the snapshot. */
-export function dividendDeleteEffect(cash: number | null, lineCash: number | null): DividendDeleteEffect {
+export function dividendDeleteEffect(cash: number | null, lineCash: number | null, type = "dividend"): DividendDeleteEffect {
+  // b31 G-10: name the row being removed (a deposit was described as a dividend).
+  const noun = type === "withdraw" ? "withdrawal" : type || "row";
   const cashKnown = cash != null && Number.isFinite(cash);
   const lineKnown = lineCash != null && Number.isFinite(lineCash);
   if (!cashKnown || !lineKnown) {
@@ -82,6 +84,6 @@ export function dividendDeleteEffect(cash: number | null, lineCash: number | nul
     cashBefore: formatNzd(cash as number),
     lineImpact: formatNzd(lineCash as number),
     cashAfter: formatNzd((cash as number) - (lineCash as number)),
-    reason: "Cash after is the snapshot cash minus this dividend's cash impact.",
+    reason: `Cash after is the snapshot cash minus this ${noun}'s cash impact.`,
   };
 }

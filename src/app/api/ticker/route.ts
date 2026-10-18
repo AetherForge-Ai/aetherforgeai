@@ -20,8 +20,10 @@ export async function GET(req: Request) {
   // Goal b10 G-05 test hook: this browser asked for the feed to be off.
   // Goal b20 SECURITY: the cookie only counts for an allow-listed test account.
   const cookie = req.headers.get("cookie");
-  const hooksAllowed = await currentUserMayUseTestHooks();
-  if (feedOffFromCookieHeader(cookie) && hooksAllowed) {
+  // b31 REG-1: the session lookup runs only when the test cookie is present.
+  const feedOff = feedOffFromCookieHeader(cookie);
+  const hooksAllowed = feedOff || (cookie || "").includes("af_test_feed") ? await currentUserMayUseTestHooks() : false;
+  if (feedOff && hooksAllowed) {
     return NextResponse.json(
       { ok: false, error: "Feed switched off in test mode" },
       { status: 503, headers: { "Cache-Control": "no-store", "CDN-Cache-Control": "no-store" } }
@@ -30,7 +32,7 @@ export async function GET(req: Request) {
   const feed = await loadPublicTicker();
   // G-05: named stale/failed mark for this browser. Omitted unless the account is allow-listed.
   const testFeedForce = readFeedForce(cookie, hooksAllowed);
-  const snap = await readCryptoSnapshot().catch(() => null);
+  const snap = await Promise.race([readCryptoSnapshot().catch(() => null), new Promise<null>((r) => setTimeout(() => r(null), 1_500))]);
 
   console.log(
     `[api/ticker] Served rows — crypto ${feed.live.crypto ? "live" : "quiet"} (${feed.rows.crypto.length}), equities ${feed.live.equities ? "live" : "quiet"} (${feed.rows.nzx.length + feed.rows.asx.length})`

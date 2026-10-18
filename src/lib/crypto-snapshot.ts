@@ -29,6 +29,7 @@ import type { DexTokenRow } from "@/lib/crypto-dex";
 import { resolvableCoinId, type CoinMarket } from "@/lib/crypto-market";
 import { publicSourceAllowed } from "@/lib/swyftx-display";
 import { totalumSdk } from "@/lib/totalum";
+import { keepAlive } from "@/lib/keep-alive.server";
 
 export const CRYPTO_SNAPSHOT_TICKER = "AF-CGS";
 export const DEX_SNAPSHOT_TICKER = "AF-DXS";
@@ -39,7 +40,13 @@ export const CRYPTO_ATTEMPT_TICKER = "AF-CAT";
 export const SNAPSHOT_READ_TIMEOUT_MS = 400;
 
 /** How long a cold read waits for the durable watchlist row when nothing else parsed. */
-export const SNAPSHOT_DB_TIMEOUT_MS = 2_500;
+export const SNAPSHOT_DB_TIMEOUT_MS = 1_500;
+
+/**
+ * b31 REG-1: hard cap on any store read a render or API request waits for. On a timeout the
+ * in-memory last-good snapshot is served. Writes never block a request (background only).
+ */
+export const STORE_HARD_TIMEOUT_MS = 1_500;
 
 /**
  * Watchlist `name` is the existing text field (same slot as AF-WEM).
@@ -756,8 +763,8 @@ function withTimeout<T>(work: Promise<T>, ms: number): Promise<T | null> {
 }
 
 async function readRaw(id: SnapshotId, timeoutMs: number): Promise<string | null> {
-  if (durableOverride) return withTimeout(durableOverride.read(id), timeoutMs);
-  return defaultRead(id);
+  if (durableOverride) return withTimeout(durableOverride.read(id), Math.min(timeoutMs, STORE_HARD_TIMEOUT_MS));
+  return withTimeout(defaultRead(id), STORE_HARD_TIMEOUT_MS);
 }
 
 async function writeRaw(id: SnapshotId, body: string): Promise<void> {
@@ -793,7 +800,7 @@ async function readDurableCrypto(timeoutMs: number): Promise<string | null> {
     : withTimeout(readWatchlist("crypto"), timeoutMs);
 }
 
-function refreshCryptoFromDurable(timeoutMs = SNAPSHOT_DB_TIMEOUT_MS): Promise<void> {
+function refreshCryptoFromDurable(timeoutMs = STORE_HARD_TIMEOUT_MS): Promise<void> {
   durableRefresh ??= (async () => {
     try {
       rememberRaw("crypto", await readDurableCrypto(timeoutMs));
@@ -811,15 +818,17 @@ export async function readCryptoSnapshot(timeoutMs = SNAPSHOT_READ_TIMEOUT_MS): 
   const now = Date.now();
   if (memoryCrypto) {
     if (now - memoryCryptoCheckedAt >= SNAPSHOT_LOCAL_TTL_MS) {
-      // Re-read the stored row before rendering; bounded so a slow store serves the copy.
-      await refreshCryptoFromDurable(Math.max(timeoutMs, SNAPSHOT_READ_TIMEOUT_MS));
+      // b31 REG-1: re-read the stored row in the background. A request never waits on the
+      // store once this isolate has a last-good copy; memory only moves forward (newerCrypto).
+      memoryCryptoCheckedAt = now;
+      void keepAlive(refreshCryptoFromDurable(STORE_HARD_TIMEOUT_MS));
     }
     return memoryCrypto;
   }
   const raw = await readRaw("crypto", timeoutMs);
   rememberRaw("crypto", raw);
   memoryCryptoCheckedAt = now;
-  if (!durableOverride) void refreshCryptoFromDurable();
+  if (!durableOverride) void keepAlive(refreshCryptoFromDurable(STORE_HARD_TIMEOUT_MS));
   return memoryCrypto;
 }
 
@@ -913,10 +922,30 @@ export async function persistCryptoSnapshot(coins: CoinMarket[], at = new Date()
       return;
     }
   }
+  // b31 REG-1: the versioned compare-and-set write runs in the background (waitUntil). The
+  // request that produced the list returns at once; this isolate serves the new list now.
+  const expected = existing?.version ?? 0;
+  const local = parseCrypto(encodeCrypto(tagged, at, expected + 1, primarySnapshotSource(tagged)));
+  if (!local) return;
+  if (!memoryCrypto || newerCrypto(local, memoryCrypto)) {
+    memoryCrypto = local;
+    memoryCryptoCheckedAt = Date.now();
+  }
+  const work = persistCryptoDurable(tagged, at, expected);
+  pendingSnapshotWrite = work;
+  await keepAlive(work);
+}
+
+let pendingSnapshotWrite: Promise<void> | null = null;
+/** Tests: wait for the background snapshot write. */
+export async function flushSnapshotWrites(): Promise<void> {
+  await pendingSnapshotWrite?.catch(() => undefined);
+}
+
+async function persistCryptoDurable(tagged: CoinMarket[], at: string, expected: number): Promise<void> {
   // b30 H-1: compare-and-set on the stored row. Re-read it; if another isolate has written a
   // newer version (or a later as-of) since we looked, ours is dropped and we adopt theirs.
-  const stored = parseCrypto(await readDurableCrypto(SNAPSHOT_DB_TIMEOUT_MS).catch(() => null));
-  const expected = existing?.version ?? 0;
+  const stored = parseCrypto(await readDurableCrypto(STORE_HARD_TIMEOUT_MS).catch(() => null));
   if (stored && (stored.version > expected || stored.at > at)) {
     rememberRaw("crypto", encodeCrypto(stored.coins, stored.at, stored.version, stored.source));
     recordCryptoAttempt(false, new Error("unavailable: another server saved a newer list first"));
@@ -926,8 +955,10 @@ export async function persistCryptoSnapshot(coins: CoinMarket[], at = new Date()
   const body = encodeCrypto(tagged, at, version, primarySnapshotSource(tagged));
   const parsed = parseCrypto(body);
   if (!parsed) return;
-  memoryCrypto = parsed;
-  memoryCryptoCheckedAt = Date.now();
+  if (!memoryCrypto || newerCrypto(parsed, memoryCrypto) || memoryCrypto.at === parsed.at) {
+    memoryCrypto = parsed;
+    memoryCryptoCheckedAt = Date.now();
+  }
   await writeRaw("crypto", body);
   // b24 G-05: one write point, so every path that refreshes the list fills /status.
   recordCryptoAttempt(true);
@@ -951,7 +982,10 @@ export async function persistDexSnapshot(
   const parsed = parseDex(body);
   if (!parsed) return;
   memoryDex = parsed;
-  await writeRaw("dex", body);
+  // b31 REG-1: background write; never blocks the request.
+  const work = writeRaw("dex", body);
+  pendingSnapshotWrite = work;
+  await keepAlive(work);
 }
 
 export function hiddenSnapshotTicker(ticker: string | null | undefined): boolean {

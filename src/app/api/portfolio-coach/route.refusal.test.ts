@@ -51,6 +51,7 @@ describe("signed-in Assistant panel /api/portfolio-coach", () => {
   it("counts every answered question, refusals included", async () => {
     const { POST } = await import("./route");
     const a = (await (await POST(post("http://x/api/portfolio-coach", "What does FIF mean?"))).json()) as { data: { used: number; limit: number } };
+    await new Promise((r) => setTimeout(r, 0));
     const b = (await (await POST(post("http://x/api/portfolio-coach", QUESTIONS[0]))).json()) as { data: { used: number; limit: number } };
     expect(a.data).toMatchObject({ used: 1, limit: 100 });
     expect(b.data).toMatchObject({ used: 2, limit: 100 });
