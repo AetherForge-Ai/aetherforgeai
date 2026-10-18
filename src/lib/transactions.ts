@@ -12,6 +12,7 @@
  * baseline table. Every mutation is logged; nothing is silently swallowed.
  */
 
+import "@/lib/book-version.server";
 import "server-only";
 import { totalumSdk } from "@/lib/totalum";
 import type { AppUser } from "@/lib/session";

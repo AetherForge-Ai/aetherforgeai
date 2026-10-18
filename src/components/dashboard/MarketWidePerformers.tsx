@@ -304,7 +304,7 @@ export function MarketWidePerformers({ onBought }: { onBought?: () => void }) {
           {/* Disclaimer */}
           <p className="mt-4 flex items-center justify-center gap-1.5 text-center text-[0.68rem] text-muted-foreground">
             <Info className="size-3.5 shrink-0" />
-            Prices show the live last trade when the exchange is open, otherwise the last official
+            Prices are delayed public data. When the exchange is shut, the figure is the last
             session close. AI projections are illustrative only — not financial advice.
           </p>
         </>

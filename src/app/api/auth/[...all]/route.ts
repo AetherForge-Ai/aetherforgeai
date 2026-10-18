@@ -2,7 +2,7 @@ import { auth } from "@/lib/auth";
 import { toNextJsHandler } from "better-auth/next-js";
 import { NextResponse } from "next/server";
 import { validateSignupConsent } from "@/lib/signup-consent";
-import { authRateLimitRule, normaliseLoginEmail, sha256Hex, takeRateLimit, rateLimitHeaders, rateLimitIdentity, AUTH_EMAIL_LIMIT, AUTH_EMAIL_WINDOW_MS } from "@/lib/ip-rate-limit";
+import { authRateLimitRule, normaliseLoginEmail, sha256Hex, takeRateLimit, takeAtomicLimit, rateLimitHeaders, rateLimitIdentity, AUTH_EMAIL_LIMIT, AUTH_EMAIL_WINDOW_MS } from "@/lib/ip-rate-limit";
 import { ensureDurableRateLimit } from "@/lib/durable-counter.server";
 import { cookieValue, sessionExpiresInFuture, setCookieClears, verifySignedSessionToken, withoutClears } from "@/lib/session-token";
 
@@ -89,7 +89,7 @@ export async function POST(req: Request) {
     // IPv6 addresses cannot keep guessing one account. Generic message only.
     const emailResult =
       rule.name === "sign-in" && who
-        ? await takeRateLimit(`login:email:${await sha256Hex(who)}`, AUTH_EMAIL_LIMIT, AUTH_EMAIL_WINDOW_MS, now, { edge: "AUTH_EMAIL_RATE_LIMITER" })
+        ? await takeAtomicLimit(`login:email:${await sha256Hex(who)}`, AUTH_EMAIL_LIMIT, AUTH_EMAIL_WINDOW_MS, now)
         : null;
     const result = !ipResult.allowed ? ipResult : emailResult && !emailResult.allowed ? emailResult : pairResult;
     if (!result.allowed) {

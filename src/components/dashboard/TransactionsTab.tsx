@@ -58,8 +58,17 @@ export function TransactionsTab({
   // Goal b18 G-10: never blank the list while the book refetches. The last book
   // shown stays on screen until a new one arrives.
   const lastSnapshotRef = useRef<PortfolioSnapshot | null>(null);
-  if (snapshotProp) lastSnapshotRef.current = snapshotProp;
-  const snapshot = snapshotProp ?? lastSnapshotRef.current;
+  // b30 G-10: a delete in flight must not flash an empty list. A book that arrives with
+  // fewer rows than (shown − deletes in flight) while a delete is pending is an
+  // intermediate read; the last book stays until the reconciled one arrives.
+  const deletesInFlight = useRef(0);
+  if (snapshotProp) {
+    const prevRows = lastSnapshotRef.current?.ledger?.length ?? 0;
+    const nextRows = snapshotProp.ledger?.length ?? 0;
+    const transient = deletesInFlight.current > 0 && nextRows < prevRows - deletesInFlight.current;
+    if (!transient) lastSnapshotRef.current = snapshotProp;
+  }
+  const snapshot = lastSnapshotRef.current ?? snapshotProp;
   const loading = loadingProp && !snapshot;
   const [editing, setEditing] = useState<SnapshotLedgerLine | null>(null);
   const [draft, setDraft] = useState({ quantity: "", price: "", fees: "" });
@@ -313,7 +322,10 @@ export function TransactionsTab({
                 // hid the whole ledger from TT's row count for 3–4 s); a refusal brings it back.
                 setRemovedIds((prev) => new Set(prev).add(target.id));
                 setPending(null);
-                void Promise.resolve(onDeleteDividend(target)).then((ok) => {
+                deletesInFlight.current += 1;
+                void Promise.resolve(onDeleteDividend(target)).finally(() => {
+                  deletesInFlight.current = Math.max(0, deletesInFlight.current - 1);
+                }).then((ok) => {
                   if (ok === false)
                     setRemovedIds((prev) => {
                       const next = new Set(prev);

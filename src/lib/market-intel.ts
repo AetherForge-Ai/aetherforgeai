@@ -12,6 +12,7 @@ import { formatMoney } from "@/lib/currency";
 import { alignProjectedFigures } from "@/lib/projection-figure";
 import { rankByConfidenceWeightedMove } from "@/lib/projection-pause";
 import { officialPublicNews } from "@/lib/news-present";
+import { withStaleHold, type HoldAsset } from "@/lib/bot-hold-gate";
 
 export type MarketCode = "NZX" | "ASX" | "US" | "CRYPTO";
 export type AssetClass = "stock" | "crypto";
@@ -129,8 +130,7 @@ export const NOT_ENOUGH_DAILY_HISTORY = "Not enough daily history";
 export const ANALYSIS_UNAVAILABLE = "Analysis unavailable — not enough market history";
 
 /** H-12: shown instead of a score when the last print is too old to rate. */
-export const DATA_TOO_OLD_HOLD = "Hold: data too old";
-export const STALE_TRADING_DAYS = 3;
+export { DATA_TOO_OLD_HOLD } from "@/lib/bot-hold-gate";
 
 /** Weekdays strictly after `from` up to and including `to` (UTC calendar days). */
 export function tradingDaysBetween(from: Date, to: Date): number {
@@ -147,26 +147,18 @@ export function tradingDaysBetween(from: Date, to: Date): number {
 }
 
 /**
- * H-12 data-quality gate. A ticker whose last print is more than 3 trading
- * days old is held: no score, no rating, the Hold text instead.
+ * H-12 data-quality gate. Each market has its own age limit (see HOLD_LIMITS).
+ * A print older than that limit is Hold, with the reason and the age.
  * An unknown print time is not treated as stale (the history gate covers it).
+ * A stale print replaces an earlier history hold: the bot must not rate old data.
  */
 export function staleDataHold<T extends { score: number; analysisHold?: string | null; reasoning?: string; convictionReason?: string }>(
   row: T,
   lastPrintAt: string | Date | null | undefined,
-  now = new Date()
+  now = new Date(),
+  asset: HoldAsset = "nzx"
 ): T {
-  if (!lastPrintAt || row.analysisHold) return row;
-  const at = lastPrintAt instanceof Date ? lastPrintAt : new Date(lastPrintAt);
-  if (Number.isNaN(at.getTime())) return row;
-  if (tradingDaysBetween(at, now) <= STALE_TRADING_DAYS) return row;
-  return {
-    ...row,
-    score: 0,
-    analysisHold: DATA_TOO_OLD_HOLD,
-    reasoning: DATA_TOO_OLD_HOLD,
-    convictionReason: DATA_TOO_OLD_HOLD,
-  };
+  return withStaleHold(row, lastPrintAt, asset, now);
 }
 
 export function intelIsHeld(row: { analysisHold?: string | null } | null | undefined): boolean {

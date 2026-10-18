@@ -43,17 +43,38 @@ export function publicCryptoSourcesLabel(): string {
   return englishList(cryptoSourceNames());
 }
 
+/**
+ * b30 H-15: every price provider the crypto code can call, in fallback order, with the
+ * API hosts it calls. /trust and the "Source:" labels are built from this list; a unit
+ * test fails when a crypto-*.ts file calls a host that is not listed here.
+ * `flag` providers are named only while their public-display flag is on.
+ */
+export const CRYPTO_PRICE_PROVIDERS: ReadonlyArray<{ name: string; hosts: string[]; kind: "crypto" | "dex"; flag?: "swyftx" | "dexscreener" }> = [
+  { name: PUBLIC_CRYPTO_SOURCE, hosts: ["api.coingecko.com", "pro-api.coingecko.com"], kind: "crypto" },
+  { name: "CoinPaprika", hosts: ["api.coinpaprika.com"], kind: "crypto" },
+  { name: "CoinCap", hosts: ["rest.coincap.io", "api.coincap.io"], kind: "crypto" },
+  { name: "Binance", hosts: ["data-api.binance.vision", "api.binance.com"], kind: "crypto" },
+  { name: "Swyftx", hosts: ["api.swyftx.com.au"], kind: "crypto", flag: "swyftx" },
+  { name: "Kraken", hosts: ["api.kraken.com"], kind: "crypto" },
+  { name: "Coinbase", hosts: ["api.exchange.coinbase.com"], kind: "crypto" },
+  { name: PUBLIC_EQUITY_SOURCE, hosts: ["query1.finance.yahoo.com", "query2.finance.yahoo.com"], kind: "crypto" },
+  { name: PUBLIC_DEX_SOURCE, hosts: ["api.geckoterminal.com"], kind: "dex" },
+  { name: "DexPaprika", hosts: ["api.dexpaprika.com"], kind: "dex" },
+  { name: PUBLIC_DEX_SECOND_SOURCE, hosts: ["api.dexscreener.com"], kind: "dex", flag: "dexscreener" },
+];
+
+function providerShown(flag: "swyftx" | "dexscreener" | undefined): boolean {
+  if (flag === "swyftx") return swyftxPublicDisplay();
+  if (flag === "dexscreener") return dexscreenerPublicDisplay();
+  return true;
+}
+
 function cryptoSourceNames(): string[] {
-  const names = [PUBLIC_CRYPTO_SOURCE, "CoinCap", "Binance"];
-  if (swyftxPublicDisplay()) names.push("Swyftx");
-  names.push("Kraken", "Coinbase", PUBLIC_EQUITY_SOURCE);
-  return names;
+  return CRYPTO_PRICE_PROVIDERS.filter((p) => p.kind === "crypto" && providerShown(p.flag)).map((p) => p.name);
 }
 
 function dexSourceNames(): string[] {
-  const names = [PUBLIC_DEX_SOURCE, "DexPaprika"];
-  if (dexscreenerPublicDisplay()) names.push(PUBLIC_DEX_SECOND_SOURCE);
-  return names;
+  return CRYPTO_PRICE_PROVIDERS.filter((p) => p.kind === "dex" && providerShown(p.flag)).map((p) => p.name);
 }
 
 /** Request-time sources line. A flipped display flag is visible on the next read. */

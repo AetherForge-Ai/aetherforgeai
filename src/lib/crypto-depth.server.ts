@@ -43,6 +43,10 @@ export const CROSS_PROVIDER_IDS: Record<string, { gecko: string | null; paprika:
   stellar: { gecko: "stellar", paprika: "xlm-stellar", symbol: "XLM" },
   tron: { gecko: "tron", paprika: "trx-tron", symbol: "TRX" },
   zcash: { gecko: "zcash", paprika: "zec-zcash", symbol: "ZEC" },
+  // b30 G-17: 1H/30D were empty signed in. Checked 19 Oct 2026: CoinGecko ids "whitebit" and
+  // "leo-token"; CoinPaprika /v1/tickers/wbt-whitebit and /leo-leo-token both 200.
+  whitebit: { gecko: "whitebit", paprika: "wbt-whitebit", symbol: "WBT" },
+  "leo-token": { gecko: "leo-token", paprika: "leo-leo-token", symbol: "LEO" },
 };
 const PAPRIKA_ID_BY_SLUG: Record<string, string> = Object.fromEntries(
   Object.entries(CROSS_PROVIDER_IDS).map(([slug, ids]) => [slug, ids.paprika])

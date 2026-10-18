@@ -5,6 +5,7 @@ import { MarketsPageContent } from "@/components/dashboard/MarketsPageContent";
 import { parseMarketsTab } from "@/lib/market-detail-routes";
 import { loadPublicMarketIndex } from "@/lib/public-market-index";
 import { publicPageMetadata } from "@/lib/reviewed-book";
+import { snapshotMetaOther } from "@/lib/crypto-snapshot";
 import { dexscreenerPublicDisplay, dexPoweredByLine } from "@/lib/dexscreener-display";
 
 export const dynamic = "force-dynamic";
@@ -14,6 +15,12 @@ export async function generateMetadata({
 }: {
   searchParams: Promise<{ tab?: string }>;
 }): Promise<Metadata> {
+  const meta = await marketsMetadata(searchParams);
+  // b30 H-1: x-af-snapshot-at / x-af-snapshot-version as meta tags.
+  return { ...meta, other: { ...(meta.other ?? {}), ...(await snapshotMetaOther()) } };
+}
+
+async function marketsMetadata(searchParams: Promise<{ tab?: string }>): Promise<Metadata> {
   const tab = parseMarketsTab((await searchParams).tab);
   if (tab === "CRYPTO") {
     return publicPageMetadata("/markets?tab=crypto", {

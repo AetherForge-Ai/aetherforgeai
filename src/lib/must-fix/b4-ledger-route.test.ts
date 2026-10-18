@@ -28,7 +28,8 @@ const crud = {
 };
 vi.mock("@/lib/totalum", () => ({ totalumSdk: { crud } }));
 vi.mock("@/lib/fx", () => ({ getFxSnapshot: async () => ({ ratesToNZD: { NZD: 1, USD: 1, AUD: 1 } }) }));
-vi.mock("@/lib/book-cache", () => ({ invalidateBookCache: vi.fn() }));
+vi.mock("@/lib/book-cache", () => ({ invalidateBookCache: vi.fn(), onBookInvalidated: vi.fn() }));
+vi.mock("@/lib/book-version.server", () => ({}));
 vi.mock("@/lib/activity-email-server", () => ({ readActivityEmailPrefs: vi.fn() }));
 const user = { _id: "u1" };
 vi.mock("@/lib/session", () => ({

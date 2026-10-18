@@ -1,6 +1,10 @@
+import { headers } from "next/headers";
 import { PublicGuide } from "@/components/public/PublicGuide";
 import { publicPageMetadata } from "@/lib/reviewed-book";
 import { loadStatusFeeds } from "@/lib/status-feeds.server";
+import { applyFeedForce, readFeedForce } from "@/lib/feed-freshness-hook";
+import { currentUserMayUseTestHooks } from "@/lib/test-hooks.server";
+import { statusFeedBody } from "@/lib/status-feeds";
 import { NO_INCIDENTS_LINE, STATUS_INCIDENTS } from "@/lib/docs-guides";
 import { formatDisplayDateTime } from "@/lib/currency";
 import { aiProviderHealth, aiProviderStatusLine } from "@/lib/ai-provider-health";
@@ -13,7 +17,14 @@ export const metadata = publicPageMetadata("/status", {
 });
 
 export default async function StatusPage() {
-  const [feeds, ai] = await Promise.all([loadStatusFeeds(), aiProviderHealth()]);
+  const [rawFeeds, ai, allowed, headerList] = await Promise.all([
+    loadStatusFeeds(),
+    aiProviderHealth(),
+    currentUserMayUseTestHooks(),
+    headers(),
+  ]);
+  // G-05: the cookie only changes a cell for an allow-listed test account.
+  const feeds = applyFeedForce(rawFeeds, readFeedForce(headerList.get("cookie"), allowed));
   const aiLine = aiProviderStatusLine(ai);
   return (
     <PublicGuide
@@ -23,7 +34,7 @@ export default async function StatusPage() {
       notes={[
         ...feeds.map((feed) => ({
           title: feed.label,
-          body: feed.text.startsWith("—") ? feed.text : feed.label === "Crypto list last attempt" ? `Last attempt ${feed.text} (NZ time)` : feed.text === "unavailable" || feed.text.startsWith("—") ? feed.text : `Last OK ${feed.text} (NZ time)`,
+          body: statusFeedBody(feed),
           tone: feed.tone,
         })),
         { title: "AI guide provider", body: aiLine.body, tone: aiLine.tone },

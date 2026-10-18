@@ -40,8 +40,21 @@ export function writeBookCache(key: string, value: unknown, epoch?: number, read
   return true;
 }
 
+const invalidateHooks: Array<(userId: string) => void> = [];
+/** b30 G-10: book-version.server.ts bumps the durable per-user version here. */
+export function onBookInvalidated(hook: (userId: string) => void): void {
+  if (!invalidateHooks.includes(hook)) invalidateHooks.push(hook);
+}
+
 export function invalidateBookCache(userId: string): void {
   epochs.set(userId, bookCacheEpoch(userId) + 1);
+  for (const hook of invalidateHooks) {
+    try {
+      hook(userId);
+    } catch {
+      /* the in-process invalidation above still applies */
+    }
+  }
   const prefix = `${userId}:`;
   for (const key of store.keys()) {
     if (key.startsWith(prefix)) store.delete(key);

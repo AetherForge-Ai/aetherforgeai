@@ -72,6 +72,10 @@ export interface SnapshotDurable {
 export interface CryptoSnapshot {
   at: string;
   coins: CoinMarket[];
+  /** b30 H-1: monotonic version of the stored row (0 for rows written before b30). */
+  version: number;
+  /** b30 H-1: the list's primary provider, as stored. */
+  source: string | null;
 }
 
 export interface DexSnapshot {
@@ -210,7 +214,7 @@ function roundCompact(value: number | null | undefined): number | null {
   return Object.is(rounded, -0) ? 0 : rounded;
 }
 
-function encodeCrypto(coins: CoinMarket[], at: string): string {
+function encodeCrypto(coins: CoinMarket[], at: string, ver = 0, src: string | null = null): string {
   const rows = coins.slice(0, 400).map((coin) => [
     coin.id,
     coin.symbol,
@@ -241,7 +245,7 @@ function encodeCrypto(coins: CoinMarket[], at: string): string {
     coin.image || "",
     compactSpark(coin.sparkline7d),
   ]);
-  return JSON.stringify({ v: 2, at, n: rows.length, coins: rows });
+  return JSON.stringify({ v: 2, at, ver, src, n: rows.length, coins: rows });
 }
 
 function coinFromCompact(row: unknown[]): CoinMarket | null {
@@ -286,15 +290,17 @@ function coinFromCompact(row: unknown[]): CoinMarket | null {
 function parseCrypto(raw: string | null | undefined): CryptoSnapshot | null {
   if (!raw) return null;
   try {
-    const parsed = JSON.parse(raw) as { at?: unknown; coins?: unknown };
+    const parsed = JSON.parse(raw) as { at?: unknown; coins?: unknown; ver?: unknown; src?: unknown };
     const at = typeof parsed.at === "string" ? parsed.at : "";
+    const version = typeof parsed.ver === "number" && Number.isFinite(parsed.ver) ? parsed.ver : 0;
     const list = Array.isArray(parsed.coins) ? parsed.coins : [];
     const compact = list.length > 0 && list.every((row) => Array.isArray(row));
     const coins = compact
       ? list.map((row) => coinFromCompact(row as unknown[])).filter((row): row is CoinMarket => !!row)
       : list.filter(coinLooksSaved).map((row) => coinFromSnapshot(row as Record<string, unknown>));
     if (!at || !coins.length) return null;
-    return { at, coins };
+    const source = typeof parsed.src === "string" && parsed.src ? parsed.src : primarySnapshotSource(coins);
+    return { at, coins, version, source };
   } catch {
     return null;
   }
@@ -454,6 +460,7 @@ function largestChunk(parsed: Record<string, unknown>, key: string, list: unknow
       at: parsed.at,
       n: list.length,
       part: mid - start,
+      ...(typeof parsed.ver === "number" ? { ver: parsed.ver } : {}),
       ...(Array.isArray(parsed.sources) ? { sources: parsed.sources } : {}),
       [key]: list.slice(start, mid),
     });
@@ -499,6 +506,8 @@ export function splitWatchlistPayload(body: string, max = WATCHLIST_SNAPSHOT_MAX
     at: parsed.at,
     n: list.length,
     parts: chunks.length,
+    ...(typeof parsed.ver === "number" ? { ver: parsed.ver } : {}),
+    ...(typeof parsed.src === "string" ? { src: parsed.src } : {}),
     ...(Array.isArray(parsed.sources) ? { sources: parsed.sources } : {}),
   });
   if (header.length > max) return null;
@@ -524,6 +533,9 @@ export function joinWatchlistPayload(headerRaw: string, chunks: string[]): strin
     } catch {
       return null;
     }
+    // b30 H-1: a chunk from another version means a torn read (header and chunks from two
+    // writers); refuse it so the reader keeps its copy instead of mixing two lists.
+    if (typeof parsed.ver === "number" && part.ver !== parsed.ver) return null;
     const partKey = Array.isArray(part.coins) ? "coins" : Array.isArray(part.rows) ? "rows" : "";
     if (!partKey) return null;
     listKey = partKey;
@@ -647,7 +659,7 @@ function rememberRaw(id: SnapshotId, raw: string | null) {
   if (id === "crypto") {
     const parsed = parseCrypto(raw);
     if (!parsed) return;
-    if (!memoryCrypto || parsed.at >= memoryCrypto.at) memoryCrypto = parsed;
+    if (!memoryCrypto || newerCrypto(parsed, memoryCrypto)) memoryCrypto = parsed;
     return;
   }
   const parsed = parseDex(raw);
@@ -715,10 +727,11 @@ async function defaultWrite(id: SnapshotId, body: string): Promise<boolean> {
     return saved;
   }
   try {
-    saved = (await writeWatchlist(id, split.header)) || saved;
+    // b30 H-1: chunks first, header last. The header (with its version) is the commit point.
     for (let index = 0; index < split.chunks.length; index += 1) {
       saved = (await writeNamedWatchlist(chunkTicker(id, index + 1), split.chunks[index])) || saved;
     }
+    saved = (await writeWatchlist(id, split.header)) || saved;
     await deleteExtraChunks(id, split.chunks.length);
   } catch (err) {
     console.error("[crypto-snapshot] watchlist write failed:", err instanceof Error ? err.message.slice(0, 80) : "failed");
@@ -756,22 +769,35 @@ async function writeRaw(id: SnapshotId, body: string): Promise<void> {
 }
 
 /**
- * b29 H-1: an isolate used to keep its first in-memory list forever, so two servers could show
- * "Prices as at 1:30" and "1:17" and a reader saw time run backwards. Now memory is rechecked
- * against the durable row every MEMORY_RECHECK_MS (stale-while-revalidate) and only ever moves
- * forward (rememberRaw keeps the newer `at`).
+ * b30 H-1: one shared, versioned snapshot. The durable row carries `ver` (bumped on every
+ * write by compare-and-set), `at` and `src`. This isolate keeps a copy for at most
+ * SNAPSHOT_LOCAL_TTL_MS; after that every read re-reads the durable row before rendering
+ * and adopts it only when it is not older (higher version, or same version and a later
+ * as-of). So no isolate can serve an as-of older than one it, or the store, has already
+ * shown. If the store cannot be read in time the copy in memory is served (never an older one).
  */
-export const MEMORY_RECHECK_MS = 30_000;
+export const SNAPSHOT_LOCAL_TTL_MS = 3_000;
+/** @deprecated b29 name, kept for older tests: the local copy now lives SNAPSHOT_LOCAL_TTL_MS. */
+export const MEMORY_RECHECK_MS = SNAPSHOT_LOCAL_TTL_MS;
 let memoryCryptoCheckedAt = 0;
 let durableRefresh: Promise<void> | null = null;
 
-function refreshCryptoFromDurable(): Promise<void> {
+function newerCrypto(a: CryptoSnapshot, b: CryptoSnapshot): boolean {
+  if (a.version !== b.version && a.version > 0 && b.version > 0) return a.version > b.version;
+  return a.at >= b.at;
+}
+
+async function readDurableCrypto(timeoutMs: number): Promise<string | null> {
+  return durableOverride
+    ? withTimeout(durableOverride.read("crypto"), timeoutMs)
+    : withTimeout(readWatchlist("crypto"), timeoutMs);
+}
+
+function refreshCryptoFromDurable(timeoutMs = SNAPSHOT_DB_TIMEOUT_MS): Promise<void> {
   durableRefresh ??= (async () => {
     try {
-      const raw = durableOverride
-        ? await withTimeout(durableOverride.read("crypto"), SNAPSHOT_DB_TIMEOUT_MS)
-        : await withTimeout(readWatchlist("crypto"), SNAPSHOT_DB_TIMEOUT_MS);
-      rememberRaw("crypto", raw);
+      rememberRaw("crypto", await readDurableCrypto(timeoutMs));
+      memoryCryptoCheckedAt = Date.now();
     } catch {
       /* keep memory */
     }
@@ -784,17 +810,32 @@ function refreshCryptoFromDurable(): Promise<void> {
 export async function readCryptoSnapshot(timeoutMs = SNAPSHOT_READ_TIMEOUT_MS): Promise<CryptoSnapshot | null> {
   const now = Date.now();
   if (memoryCrypto) {
-    if (now - memoryCryptoCheckedAt >= MEMORY_RECHECK_MS) {
-      memoryCryptoCheckedAt = now;
-      void refreshCryptoFromDurable();
+    if (now - memoryCryptoCheckedAt >= SNAPSHOT_LOCAL_TTL_MS) {
+      // Re-read the stored row before rendering; bounded so a slow store serves the copy.
+      await refreshCryptoFromDurable(Math.max(timeoutMs, SNAPSHOT_READ_TIMEOUT_MS));
     }
     return memoryCrypto;
   }
-  memoryCryptoCheckedAt = now;
   const raw = await readRaw("crypto", timeoutMs);
   rememberRaw("crypto", raw);
+  memoryCryptoCheckedAt = now;
   if (!durableOverride) void refreshCryptoFromDurable();
   return memoryCrypto;
+}
+
+/**
+ * b30 H-1: the same stamp as <meta> tags for HTML pages (App Router pages cannot set
+ * response headers while rendering), read from the stored snapshot.
+ */
+export async function snapshotMetaOther(): Promise<Record<string, string>> {
+  const snap = await readCryptoSnapshot().catch(() => null);
+  return snapshotHeaders(snap);
+}
+
+/** b30 H-1: response headers naming the snapshot a page or API was built from. */
+export function snapshotHeaders(snap: Pick<CryptoSnapshot, "at" | "version"> | null | undefined): Record<string, string> {
+  if (!snap) return {};
+  return { "x-af-snapshot-at": snap.at, "x-af-snapshot-version": String(snap.version ?? 0) };
 }
 
 /** Most common per-row source in a list (the list's primary provider). */
@@ -821,6 +862,13 @@ export async function readDexSnapshot(timeoutMs = SNAPSHOT_READ_TIMEOUT_MS): Pro
 export const CRYPTO_REPLACE_MIN_SHARE = 0.9;
 /** After this age a shorter verified list may replace the saved one (matches the amber band). */
 export const CRYPTO_REPLACE_ANY_AFTER_MS = 15 * 60 * 1000;
+/** b30 H-1: the primary provider of the shared list. */
+export const PRIMARY_CRYPTO_SOURCE = "coingecko";
+/**
+ * b30 H-1 (documented threshold): a fallback provider's list replaces the primary's only
+ * once the stored primary list is older than this (10 minutes).
+ */
+export const FALLBACK_REPLACES_PRIMARY_AFTER_MS = 10 * 60 * 1000;
 
 export async function persistCryptoSnapshot(coins: CoinMarket[], at = new Date().toISOString()): Promise<void> {
   const tagged = coins
@@ -859,12 +907,23 @@ export async function persistCryptoSnapshot(coins: CoinMarket[], at = new Date()
     // primary is still fresh (CoinPaprika's 393 rows swapped in and prices disagreed).
     const existingPrimary = primarySnapshotSource(existing.coins);
     const incomingPrimary = primarySnapshotSource(tagged);
-    if (existingVerified && !existingAmber && existingPrimary && incomingPrimary && existingPrimary !== incomingPrimary && existingPrimary === "coingecko") {
+    const primaryFresh = Number.isFinite(existingAge) && existingAge <= FALLBACK_REPLACES_PRIMARY_AFTER_MS;
+    if (existingVerified && primaryFresh && existingPrimary && incomingPrimary && existingPrimary !== incomingPrimary && existingPrimary === PRIMARY_CRYPTO_SOURCE) {
       recordCryptoAttempt(false, new Error(`unavailable: ${incomingPrimary} list kept the fresher ${existingPrimary} list`));
       return;
     }
   }
-  const body = encodeCrypto(tagged, at);
+  // b30 H-1: compare-and-set on the stored row. Re-read it; if another isolate has written a
+  // newer version (or a later as-of) since we looked, ours is dropped and we adopt theirs.
+  const stored = parseCrypto(await readDurableCrypto(SNAPSHOT_DB_TIMEOUT_MS).catch(() => null));
+  const expected = existing?.version ?? 0;
+  if (stored && (stored.version > expected || stored.at > at)) {
+    rememberRaw("crypto", encodeCrypto(stored.coins, stored.at, stored.version, stored.source));
+    recordCryptoAttempt(false, new Error("unavailable: another server saved a newer list first"));
+    return;
+  }
+  const version = Math.max(expected, stored?.version ?? 0) + 1;
+  const body = encodeCrypto(tagged, at, version, primarySnapshotSource(tagged));
   const parsed = parseCrypto(body);
   if (!parsed) return;
   memoryCrypto = parsed;
@@ -897,7 +956,7 @@ export async function persistDexSnapshot(
 
 export function hiddenSnapshotTicker(ticker: string | null | undefined): boolean {
   const key = (ticker || "").trim().toUpperCase();
-  return key === "AF-FIFT" || key === CRYPTO_SNAPSHOT_TICKER || key === DEX_SNAPSHOT_TICKER || key === CRYPTO_ATTEMPT_TICKER || /^AF-CGS-\d+$/.test(key) || /^AF-DXS-\d+$/.test(key);
+  return key === "AF-FIFT" || key === "AF-BV" || key === CRYPTO_SNAPSHOT_TICKER || key === DEX_SNAPSHOT_TICKER || key === CRYPTO_ATTEMPT_TICKER || /^AF-CGS-\d+$/.test(key) || /^AF-DXS-\d+$/.test(key);
 }
 
 // b28 G-05: the refresh-attempt record shares this durable store (see crypto-attempts.ts).
