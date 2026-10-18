@@ -9,7 +9,7 @@ const clickText = (t) => `(()=>{const b=[...document.querySelectorAll("button")]
   await b.send("Emulation.setDeviceMetricsOverride", { width: 1400, height: 1000, deviceScaleFactor: 1, mobile: false });
   // Sign in inside the browser (local mock account only).
   await b.send("Page.navigate", { url: "http://localhost:3917/login" }); await sleep(3000);
-  await b.ev(`fetch("/api/auth/sign-in/email",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({email:${JSON.stringify(process.env.LOGIN_EMAIL)},password:"Harness-Pass-123!"})}).then(r=>r.status)`);
+  await b.ev(`fetch("/api/auth/sign-in/email",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({email:${JSON.stringify(process.env.LOGIN_EMAIL)},password:${JSON.stringify(process.env.FIXTURE_PASSWORD||"")}})}).then(r=>r.status)`);
   await b.send("Network.setCookie", { name: "af_cookie_consent", value: "declined", url: "http://localhost:3917/" });
   await b.send("Page.navigate", { url: "http://localhost:3917/dashboard?view=shares" }); await sleep(8000);
   await b.ev(clickText("Decline"));

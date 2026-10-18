@@ -414,6 +414,8 @@ async function runCryptoSeed(): Promise<{ cryptoReplaced: boolean; cryptoRows: n
   const saved = await readCryptoSnapshot();
   const replaced = saved?.at === at;
   if (!replaced) console.log(`[crypto-board] crypto seed ${coins.length} kept the previous list`);
+  // b24 G-05: the attempt is recorded in persistCryptoSnapshot (the one write point); wait for it.
+  await flushCryptoAttempt(2_000);
   return { cryptoReplaced: replaced, cryptoRows: coins.length };
 }
 
