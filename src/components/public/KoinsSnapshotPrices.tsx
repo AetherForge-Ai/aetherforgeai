@@ -11,7 +11,7 @@ export async function KoinsSnapshotPrices() {
   let coins: { symbol: string; name: string; price: number; change24h: number | null }[] = [];
   let asOf = "";
   try {
-    const board = await readSharedCryptoBoard({ seed: false });
+    const board = await readSharedCryptoBoard({ seed: false, revalidate: true });
     asOf = board.at ? formatDisplayDate(board.at) : "";
     const priced = board.coins.filter((coin) => coin.price > 0);
     const preferred = PREFERRED.map((symbol) => priced.find((coin) => coin.symbol.toUpperCase() === symbol)).filter(

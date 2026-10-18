@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { FEED_OFF_COOKIE } from "@/lib/test-hooks";
+import { ONBOARDING_FUNNEL_KEY } from "@/lib/onboarding-30";
 
 /** Goal b10: test-mode switches for TT's live checks. Affects this browser only. */
 export default function TestHooksPanel({ enabled }: { enabled: boolean }) {
@@ -24,6 +25,15 @@ export default function TestHooksPanel({ enabled }: { enabled: boolean }) {
       setCapResult("Check failed: network error.");
     }
   }
+  // Goal b22 G-28: read-only view of this browser's onboarding funnel counts.
+  const [funnel, setFunnel] = useState<string>("—");
+  useEffect(() => {
+    try {
+      setFunnel(window.localStorage.getItem(ONBOARDING_FUNNEL_KEY) || "— (no funnel events in this browser yet)");
+    } catch {
+      setFunnel("— (localStorage not readable)");
+    }
+  }, []);
   useEffect(() => {
     setFeedOff(document.cookie.split(";").some((c) => c.trim() === `${FEED_OFF_COOKIE}=1`));
   }, []);
@@ -68,6 +78,12 @@ export default function TestHooksPanel({ enabled }: { enabled: boolean }) {
           (ticker:price:% change) or <code className="mx-1">?simulateNews=AIR.NZ</code>. The alert fires on the next refresh and is labelled “Simulated test quote”. Nothing is saved or emailed.
         </p>
       </section>
+      <section className="mt-6 rounded-md border p-4" data-funnel-readout>
+        <h2 className="font-semibold">Onboarding funnel (this browser)</h2>
+        <p className="mt-1 text-sm text-muted-foreground">Counts stored in localStorage under {ONBOARDING_FUNNEL_KEY}. Read-only.</p>
+        <pre className="mt-2 overflow-x-auto text-xs">{funnel}</pre>
+      </section>
+      <p className="mt-6 text-sm"><a className="underline" href="/test-hooks/track-record">Track record scorecard (test view)</a></p>
     </main>
   );
 }

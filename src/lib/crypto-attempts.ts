@@ -11,6 +11,14 @@ export interface CryptoAttempt {
 
 let lastAttempt: CryptoAttempt | null = null;
 let lastSuccess: string | null = null;
+// Goal b22 G-05: the shared write is kept so the request can wait for it; a bare
+// `void` write died with the isolate and /status never saw an attempt.
+let pendingPersist: Promise<void> = Promise.resolve();
+
+/** Wait (bounded) for the last attempt to reach the shared store. */
+export function flushCryptoAttempt(maxMs = 500): Promise<void> {
+  return Promise.race([pendingPersist, new Promise<void>((r) => setTimeout(r, maxMs))]);
+}
 
 export function attemptCode(err: unknown): string {
   const msg = err instanceof Error ? err.message : String(err ?? "");
@@ -27,7 +35,7 @@ export function recordCryptoAttempt(ok: boolean, err?: unknown, now = Date.now()
   lastAttempt = { at, ok, code: ok ? "ok" : attemptCode(err) };
   if (ok) lastSuccess = at;
   console.log(`[crypto-attempt] ${lastAttempt.at} ${lastAttempt.ok ? "ok" : "failed"} ${lastAttempt.code}`);
-  void persistSharedAttempt({ last: lastAttempt, lastSuccess });
+  pendingPersist = persistSharedAttempt({ last: lastAttempt, lastSuccess });
   return lastAttempt;
 }
 
@@ -68,11 +76,15 @@ function edgeCache(): Cache | null {
 
 async function persistSharedAttempt(value: SharedAttempt): Promise<void> {
   const cache = edgeCache();
-  if (!cache) return;
+  if (!cache) {
+    console.log("[crypto-attempt] shared store: no Cache API here (local), kept in memory");
+    return;
+  }
   try {
     await cache.put(SHARED_KEY, new Response(JSON.stringify(value), { headers: { "content-type": "application/json", "cache-control": "max-age=86400" } }));
-  } catch {
-    /* best effort */
+    console.log(`[crypto-attempt] shared store: saved ${value.last?.at ?? "-"} ${value.last?.ok ? "ok" : "failed"}`);
+  } catch (err) {
+    console.log(`[crypto-attempt] shared store: write failed ${err instanceof Error ? err.message.slice(0, 60) : "error"}`);
   }
 }
 

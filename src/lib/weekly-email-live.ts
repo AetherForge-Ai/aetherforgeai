@@ -6,6 +6,7 @@
  * pull-check:weekly-email-2026-10-11
  */
 
+import { isTestEmailAddress } from "@/lib/email-test-domains";
 import "server-only";
 import { createGrokChatCompletion, isGrokConfigured } from "@/lib/grok";
 import {
@@ -226,6 +227,10 @@ export async function optOutWeeklyEmail(userId: string): Promise<void> {
  * pull-check:weekly-unsub-confirm-2026-10-11
  */
 export async function deliverWeeklyEmail(mail: OutboundMail): Promise<void> {
+  if ([mail.to].flat().some(isTestEmailAddress)) {
+    console.info("[weekly-email] skipped a test address (@example.test / @example.invalid)");
+    return;
+  }
   if (!weeklyEmailSendingEnabled({ WEEKLY_EMAIL_SEND: process.env.WEEKLY_EMAIL_SEND })) {
     throw new Error("Weekly email sender is off.");
   }

@@ -1,4 +1,5 @@
 import { IMPORT_MAX_BYTES, IMPORT_TOO_LARGE, importTextTooLarge } from "@/lib/import-limits";
+import { invalidateBookCache } from "@/lib/book-cache";
 import { NextResponse } from "next/server";
 import { requestClaimsOtherUser } from "@/lib/account-guard";
 import { accountMismatchResponse } from "@/lib/account-response";
@@ -233,6 +234,8 @@ export async function POST(req: Request) {
           await planOrApplyLedgerReversal(id, true);
         }
       );
+      // b22 H-10: the snapshot must not keep showing the pre-undo cash.
+      invalidateBookCache(user._id);
       if (outcome.error) {
         return NextResponse.json(
           {
@@ -273,6 +276,13 @@ export async function POST(req: Request) {
       existingKeys: keysFrom(stored),
       tickerFixes,
     });
+    // b22 H-10: a re-upload of an imported file is a 409 even when every row is already a duplicate.
+    if (body.confirm === true) {
+      const earlyHash = await importFileHash(text);
+      if (stored.some((row) => notesHaveFile(row.notes, earlyHash))) {
+        return NextResponse.json({ ok: false, error: IMPORT_DUPLICATE_FILE, code: "duplicate_file", data: { written: 0 } }, { status: 409 });
+      }
+    }
     if (body.confirm !== true || !importWrites(preview, acknowledgeSkipped)) {
       const blocked = body.confirm === true && !importWrites(preview, acknowledgeSkipped);
       return NextResponse.json({
@@ -383,13 +393,13 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           ok: false,
-          error: importFailureReport({
+          error: (invalidateBookCache(user._id), importFailureReport({
             cause: outcome.rolledBack
               ? `${outcome.error} The failed row was removed.`
               : outcome.error,
             writtenTrades: written,
             writtenDeposits,
-          }),
+          })),
           data: planPayload(committed, fresh, {
             written: written.length,
             batchId,
@@ -402,6 +412,7 @@ export async function POST(req: Request) {
       );
     }
 
+    invalidateBookCache(user._id);
     const cashEffect = roundMoney(
       written.reduce((sum, row) => sum + row.cashEffectNzd, 0) + writtenDeposits.reduce((sum, row) => sum + row.amountNzd, 0)
     );
