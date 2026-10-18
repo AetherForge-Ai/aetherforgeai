@@ -42,6 +42,8 @@ import { markDialogSearchGuard, noteDialogSearchQuery } from "@/lib/dialog-guard
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
+import { noteWrite } from "@/lib/write-journal";
+import { getActiveAccountUserId } from "@/lib/account-identity";
 
 type BookHolding = {
   id: string;
@@ -71,7 +73,18 @@ const KINDS: { id: RecordKind; label: string }[] = [
 
 /** Auckland calendar day, so a correction dated today is allowed while UTC is still yesterday. */
 /** b31 G-10: how long Confirm holds the dialog for the server before finishing in the background. */
-const CONFIRM_HOLD_MS = 1_200;
+// b32 G-10: the dialog closes by 0.9 s; the book keeps a "Saving…" state until the server acknowledges.
+const CONFIRM_HOLD_MS = 900;
+/** Smallest plan holding cap (Free, 10). Below cap − 1 distinct holdings a new sleeve cannot hit any cap. */
+const MIN_PLAN_HOLDING_CAP = 10;
+
+/** b32 G-10: a save is acknowledged only when the server returns the saved row's id. */
+export function acknowledgedId(res: { ok: boolean; data?: unknown }): string | null {
+  if (!res.ok) return null;
+  const id = (res.data as { lastTransaction?: { _id?: unknown } } | undefined)?.lastTransaction?._id;
+  return typeof id === "string" && id && !id.startsWith("optimistic-") ? id : null;
+}
+const NOT_ACKNOWLEDGED = "The server did not confirm the save, so nothing is shown as saved. Check your connection and try again.";
 
 function sleepMs(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -672,7 +685,10 @@ export function RecordTransactionPanel({
         !holdings.some(
           (h) => h.ticker.toUpperCase() === String(payload.ticker).toUpperCase() && h.assetType === (payload.asset_type ?? "stock")
         );
-      if (newSleeve) {
+      // b32 G-10: the dry run cost a full round trip on every new buy (TT: buy 2.97-4.30 s). It only
+      // matters near a cap; well below the smallest cap the real POST's own cap check is enough.
+      const distinctHeld = new Set(holdings.map((h) => `${h.assetType}:${h.ticker.toUpperCase()}`)).size;
+      if (newSleeve && distinctHeld >= MIN_PLAN_HOLDING_CAP - 1) {
         const check = await api.post("/api/transactions?dryRun=1", payload);
         if (!check.ok && check.status === 403) {
           failSave(typeof check.error === "string" ? check.error : "You've reached your plan's holding limit.");
@@ -717,27 +733,32 @@ export function RecordTransactionPanel({
         const early = await Promise.race([pending.then(() => "answered" as const), sleepMs(CONFIRM_HOLD_MS).then(() => "slow" as const)]);
         if (early === "slow") {
           onRequestClose();
+          // Not a success: a loading toast until the server answers.
+          const toastId = toast.loading("Saving…");
           void pending
             .then((late) => {
-              if (late.ok) {
+              const savedId = acknowledgedId(late);
+              if (savedId) {
                 if (showQty) bumpHoldingsGeneration();
-                toast.success("Transaction recorded");
+                noteWrite(getActiveAccountUserId(), { createdId: savedId, cashAfter: (late.data as { cashBalance?: number } | undefined)?.cashBalance ?? null });
+                toast.success("Transaction recorded", { id: toastId });
                 onDone(late.data);
               } else {
                 onDone({ cashBalance: cashBeforeOptimistic, lastTransaction: null, transactions: [], ledgerPartial: true, optimisticRollback: true });
-                toast.error(typeof late.error === "string" ? `Not recorded: ${late.error}` : "Not recorded. Nothing was saved.");
+                toast.error(!late.ok && typeof late.error === "string" ? `Not recorded: ${late.error}` : `Not recorded. ${NOT_ACKNOWLEDGED}`, { id: toastId });
               }
             })
             .catch(() => {
-              onDone({ cashBalance: undefined, lastTransaction: null, transactions: [], ledgerPartial: true, optimisticRollback: true });
-              toast.error("Not recorded: the connection dropped. Nothing was saved.");
+              onDone({ cashBalance: cashBeforeOptimistic, lastTransaction: null, transactions: [], ledgerPartial: true, optimisticRollback: true });
+              toast.error("Not recorded: the connection dropped. Nothing was saved.", { id: toastId });
             });
           return;
         }
       }
       const res = await pending;
       console.log(`[write] ${kind} ${typeof payload.ticker === "string" ? payload.ticker : ""} status=${res.status ?? "?"} ok=${res.ok} id=${String((res.data as { lastTransaction?: { _id?: string } } | undefined)?.lastTransaction?._id ?? "")}`);
-      if (optimistic && !res.ok) {
+      const savedId = acknowledgedId(res);
+      if (optimistic && !savedId) {
         // Roll back, then fall through: the dialog (still open) shows the refusal reason.
         onDone({ cashBalance: cashBeforeOptimistic, lastTransaction: null, transactions: [], ledgerPartial: true, optimisticRollback: true });
       }
@@ -758,7 +779,12 @@ export function RecordTransactionPanel({
         failSave(typeof res.error === "string" ? res.error : "Could not record that transaction.");
         return;
       }
+      if (!savedId) {
+        failSave(NOT_ACKNOWLEDGED);
+        return;
+      }
       if (showQty) bumpHoldingsGeneration();
+      noteWrite(getActiveAccountUserId(), { createdId: savedId, cashAfter: (res.data as { cashBalance?: number } | undefined)?.cashBalance ?? null });
       toast.success("Transaction recorded");
       console.log(`[confirm] toast=${Date.now() - postedAt} follow-ups=after-toast`);
       onDone(res.data);

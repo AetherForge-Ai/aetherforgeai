@@ -24,7 +24,7 @@ describe("goal b26", () => {
     const q = read("src/lib/dashboard-quota.server.ts");
     expect(q).toContain("readReportQuota");
     expect(q).toContain("console.error(\"[quota]");
-    const hook = read("src/app/test-hooks/dashboard-500/page.tsx");
+    const hook = read("src/components/dashboard/Fixture500Page.tsx");
     expect(hook).not.toContain("— (could not be read)");
     expect(hook).toContain("Try again");
     expect(read("src/components/dashboard/AccountOwnerGuard.tsx")).toContain("SESSION_CHECK_TIMEOUT_MS = 5000");

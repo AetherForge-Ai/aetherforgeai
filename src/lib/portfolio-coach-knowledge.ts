@@ -333,5 +333,12 @@ export function coachStaticFactReply(userMessage: string): string | null {
       "FIF de minimis: if the total cost of your offshore shares stayed at or under NZ$50,000 all income year (NZ$100,000 for a joint holding), the FIF rules usually do not apply and dividends are taxed instead. This is indicative, not tax advice; check with IRD or a tax adviser."
     );
   }
+  // b32 CR-2: broker questions get plain example facts on the static path: no ranking, no
+  // speed or accuracy claims, no recommendation.
+  if (/\bbrokers?\b|\bwhich (platform|app|exchange)\b|\bwhere (do|can|should) i (buy|trade)\b|\b(trading|investing) (app|platform)\b/.test(q)) {
+    parts.push(
+      "AetherForge does not connect you to a broker or recommend one. New Zealand investors use platforms such as Sharesies, Hatch, Stake, ASB Securities, Jarden Direct and Interactive Brokers for shares, and Easy Crypto or Swyftx for crypto. These are examples only, in no particular order; they are not a ranking or an endorsement. You place trades with your own broker, then record them on your dashboard (or import a CSV/XLSX statement from /import)."
+    );
+  }
   return parts.length ? parts.join("\n\n") : null;
 }

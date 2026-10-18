@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { PRIVATE_NO_STORE_HEADERS } from "@/lib/account-guard";
-import { getSessionState, hasPaidSubscription, isStripeConfigured } from "@/lib/session";
+import { getSessionState, hasPaidSubscription, isStripeConfigured, lastGoodSessionCookieFor } from "@/lib/session";
+import { headers } from "next/headers";
+import { LAST_GOOD_SESSION_COOKIE, LAST_GOOD_SESSION_MAX_AGE_S } from "@/lib/last-good-session";
 import { resolveDisplayName, resolveGreetingName } from "@/lib/user-display";
 
 export const dynamic = "force-dynamic";
@@ -28,7 +30,7 @@ export async function GET() {
     return NextResponse.json({ user: null }, { headers: PRIVATE_NO_STORE_HEADERS });
   }
   const access = botAccess(user.bot_access);
-  return NextResponse.json(
+  const res = NextResponse.json(
     {
       user: {
         id: user.id,
@@ -51,4 +53,12 @@ export async function GET() {
     },
     { headers: PRIVATE_NO_STORE_HEADERS }
   );
+  // b32 REG-1: refresh the signed last-good session so a later store hang never blocks render.
+  try {
+    const value = await lastGoodSessionCookieFor((await headers()).get("cookie"), { id: user.id, email: user.email, name: user.name });
+    if (value) res.cookies.set(LAST_GOOD_SESSION_COOKIE, value, { path: "/", httpOnly: true, secure: true, sameSite: "lax", maxAge: LAST_GOOD_SESSION_MAX_AGE_S });
+  } catch {
+    /* best effort */
+  }
+  return res;
 }

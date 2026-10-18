@@ -1,5 +1,6 @@
 "use client";
 
+import { correctFromJournal, journalDeletedMap, noteWrite, readJournal } from "@/lib/write-journal";
 import { reconcileLedger } from "@/lib/ledger-reconcile";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
@@ -990,6 +991,13 @@ export function PortfolioDashboard({
         ) {
           return;
         }
+        // b32 G-10: a read that still lists a row deleted here (or misses one written here) is
+        // lagging; keep the acknowledged cash on screen instead of the stale figure.
+        const journal = readJournal(tracked.userId);
+        const ids = new Set(loaded.map((row) => row._id));
+        const lagging =
+          Object.keys(journal.deleted).some((id) => ids.has(id)) || Object.keys(journal.created).some((id) => !ids.has(id));
+        if (lagging && journal.cash) return;
         expectedTxRef.current = null;
         mutationCashRef.current = null;
         const bal = res.data.cashBalance;
@@ -1174,12 +1182,15 @@ export function PortfolioDashboard({
         }
         // b28 G-10: read-after-write. A lagging read neither brings back a row deleted here
         // nor drops a row this tab just wrote; outside the window the server is used as is.
-        const reconciled = onScreen
+        // b32 G-10: the journal outlives a reload; seed the in-tab map from it.
+        for (const [id, at] of journalDeletedMap(tracked.userId)) if (!deletedLedgerRef.current.has(id)) deletedLedgerRef.current.set(id, at);
+        const reconciledRaw = onScreen
           ? {
               ...snapshot,
               ledger: reconcileLedger(snapshot.ledger || [], onScreen.ledger, deletedLedgerRef.current, lastMutationAtRef.current),
             }
           : snapshot;
+        const reconciled = correctFromJournal(tracked.userId, reconciledRaw);
         if (reconciled.ledger.length !== (snapshot.ledger || []).length) {
           console.log(`[dashboard] reconciled a lagging ledger read: server ${snapshot.ledger?.length ?? 0} rows, shown ${reconciled.ledger.length}`);
         }
@@ -1200,7 +1211,8 @@ export function PortfolioDashboard({
 
   useEffect(() => {
     if (preview) return;
-    const cached = readPortfolioSnapshotCache(userId);
+    const cachedRaw = readPortfolioSnapshotCache(userId);
+    const cached = cachedRaw ? correctFromJournal(userId, cachedRaw) : cachedRaw;
     // Goal b14 G-10: never replace a book on screen with "nothing cached".
     setBookSnapshot((current) => cached ?? current);
     setSnapshotReady(cached != null);
@@ -2034,6 +2046,7 @@ export function PortfolioDashboard({
         return next;
       });
       if (typeof after === "number") applyKnownCash(after);
+      noteWrite(userId, { deletedId: line.id, cashAfter: typeof after === "number" ? after : null });
       toast.success(res.data?.alreadyRemoved ? `${label} was already removed` : `${label} removed`);
       handleDataChanged(typeof after === "number" ? { cashBalance: after } : undefined);
       return true;

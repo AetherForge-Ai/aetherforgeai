@@ -54,8 +54,12 @@ describe("signed-in Assistant panel /api/portfolio-coach", () => {
     await new Promise((r) => setTimeout(r, 0));
     const b = (await (await POST(post("http://x/api/portfolio-coach", QUESTIONS[0]))).json()) as { data: { used: number; limit: number } };
     expect(a.data).toMatchObject({ used: 1, limit: 100 });
-    expect(b.data).toMatchObject({ used: 2, limit: 100 });
-    expect(grok).toHaveBeenCalledTimes(1);
+    // b32 CR-2: the refusal answers on the static path; it is still counted, in the background.
+    expect(b.data).toMatchObject({ refused: "personalised_advice" });
+    await new Promise((r) => setTimeout(r, 10));
+    const again = (await (await POST(post("http://x/api/portfolio-coach", "What does FIF mean?"))).json()) as { data: { used: number } };
+    expect(again.data.used).toBe(3);
+    expect(grok).toHaveBeenCalledTimes(2);
   });
 });
 
