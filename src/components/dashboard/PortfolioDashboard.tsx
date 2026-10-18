@@ -2043,8 +2043,8 @@ export function PortfolioDashboard({
     openEdit(matches[0]);
   }
 
-  async function exportLedger() {
-    const res = await fetch("/api/transactions/export", { credentials: "include" });
+  async function exportLedger(format?: "xero") {
+    const res = await fetch(format === "xero" ? "/api/transactions/export?format=xero" : "/api/transactions/export", { credentials: "include" });
     if (res.status === 402 || res.status === 403) {
       toast.error("CSV export is included on Starter and above.");
       return;
@@ -2057,7 +2057,7 @@ export function PortfolioDashboard({
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = "transactions.csv";
+    anchor.download = format === "xero" ? "xero-statement.csv" : "transactions.csv";
     anchor.click();
     URL.revokeObjectURL(url);
   }
@@ -2393,6 +2393,11 @@ export function PortfolioDashboard({
               <Button type="button" variant="outline" className="h-auto min-h-11 max-w-full whitespace-normal" onClick={() => void exportLedger()} disabled={freePlan} aria-label={freePlan ? csvLockAccessibleName("Transactions CSV") : undefined} title={freePlan ? CSV_LOCK_LABEL : undefined}>
                 {freePlan ? CSV_LOCK_LABEL : "Export"}
               </Button>
+              {!freePlan ? (
+                <Button type="button" variant="outline" className="h-auto min-h-11 max-w-full whitespace-normal" onClick={() => void exportLedger("xero")} title="Bank-statement CSV of NZD cash movements for a Xero import">
+                  Xero CSV
+                </Button>
+              ) : null}
               <Button
                 type="button"
                 variant="outline"
