@@ -2073,15 +2073,17 @@ export function PortfolioDashboard({
 
   function openAdd() {
     // Gate on the plan's ticker quota before opening the add dialog.
+    // Goal b21 CR-6: at the cap the dialog still opens, so a member can add to a
+    // holding they already have, sell, or move cash. A new ticker is refused inside
+    // the dialog (dry-run precheck) and by the server (403) with the cap message.
     if (atLimit) {
       const founder = quota.upgradeHref.startsWith("mailto:");
-      toast.error(quota.message, {
+      toast.message(quota.message, {
         action: {
-          label: founder ? "Talk to us" : "See Pro",
+          label: founder ? "Talk to us" : "See plans",
           onClick: () => { window.location.href = quota.upgradeHref; },
         },
       });
-      return;
     }
     openRecordTransaction({
       mode: "buy",

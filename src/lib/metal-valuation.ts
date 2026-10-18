@@ -266,7 +266,11 @@ export interface HeldMetalRow {
  * One row per metal that is actually held. An empty book returns no rows.
  * pull-check:batch1-2026-10-11 B1-1
  */
-export function heldMetalRows(lots: readonly VisibleBullionLot[]): HeldMetalRow[] {
+export function heldMetalRows(
+  lots: readonly VisibleBullionLot[],
+  /** Goal b21 G-08: live spot per oz. When given, the row shows spot itself (not value ÷ ounces, which drifts by a cent). */
+  spotPerOz?: Partial<Record<MetalKey, number>>
+): HeldMetalRow[] {
   const grouped = new Map<MetalKey, { ounces: number; valueNzd: number }>();
   for (const lot of lots) {
     const ounces = Number(lot.ounces);
@@ -283,6 +287,10 @@ export function heldMetalRows(lots: readonly VisibleBullionLot[]): HeldMetalRow[
   return order.flatMap((metal) => {
     const row = grouped.get(metal);
     if (!row || !(row.ounces > 0)) return [];
+    const spot = Number(spotPerOz?.[metal]);
+    if (spot > 0 && Number.isFinite(spot)) {
+      return [{ metal, ounces: row.ounces, pricePerOz: spot, valueNzd: Math.round(row.ounces * spot * 100) / 100 }];
+    }
     return [
       {
         metal,

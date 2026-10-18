@@ -399,10 +399,10 @@ export function PreciousMetals({
   if (!entitled) {
     const gold = effectiveSpot?.gold;
     const silver = effectiveSpot?.silver;
-    const held = heldMetalRows(ledgerRows);
+    const held = heldMetalRows(ledgerRows, { gold: spotFor("gold"), silver: spotFor("silver") });
     return (
       <div className="rounded-3xl border border-border/70 bg-card/50 p-6 sm:p-8">
-        <h2 className="font-display text-xl font-bold">Smitty spot prices</h2>
+        <h2 className="font-display text-xl font-bold">Gold and silver spot prices</h2>
         <p className="mt-2 max-w-xl text-sm text-muted-foreground">
           Gold and silver spot prices are on this page. Record ounces from the transaction panel. The ledger is the book.
           {metalUpdatedPhrase(spot?.quotedAt) ? ` ${metalUpdatedPhrase(spot?.quotedAt)}.` : gold || loading ? "" : " Spot prices failed to load."}
@@ -689,9 +689,9 @@ export function PreciousMetals({
         <p className="mt-2 px-1 text-[0.7rem] text-muted-foreground">
           Buys and sells are recorded in the transaction panel, including the paper fee, and written to the ledger.
         </p>
-        {heldMetalRows(ledgerRows).length > 0 ? (
+        {heldMetalRows(ledgerRows, { gold: spotFor("gold"), silver: spotFor("silver") }).length > 0 ? (
           <ul className="mt-4 space-y-1 text-sm">
-            {heldMetalRows(ledgerRows).map((row) => {
+            {heldMetalRows(ledgerRows, { gold: spotFor("gold"), silver: spotFor("silver") }).map((row) => {
               const spotShown = shownMetalSpot(spotLive, spotFor(row.metal));
               return (
                 <li key={row.metal}>
