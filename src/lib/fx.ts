@@ -93,7 +93,7 @@ export async function historicalNzdPerUnit(
   const hit = historicalCache.get(key);
   if (hit && Date.now() - hit.at < HISTORICAL_TTL_MS) return hit.rate;
   try {
-    const res = await fetch(`https://api.frankfurter.app/${day}?from=${currency}&to=NZD`, {
+    const res = await fetch(`https://api.frankfurter.dev/v1/${day}?from=${currency}&to=NZD`, {
       signal: AbortSignal.timeout(8000),
     });
     if (!res.ok) return null;
