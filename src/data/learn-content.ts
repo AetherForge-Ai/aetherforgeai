@@ -81,6 +81,39 @@ const SHARESIES_PLANS: Source = {
   published: "2026-02-03",
 };
 
+const IRD_SHARES: Source = {
+  title: "Inland Revenue: Share investments",
+  url: "https://www.ird.govt.nz/income-tax/income-tax-for-individuals/types-of-individual-income/share-investments",
+};
+const IRD_ORDINARY: Source = {
+  title: "Inland Revenue: Income under ordinary tax rules",
+  url: "https://www.ird.govt.nz/income-tax/income-tax-for-individuals/types-of-individual-income/income-under-ordinary-tax-rules",
+};
+const IRD_CRYPTO: Source = { title: "Inland Revenue: Cryptoassets", url: "https://www.ird.govt.nz/cryptoassets" };
+const IRD_CRYPTO_BUYSELL: Source = { title: "Inland Revenue: Buying and selling cryptoassets", url: "https://www.ird.govt.nz/cryptoassets/individual/buying-selling" };
+const IRD_CRYPTO_PURPOSE: Source = {
+  title: "Inland Revenue: Acquiring cryptoassets to sell or exchange",
+  url: "https://www.ird.govt.nz/cryptoassets/individual/buying-selling/acquiring-sell-exchange",
+};
+const IRD_CRYPTO_RECORDS: Source = { title: "Inland Revenue: Record keeping for cryptoassets", url: "https://www.ird.govt.nz/cryptoassets/taxing/record-keeping" };
+const IRD_CRYPTO_CALC: Source = {
+  title: "Inland Revenue: Calculating cryptoasset income",
+  url: "https://www.ird.govt.nz/cryptoassets/taxing/income-expenses/calculating-cryptoasset-income",
+};
+const IRD_TAX_RATES: Source = {
+  title: "Inland Revenue: Tax rates for individuals",
+  url: "https://www.ird.govt.nz/income-tax/income-tax-for-individuals/tax-codes-and-tax-rates-for-individuals/tax-rates-for-individuals",
+};
+const IRD_KS_EMPLOYEE: Source = {
+  title: "Inland Revenue: Employee contributions to KiwiSaver accounts",
+  url: "https://www.ird.govt.nz/kiwisaver/kiwisaver-individuals/growing-my-kiwisaver-account/employee-contributions-to-kiwisaver",
+};
+const IRD_KS_RATE_CHANGE: Source = {
+  title: "Inland Revenue: Employee contributions",
+  url: "https://www.ird.govt.nz/kiwisaver/kiwisaver-individuals/employee-contributions",
+};
+const IRD_KS_CHANGES_2026: Source = { title: "Inland Revenue: KiwiSaver changes", url: "https://www.ird.govt.nz/kiwisaver-changes", published: "2026-03-19" };
+
 export const GUIDES: readonly Guide[] = [
   {
     slug: "fif-50000-threshold",
@@ -193,6 +226,106 @@ export const GUIDES: readonly Guide[] = [
       { text: "There are NZ$3, NZ$7 and NZ$15 plans, paid monthly or annually, plus a NZ$1 kids plan paid monthly.", source: SHARESIES_PLANS },
       { text: "Orders over plan coverage pay 1.9% of the amount, capped at US$5 for US shares, A$15 for Australian shares and NZ$25 for NZ shares.", source: SHARESIES_PLANS },
       { text: "There is no transaction fee on orders for managed funds (funds not listed on an exchange).", source: SHARESIES_PLANS },
+    ],
+  },
+  {
+    slug: "share-sale-tax",
+    title: "When NZ share sales are taxed",
+    description: "The three situations where Inland Revenue treats amounts from selling shares as income, and what is taxed.",
+    intro: "New Zealand has no general capital gains tax, but some share sales are still taxable. Inland Revenue sets out when.",
+    facts: [
+      { text: "Amounts from selling shares are taxable if you bought them for the dominant or main purpose of selling them, have a share dealing business, or hold them as part of a profit-making scheme.", source: IRD_SHARES },
+      { text: "The amount that is taxable is the sale price less the cost of the shares, and it is only taxed once.", source: IRD_SHARES },
+      { text: "You do not have to be in business or intend to make a profit: a one-off sale is still taxable if you bought the shares mainly to sell.", source: IRD_SHARES },
+      { text: "There is no bright-line test for share sales, so no set holding period or number of trades decides it.", source: IS2410 },
+    ],
+  },
+  {
+    slug: "share-purchase-records",
+    title: "Records that show why you bought shares",
+    description: "The records Inland Revenue says can support your stated purpose when you bought and sold shares.",
+    intro: "Your purpose when you bought a share can decide whether a sale is taxed, so records made at the time matter.",
+    facts: [
+      { text: "Useful records include notes on why you bought (such as emails), the research you relied on, any investment plan or adviser notes, and lending records if you borrowed to invest.", source: IRD_SHARES },
+      { text: "Your stated purpose is tested against the nature of the share, how long you held it, the circumstances of purchase and sale, and the number of similar transactions.", source: IRD_SHARES },
+      { text: "Recording reasons for sales, such as rebalancing or a change in circumstances, can help show they fit your stated purpose.", source: IS2410 },
+    ],
+  },
+  {
+    slug: "personal-property-for-disposal",
+    title: "Shares, gold and crypto bought to sell",
+    description: "How Inland Revenue treats profits on personal property, including shares, gold and cryptoassets, bought mainly to sell.",
+    intro: "The same purpose test covers more than shares.",
+    facts: [
+      { text: "Selling personal property such as shares, gold and cryptoassets is income if it was bought with the main or dominant purpose of selling it.", source: IRD_ORDINARY },
+      { text: "Inland Revenue looks at the type of asset, your reasons for buying and selling, the number of similar transactions, the holding period and how the asset was used and sold.", source: IRD_ORDINARY },
+    ],
+  },
+  {
+    slug: "crypto-tax-basics",
+    title: "Cryptoassets and NZ tax: the basics",
+    description: "How Inland Revenue treats cryptoassets: property for tax, when buying and selling is taxable, and what counts as a disposal.",
+    intro: "Inland Revenue has a dedicated section on cryptoassets.",
+    facts: [
+      { text: "Cryptoassets are treated as a form of property for tax purposes; the treatment depends on their characteristics and use, not what they are called.", source: IRD_CRYPTO },
+      { text: "In most cases amounts from selling, trading or exchanging cryptoassets are taxable, including exchanging one cryptoasset for another.", source: IRD_CRYPTO_BUYSELL },
+      { text: "Moving cryptoassets between wallets, addresses or accounts that all belong to you is not a disposal.", source: IRD_CRYPTO_BUYSELL },
+      { text: "Reasons like long-term investment, an inflation hedge or diversification usually still involve a purpose of eventually selling or exchanging.", source: IRD_CRYPTO_PURPOSE },
+    ],
+  },
+  {
+    slug: "crypto-income-calculation",
+    title: "Working out crypto income: FIFO or weighted average",
+    description: "Inland Revenue's formula for cryptoasset income and the two cost methods it allows.",
+    intro: "Once a disposal is taxable, the income has to be calculated in New Zealand dollars.",
+    facts: [
+      { text: "Income = sale price – purchase cost – transaction fees.", source: IRD_CRYPTO_CALC },
+      { text: "Cost can be worked out with first-in first-out (FIFO) or weighted average cost (WAC).", source: IRD_CRYPTO_CALC },
+      { text: "Losses on disposals can offset other cryptoasset profits and then other income; unrealised gains and losses are not taxable or deductible.", source: IRD_CRYPTO_CALC },
+      { text: "Reconcile holdings as of 31 March each year and record a crypto-to-crypto trade as both a disposal and an acquisition.", source: IRD_CRYPTO_CALC },
+    ],
+  },
+  {
+    slug: "crypto-records",
+    title: "Crypto records to keep for seven years",
+    description: "The cryptoasset transaction records Inland Revenue asks you to keep, and for how long.",
+    intro: "Exchanges may not keep your history, so Inland Revenue suggests downloading it regularly.",
+    facts: [
+      { text: "Keep the type of cryptoasset, transaction date and type, number of units, NZD value, units held at the start and end of the year, exchange records and bank statements, and wallet addresses.", source: IRD_CRYPTO_RECORDS },
+      { text: "Keep these records for at least 7 years, even if you no longer hold any cryptoassets.", source: IRD_CRYPTO_RECORDS },
+    ],
+  },
+  {
+    slug: "nz-income-tax-rates",
+    title: "NZ income tax rates from 1 April 2025",
+    description: "Individual income tax brackets from 1 April 2025, as published by Inland Revenue. Investment income is part of total income.",
+    intro: "Taxable investment income, such as interest and some overseas income, is added to your other income and taxed at these rates.",
+    facts: [
+      { text: "From 1 April 2025: 10.5% on income up to $15,600; 17.5% from $15,601 to $53,500; 30% from $53,501 to $78,100; 33% from $78,101 to $180,000; 39% over $180,000.", source: IRD_TAX_RATES },
+      { text: "Income such as interest from a bank account or investment and overseas income counts towards total income for the year.", source: IRD_TAX_RATES },
+    ],
+  },
+  {
+    slug: "kiwisaver-contribution-rates",
+    title: "KiwiSaver employee contribution rates",
+    description: "The KiwiSaver employee contribution rates you can choose, the default, and how often you can change.",
+    intro: "If you are an employee, KiwiSaver contributions usually come from your pay.",
+    facts: [
+      { text: "You can choose to contribute 3.5%, 4%, 6%, 8% or 10% of your pay; the default rate is 3.5%.", source: IRD_KS_RATE_CHANGE },
+      { text: "You can change your rate once every 3 months unless your employer agrees to a shorter timeframe.", source: IRD_KS_RATE_CHANGE },
+      { text: "Before-tax pay for KiwiSaver includes allowances, bonuses, commission, overtime and gratuities.", source: IRD_KS_EMPLOYEE },
+    ],
+  },
+  {
+    slug: "kiwisaver-default-rate-rise",
+    title: "The KiwiSaver default rate rise (2026 and 2028)",
+    description: "The Budget 2025 changes that lift the default KiwiSaver rate from 3% to 3.5% in April 2026 and 4% in April 2028.",
+    intro: "Inland Revenue published the timetable for the default rate change.",
+    facts: [
+      { text: "From 1 April 2026 the default employee and matching employer rate rose from 3% to 3.5%.", source: IRD_KS_CHANGES_2026 },
+      { text: "A temporary rate reduction lets you keep contributing 3% for between 3 and 12 months, and you can apply more than once.", source: IRD_KS_CHANGES_2026 },
+      { text: "From 1 April 2026, 16- and 17-year-olds qualify for employer contributions of 3.5% if they meet the other requirements.", source: IRD_KS_CHANGES_2026 },
+      { text: "From 1 April 2028 the default rate rises again, to 4%, for both employee and employer.", source: IRD_KS_CHANGES_2026 },
     ],
   },
 ];

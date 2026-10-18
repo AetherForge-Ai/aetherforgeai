@@ -84,7 +84,7 @@ export function DashboardSessionShell({
 }
 
 /** Goal b14 H-4: Plan usage and the reports-left banner painted from the server read. */
-function ServerQuotaStrip({ quota }: { quota: { used: number; limit: number } }) {
+export function ServerQuotaStrip({ quota }: { quota: { used: number; limit: number } }) {
   const left = Math.max(0, quota.limit - quota.used);
   return (
     <div data-server-quota className="mx-auto mt-4 flex max-w-7xl flex-wrap gap-x-4 gap-y-1 px-4 text-sm text-foreground">
