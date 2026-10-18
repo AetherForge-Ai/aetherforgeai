@@ -13,8 +13,9 @@ describe("Goal b22", () => {
   });
   it("G-05: crypto reads revalidate past 10 minutes and wait for the attempt write", () => {
     const store = read("src/lib/crypto-board-store.ts");
-    expect(store).toMatch(/boardNeedsRefresh\(saved\?\.at, SNAPSHOT_REFRESH_MS\)\) \{\n\s+await Promise\.race/);
-    expect(store).toMatch(/await flushCryptoAttempt\(\)/);
+    // b31 REG-1: the in-request wait is bounded (1.2 s); the attempt write finishes via waitUntil.
+    expect(store).toMatch(/boardNeedsRefresh\(saved\?\.at, SNAPSHOT_REFRESH_MS\)\) \{[\s\S]{0,400}await Promise\.race\(\[work, sleep\(REQUEST_REFRESH_BOUND_MS\)\]\)/);
+    expect(store).toMatch(/void keepAlive\(work\)/);
     expect(read("src/lib/crypto-attempts.ts")).toMatch(/pendingPersist = Promise.all\(\[persistSharedAttempt/);
     expect(read("src/app/api/crypto/route.ts")).toMatch(/revalidate: true/);
   });

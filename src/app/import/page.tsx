@@ -1,5 +1,5 @@
 import { AppShell } from "@/components/AppShell";
-import { BrokerImportPanel } from "@/components/import/BrokerImportPanel";
+import { ImportClient } from "@/app/import/import-client";
 import { publicPageMetadata } from "@/lib/reviewed-book";
 import { getCurrentUser } from "@/lib/session";
 
@@ -25,7 +25,7 @@ export default async function ImportPage() {
   return (
     <AppShell user={shellUser} guest={!user}>
       {user ? (
-        <BrokerImportPanel />
+        <ImportClient />
       ) : (
         <div className="mx-auto max-w-xl px-4 py-16 text-sm text-muted-foreground">
           <h1 className="font-display text-3xl font-bold text-foreground">Import trades</h1>

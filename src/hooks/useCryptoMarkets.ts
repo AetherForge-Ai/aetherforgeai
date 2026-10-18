@@ -47,9 +47,14 @@ async function load(force = false): Promise<void> {
   store.inflight = (async () => {
     try {
       const res = await api.get<CoinMarket[]>("/api/crypto/markets", {
-        signal: AbortSignal.timeout(20_000),
+        signal: AbortSignal.timeout(6_000),
       });
-      if (res.ok && Array.isArray(res.data)) {
+      const stampedAt = (res as { at?: unknown }).at;
+      // b31 H-1: never step "Prices as at" backwards; an older snapshot than one shown is ignored.
+      const older = typeof stampedAt === "string" && !!store.asOf && stampedAt < store.asOf && store.coins.length > 0;
+      if (older) {
+        store.error = null;
+      } else if (res.ok && Array.isArray(res.data)) {
         store.coins = res.data;
         store.fetchedAt = Date.now();
         store.error = null;

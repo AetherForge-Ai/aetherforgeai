@@ -5,22 +5,40 @@ import { sourceLabel } from "@/lib/crypto-price-chain";
 import { publicSourceAllowed } from "@/lib/swyftx-display";
 
 /** The public tape. Same quotes as GET /api/ticker. A missing symbol is omitted. */
+/** b31 REG-1: hard cap per tape part. */
+export const TICKER_PART_TIMEOUT_MS = 1_500;
+let lastGoodCrypto: Record<string, any> | null = null;
+let lastGoodEquity: Record<string, any> | null = null;
+
+function boundedPart<T>(work: Promise<T | null>): Promise<T | null> {
+  return Promise.race([work, new Promise<null>((resolve) => setTimeout(() => resolve(null), TICKER_PART_TIMEOUT_MS))]);
+}
+
 export async function loadPublicTicker(): Promise<TickerTapeFeed> {
   const asOf = new Date().toISOString();
   const equitySymbols = [...TICKER_TAPE.nzx, ...TICKER_TAPE.asx].map((row) => row.symbol);
   const cryptoSymbols = TICKER_TAPE.crypto.map((row) => row.symbol);
 
   const { snapshotQuotesForSymbols } = await import("@/lib/crypto-board-store");
-  const [cryptoRaw, equityQuotes] = await Promise.all([
-    snapshotQuotesForSymbols(cryptoSymbols).catch((err) => {
-      console.error("[ticker] Crypto snapshot read failed:", err instanceof Error ? err.message.slice(0, 120) : "failed");
-      return {} as Awaited<ReturnType<typeof snapshotQuotesForSymbols>>;
-    }),
-    fetchLiveQuotes(equitySymbols).catch((err) => {
-      console.error("[ticker] Equity live fetch failed:", err);
-      return {} as Awaited<ReturnType<typeof fetchLiveQuotes>>;
-    }),
+  // b31 REG-1: each part waits at most TICKER_PART_TIMEOUT_MS; a timeout serves the last-good part.
+  const [cryptoFresh, equityFresh] = await Promise.all([
+    boundedPart(
+      snapshotQuotesForSymbols(cryptoSymbols).catch((err) => {
+        console.error("[ticker] Crypto snapshot read failed:", err instanceof Error ? err.message.slice(0, 120) : "failed");
+        return null;
+      })
+    ),
+    boundedPart(
+      fetchLiveQuotes(equitySymbols).catch((err) => {
+        console.error("[ticker] Equity live fetch failed:", err instanceof Error ? err.message.slice(0, 120) : "failed");
+        return null;
+      })
+    ),
   ]);
+  if (cryptoFresh && Object.keys(cryptoFresh).length) lastGoodCrypto = cryptoFresh;
+  if (equityFresh && Object.keys(equityFresh).length) lastGoodEquity = equityFresh;
+  const cryptoRaw = (cryptoFresh && Object.keys(cryptoFresh).length ? cryptoFresh : lastGoodCrypto ?? {}) as Awaited<ReturnType<typeof snapshotQuotesForSymbols>>;
+  const equityQuotes = (equityFresh && Object.keys(equityFresh).length ? equityFresh : lastGoodEquity ?? {}) as Awaited<ReturnType<typeof fetchLiveQuotes>>;
   const cryptoQuotes: Record<string, { price: number; changePct?: number; quotedAt: string | null; source: string; provider: string }> = {};
   for (const [symbol, quote] of Object.entries(cryptoRaw)) {
     cryptoQuotes[symbol] = {

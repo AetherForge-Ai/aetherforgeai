@@ -285,7 +285,12 @@ describe("pull-check:v3-crypto-seed-2026-10-12", () => {
       }
       return jsonResponse([]);
     });
-    const board = await readSharedCryptoBoard({ seed: false });
+    // b31 REG-1: the request waits at most 1.2 s; the seed finishes in the background.
+    let board = await readSharedCryptoBoard({ seed: false });
+    for (let i = 0; i < 40 && board.coins.length < 12; i += 1) {
+      await new Promise((r) => setTimeout(r, 100));
+      board = await readSharedCryptoBoard({ seed: false });
+    }
     expect(board.coins.length).toBeGreaterThanOrEqual(12);
     expect(board.at).toBeTruthy();
     clearSnapshotMemory();

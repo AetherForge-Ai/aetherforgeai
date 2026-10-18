@@ -1,0 +1,3 @@
+Transaction Date,Settlement Date,Confirmation Number,Type,Code,Security,Exchange,Quantity,Price,Consideration,Brokerage,Net Amount,Currency
+03/02/2026,05/02/2026,JD-9001,Buy,MFT,Mainfreight,NZX,10,70.00,700.00,29.00,729.00,NZD
+05/05/2026,07/05/2026,JD-9002,Sell,MFT,Mainfreight,NZX,4,75.00,300.00,29.00,271.00,NZD

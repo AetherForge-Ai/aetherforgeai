@@ -53,9 +53,9 @@ function DisposalTable({ rows }: { rows: RealisedLine[] }) {
         <tbody>
           {rows.map((row, index) => (
             <tr key={`${row.ticker}-${row.when}-${index}`} className="border-b border-border/40 last:border-0">
-              <td className="px-3 py-2">{formatDisplayDate(row.when)}</td>
-              <td className="px-3 py-2">
-                {row.ticker}
+              <td className="whitespace-nowrap px-3 py-2 text-foreground">{formatDisplayDate(row.when)}</td>
+              <td className="px-3 py-2 text-foreground">
+                <span className="font-medium">{row.ticker || "—"}</span>
                 {row.lots.length > 0 ? (
                   <span className="mt-0.5 block text-xs text-muted-foreground">
                     {row.lots.map((lot, lotIndex) => (

@@ -139,7 +139,7 @@ afterEach(() => {
 describe("pull-check:v3-retest10-2026-10-13", () => {
   it("is marked on the public copy and the build version", () => {
     expect(read("src/lib/public-copy.ts")).toContain("pull-check:v3-retest10-2026-10-13");
-    expect(read("public/build-version.txt").trim()).toBe("v3-goal-b30-2026-10-19");
+    expect(read("public/build-version.txt").trim()).toBe("v3-goal-b31-2026-10-19");
     expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-retest10-2026-10-13");
     expect(read("src/lib/crypto-board-store.ts")).toContain("Never seed when a snapshot exists");
     expect(read("src/lib/crypto-source.ts")).toContain("readSharedCryptoBoard({ seed: false })");
@@ -209,7 +209,7 @@ describe("pull-check:v3-retest10-2026-10-13", () => {
     const quotes = await snapshotQuotesForSymbols(["BTC"]);
     expect(quotes.BTC.source).toBe("yahoo");
     expect(read("src/lib/public-ticker.ts")).not.toContain('provider: "CoinGecko"');
-    expect(read("src/components/MarketTicker.tsx")).toContain("AbortSignal.timeout(8000)");
+    expect(read("src/components/MarketTicker.tsx")).toContain("AbortSignal.timeout(4_000)");
     expect(read("src/components/MarketTicker.tsx")).toContain("res.aborted");
   });
 
