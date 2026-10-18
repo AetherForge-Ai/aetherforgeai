@@ -233,12 +233,12 @@ describe("b29 H-9 per-portfolio threshold, peak FIFO line, ZIP", () => {
   it("only 50k or 100k (jointly held) are kept; the paper prints the value used", () => {
     expect(normaliseFifThreshold(100000)).toBe(100000);
     expect(normaliseFifThreshold(75000)).toBe(50000);
-    expect(fifThresholdText(100000)).toContain("(jointly held)");
+    expect(fifThresholdText(100000)).toContain("(2 equal owners, no other FIF holdings)");
     const rows = [{ _id: "r1", type: "buy", ticker: "AAPL", asset_type: "stock", quantity: 10, price: 100, fx_rate: 1.7, executed_at: "2026-05-01" }] as never;
     const paper = buildFifPaper({ rows, markets: [], endingYear: 2027, thresholdNzd: 100000 });
     expect(paper.thresholdNzd).toBe(100000);
     const sentence = fifThresholdSentence(paper);
-    expect(sentence).toContain("(jointly held)");
+    expect(sentence).toContain("(2 equal owners, no other FIF holdings)");
     expect(sentence).toContain("peak FIFO cost, reached 2026-05-01");
     const page = read("src/app/tax/fif/page.tsx");
     expect(page).toContain("data-fif-threshold-setting".slice(0, 0) + "<FifThresholdSetting");

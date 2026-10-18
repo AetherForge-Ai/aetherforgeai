@@ -73,6 +73,8 @@ export function sanitizeGuideReply(text: string): string {
   out = out.replace(URL_PATTERN, "");
   out = out.replace(IMPERATIVE_SENTENCE, " That choice is yours to make with a licensed adviser. ");
   out = out.replace(SHOUTED_CALL, "an indicator");
+  // b37 CR-2: no soft speed claims ("quickly", "instantly") in model replies.
+  out = out.replace(/\s+(?:quickly|instantly)\b/gi, "");
   out = out.replace(/[ \t]{2,}/g, " ").replace(/\s+([.,!?])/g, "$1").trim();
   return withGuideDisclaimer(out);
 }

@@ -84,6 +84,13 @@ export function acknowledgedId(res: { ok: boolean; data?: unknown }): string | n
   const id = (res.data as { lastTransaction?: { _id?: unknown } } | undefined)?.lastTransaction?._id;
   return typeof id === "string" && id && !id.startsWith("optimistic-") ? id : null;
 }
+/** b37 G-10: the server's 409 "account-mismatch" (the session switched accounts) in plain words. */
+export const SESSION_SWITCHED_ERROR =
+  "Not recorded: this browser is now signed in to a different account. Nothing was saved. Reload, check the account, then try again.";
+function writeError(error: unknown, fallback: string): string {
+  if (error === "account-mismatch") return SESSION_SWITCHED_ERROR;
+  return typeof error === "string" ? error : fallback;
+}
 const NOT_ACKNOWLEDGED = "The server did not confirm the save, so nothing is shown as saved. Check your connection and try again.";
 
 function sleepMs(ms: number): Promise<void> {
@@ -745,7 +752,14 @@ export function RecordTransactionPanel({
                 onDone(late.data);
               } else {
                 onDone({ cashBalance: cashBeforeOptimistic, lastTransaction: null, transactions: [], ledgerPartial: true, optimisticRollback: true });
-                toast.error(!late.ok && typeof late.error === "string" ? `Not recorded: ${late.error}` : `Not recorded. ${NOT_ACKNOWLEDGED}`, { id: toastId });
+                toast.error(
+                  !late.ok && late.error === "account-mismatch"
+                    ? SESSION_SWITCHED_ERROR
+                    : !late.ok && typeof late.error === "string"
+                      ? `Not recorded: ${late.error}`
+                      : `Not recorded. ${NOT_ACKNOWLEDGED}`,
+                  { id: toastId }
+                );
               }
             })
             .catch(() => {
@@ -776,7 +790,7 @@ export function RecordTransactionPanel({
         return;
       }
       if (!res.ok) {
-        failSave(typeof res.error === "string" ? res.error : "Could not record that transaction.");
+        failSave(writeError(res.error, "Could not record that transaction."));
         return;
       }
       if (!savedId) {
