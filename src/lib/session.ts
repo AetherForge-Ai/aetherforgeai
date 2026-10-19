@@ -1,6 +1,5 @@
 import { LAST_GOOD_SESSION_COOKIE, cookieValueOf, verifyLastGoodSession } from "@/lib/last-good-session";
 import { isSessionTokenRevoked, markSessionTokenRevoked } from "@/lib/session-revocation";
-import { hasSignOutMarker } from "@/lib/sign-out-marker";
 import "server-only";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
@@ -174,14 +173,6 @@ async function readTokenSession(cookieHeader: string | null, opts: { fresh?: boo
     return null;
   }
   const key = `token:${token}`;
-  // b42 P1: the browser clicked Sign out (af_so). This token is signed out now, and is revoked here
-  // too (marker + store row), so a lost or overtaken logout POST still ends the session.
-  if (hasSignOutMarker(cookieHeader)) {
-    sessionCache.delete(key);
-    await revokeTokenEverywhere(ctx, token);
-    recordSessionDecision({ cookie: true, signature: true, source: "none", storeMs: null, outcome: "signed-out" });
-    return null;
-  }
   // b41 P1: a signed-out token is rejected even if this isolate's session cache still holds it.
   if (await isSessionTokenRevoked(token)) {
     sessionCache.delete(key);
@@ -433,7 +424,7 @@ export async function lastGoodSessionCookieFor(cookieHeader: string | null, user
   const token = raw ? await verifySignedSessionToken(raw, ctx.secret) : null;
   if (!token) return null;
   // b42 P1: never (re)issue af_ls for a session being signed out or already revoked.
-  if (hasSignOutMarker(cookieHeader) || (await isSessionTokenRevoked(token, 300))) return null;
+  if (await isSessionTokenRevoked(token, 300)) return null;
   const { signLastGoodSession } = await import("@/lib/last-good-session");
   return signLastGoodSession(ctx.secret, token, user);
 }

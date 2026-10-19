@@ -459,7 +459,7 @@ function MobileDrawer({
  * (marketing + app) via SiteHeader and AppShell, so the primary menu never
  * changes shape or relocates to a sidebar when entering the portfolio.
  */
-/** b41 P1: Sign out revokes the session from the click itself (awaited) before navigating. */
+/** b43: Sign out shows the blocking overlay and awaits the server revoke before navigating. */
 function onSignOutClick(event: ReactMouseEvent<HTMLAnchorElement>) {
   if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return;
   event.preventDefault();

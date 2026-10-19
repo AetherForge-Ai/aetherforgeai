@@ -2573,6 +2573,7 @@ export function PortfolioDashboard({
           reports={
             <ReportCenter
               onFreeQuota={setRailQuota}
+              cashNzd={preview ? null : cashBalance}
               botAccess={subscription.botAccess}
               plan={subscription.plan}
               scope={scope}

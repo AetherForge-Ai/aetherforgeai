@@ -2,24 +2,14 @@
 
 import { clearOfflineCaches } from "@/components/PwaRegister";
 import { clearClientUserState } from "@/lib/client-user-state";
-import { markSigningOut } from "@/lib/sign-out-marker";
 
-/** b41 P1: the sign-out POST waits at most this long before the beacon fallback. */
-export const SIGN_OUT_POST_MS = 4_000;
+/** b43 (Chief ruling): each revoke attempt waits at most this long; one retry. */
+export const SIGN_OUT_POST_MS = 5_000;
+export const SIGN_OUT_OVERLAY_ID = "af-signing-out";
 
-/**
- * b41 P1 (TT b40: clicking Sign out then loading /settings within 0.3 s left the session alive).
- * The click itself revokes the session: POST /api/session/logout (it deletes the session row, marks
- * the token revoked for every isolate, and expires the cookies in that response) is awaited before
- * any navigation. If it fails or times out, a sendBeacon carries the same request. Client state and
- * offline caches are cleared, then a hard navigation drops the router cache.
- */
-export async function signOutNow(opts: { navigate?: (url: string) => void } = {}): Promise<boolean> {
-  // b42 P1: first, synchronously: every request after this click is signed out (middleware + server).
-  markSigningOut();
-  let ok = false;
+async function revokeOnce(ms: number): Promise<boolean> {
   const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
-  const timer = setTimeout(() => controller?.abort(), SIGN_OUT_POST_MS);
+  const timer = setTimeout(() => controller?.abort(), ms);
   try {
     const res = await fetch("/api/session/logout", {
       method: "POST",
@@ -28,26 +18,77 @@ export async function signOutNow(opts: { navigate?: (url: string) => void } = {}
       keepalive: true,
       signal: controller?.signal,
     });
-    ok = res.ok;
+    return res.ok;
   } catch {
-    ok = false;
+    return false;
   } finally {
     clearTimeout(timer);
   }
-  if (!ok) {
+}
+
+const blockUnload = (e: BeforeUnloadEvent) => {
+  e.preventDefault();
+  e.returnValue = "";
+};
+
+/** A full-screen "Signing out…" layer that takes every click while the revoke runs. */
+function showOverlay(): () => void {
+  if (typeof document === "undefined") return () => undefined;
+  let el = document.getElementById(SIGN_OUT_OVERLAY_ID);
+  if (!el) {
+    el = document.createElement("div");
+    el.id = SIGN_OUT_OVERLAY_ID;
+    el.setAttribute("role", "alertdialog");
+    el.setAttribute("aria-modal", "true");
+    el.setAttribute("aria-live", "assertive");
+    el.setAttribute("aria-label", "Signing out");
+    el.setAttribute("data-signing-out", "");
+    el.style.cssText =
+      "position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;background:rgba(10,10,15,0.85);color:#fff;font:600 1.125rem/1.4 system-ui,sans-serif;cursor:progress;pointer-events:all";
+    el.textContent = "Signing out…";
+    document.body.appendChild(el);
+  }
+  const swallow = (e: Event) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+  // Capture phase: nothing under the overlay (links, the router, keyboard shortcuts) gets the event.
+  const events = ["click", "mousedown", "pointerdown", "keydown", "submit", "touchstart"] as const;
+  for (const t of events) document.addEventListener(t, swallow, true);
+  window.addEventListener("beforeunload", blockUnload);
+  return () => {
+    for (const t of events) document.removeEventListener(t, swallow, true);
+    window.removeEventListener("beforeunload", blockUnload);
+  };
+}
+
+let inFlight: Promise<boolean> | null = null;
+
+/**
+ * b43 (Chief ruling, sign-out race): Sign out shows a full-screen "Signing out…" overlay that blocks
+ * clicks and navigation, AWAITS the server revoke (5 s, one retry; the server deletes the Totalum
+ * session row and expires every auth cookie in that response), clears client auth state and caches,
+ * then location.replace("/login"). Nothing navigates before the revoke has answered or timed out twice.
+ */
+export function signOutNow(opts: { navigate?: (url: string) => void; postMs?: number } = {}): Promise<boolean> {
+  if (inFlight) return inFlight;
+  const release = showOverlay();
+  inFlight = (async () => {
+    const ms = opts.postMs ?? SIGN_OUT_POST_MS;
+    let ok = await revokeOnce(ms);
+    if (!ok) ok = await revokeOnce(ms);
     try {
-      ok = typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function" && navigator.sendBeacon("/api/session/logout");
+      clearClientUserState();
     } catch {
-      ok = false;
+      /* nothing to clear */
     }
-  }
-  try {
-    clearClientUserState();
-  } catch {
-    /* nothing to clear */
-  }
-  await clearOfflineCaches().catch(() => undefined);
-  const go = opts.navigate ?? ((url: string) => window.location.replace(url));
-  go(ok ? "/logout?done=1" : "/logout");
-  return ok;
+    await Promise.race([clearOfflineCaches().catch(() => undefined), new Promise((r) => setTimeout(r, 1_000))]);
+    release();
+    const go = opts.navigate ?? ((url: string) => window.location.replace(url));
+    go(ok ? "/login" : "/logout");
+    return ok;
+  })().finally(() => {
+    inFlight = null;
+  });
+  return inFlight;
 }
