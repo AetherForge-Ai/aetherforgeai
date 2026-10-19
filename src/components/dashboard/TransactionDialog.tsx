@@ -28,6 +28,16 @@ type Sellable = Stock & { metalSourceId?: string };
  * The one Record a transaction dialog. Search stays inside the panel, and the
  * close guards keep a ticker lookup from dismissing it.
  */
+/**
+ * b44 G-14: offsetParent is null for position:fixed/sticky controls (the panel footer), so those were
+ * dropped from the trap and Tab escaped the dialog after the date segments. Use layout boxes instead.
+ */
+function isTabbableVisible(el: HTMLElement): boolean {
+  if (el.getClientRects().length === 0) return false;
+  const style = window.getComputedStyle(el);
+  return style.visibility !== "hidden" && style.display !== "none";
+}
+
 export function TransactionDialog({
   open,
   onOpenChange,
@@ -94,7 +104,7 @@ export function TransactionDialog({
         panel.querySelectorAll<HTMLElement>(
           'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
         )
-      ).filter((el) => el.offsetParent !== null);
+      ).filter(isTabbableVisible);
       if (!items.length) {
         panel.focus();
         return;
@@ -119,7 +129,7 @@ export function TransactionDialog({
       root.querySelectorAll<HTMLElement>(
         'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
       )
-    ).filter((el) => el.offsetParent !== null || el === document.activeElement);
+    ).filter((el) => isTabbableVisible(el) || el === document.activeElement);
     if (!items.length) return;
     const first = items[0];
     const last = items[items.length - 1];
