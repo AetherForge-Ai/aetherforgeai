@@ -26,10 +26,6 @@ async function revokeOnce(ms: number): Promise<boolean> {
   }
 }
 
-const blockUnload = (e: BeforeUnloadEvent) => {
-  e.preventDefault();
-  e.returnValue = "";
-};
 
 /** A full-screen "Signing out…" layer that takes every click while the revoke runs. */
 function showOverlay(): () => void {
@@ -55,10 +51,9 @@ function showOverlay(): () => void {
   // Capture phase: nothing under the overlay (links, the router, keyboard shortcuts) gets the event.
   const events = ["click", "mousedown", "pointerdown", "keydown", "submit", "touchstart"] as const;
   for (const t of events) document.addEventListener(t, swallow, true);
-  window.addEventListener("beforeunload", blockUnload);
+  // b47 P3: no beforeunload prompt while signing out (the server revoke runs with keepalive anyway).
   return () => {
     for (const t of events) document.removeEventListener(t, swallow, true);
-    window.removeEventListener("beforeunload", blockUnload);
   };
 }
 

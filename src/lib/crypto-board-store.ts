@@ -568,6 +568,22 @@ function kickRefresh(): void {
   scheduleDetached(() => refreshDexSeed());
 }
 
+/**
+ * b47 H-1 freeze (TT b46: 601 s gap; refresh only ran when a page past 10 min asked for it). Readers of
+ * the tape call this; once the list is over 5 minutes old a refresh starts in the background. Single
+ * flight: one try per isolate per minute (kickRefresh) and the shared crypto lease across isolates.
+ */
+export const SNAPSHOT_REFRESH_TRIGGER_MS = 5 * 60 * 1000;
+export function kickCryptoRefreshIfOld(at: string | null | undefined): boolean {
+  if (!boardNeedsRefresh(at, SNAPSHOT_REFRESH_TRIGGER_MS)) return false;
+  // Only where after() keeps the work alive past the reply (the Worker): the tape never waits on it.
+  if (!afterHookAvailable()) return false;
+  // Unit tests simulate the store; a kick there would fetch live providers.
+  if (process.env.VITEST || process.env.NODE_ENV === "test") return false;
+  kickRefresh();
+  return true;
+}
+
 export function refreshMarketSnapshotsNow(): Promise<RefreshResult> {
   nextReaderAttemptAt = Date.now() + 60_000;
   return refreshMarketSnapshots();
@@ -693,7 +709,8 @@ export async function readSharedCryptoBoard(opts?: { seed?: boolean; revalidate?
       }
       return presentCrypto(visible, saved?.at ?? null, saved?.version ?? 0);
     }
-    if (visible.length && boardNeedsRefresh(saved?.at, SNAPSHOT_REFRESH_MS)) {
+    // b47: the background kick starts at 5 minutes (labels still use the 10-minute threshold).
+    if (visible.length && boardNeedsRefresh(saved?.at, SNAPSHOT_REFRESH_TRIGGER_MS)) {
       if (afterHookAvailable()) kickRefresh();
       else await scheduleDetached(() => refreshCryptoSeed(), 400);
     }

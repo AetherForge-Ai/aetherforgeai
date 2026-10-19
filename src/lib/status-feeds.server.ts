@@ -1,3 +1,4 @@
+import { keepAlive } from "@/lib/keep-alive.server";
 import { attemptLabel, attemptIsGuard, cryptoFeedKilled, readCryptoAttempt, readSharedCryptoAttempt, type CryptoAttempt } from "@/lib/crypto-attempts";
 import "server-only";
 
@@ -52,7 +53,7 @@ function edgeTimePut(key: string, at: string | null) {
   const cache = edgeCache();
   if (!cache || !at || (edgePutAt[key] && edgePutAt[key] >= at)) return;
   edgePutAt[key] = at;
-  void cache.put(EDGE_TIME_URL(key), new Response(at, { headers: { "Cache-Control": "max-age=604800" } })).catch(() => undefined);
+  void keepAlive(cache.put(EDGE_TIME_URL(key), new Response(at, { headers: { "Cache-Control": "max-age=604800" } })).catch(() => undefined)); // b47: waitUntil
 }
 /** Memory first, then the colo copy; the result is remembered in this isolate. */
 async function lastOkFor(key: string): Promise<string | null> {
