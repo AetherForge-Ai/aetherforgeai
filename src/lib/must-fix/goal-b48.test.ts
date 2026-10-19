@@ -89,6 +89,6 @@ describe("b48 /api/ticker replies carry the headers (simulated store)", () => {
 
 describe("b48 build marker", () => {
   it("pins the build", () => {
-    expect(read("public/build-version.txt")).toContain("v3-goal-b49-2026-10-19");
+    expect(read("public/build-version.txt")).toContain("v3-goal-b50-2026-10-19");
   });
 });

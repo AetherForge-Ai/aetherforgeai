@@ -178,7 +178,7 @@ describe("b35 H-1 unit rules", () => {
   it("no 200 with an empty crypto list: no copy at all is a 503; one read drives rows and headers", () => {
     const route = readFileSync("src/app/api/ticker/route.ts", "utf8");
     expect(route).toMatch(/status: 503/);
-    expect(route).toMatch(/loadPublicTicker\(\{ snapshot: snap \}\)/);
+    expect(route).toMatch(/loadPublicTicker\(\{ snapshot: snap(, |\s*\})/); // b50: plus the request equity fetch
     // b38 ruling 2: one per-request read plus the bounded cold-start durable read (only when this isolate has no copy).
     // b40: plus the deadline fallback read (edge first, then durable) used only when the build times out.
     expect(route.match(/readCryptoSnapshot\(/g)).toHaveLength(5); // b47: + floor stored-copy read and the late read before a 503

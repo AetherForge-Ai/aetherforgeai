@@ -22,6 +22,11 @@ export interface PublicTickerOptions {
   snapshot?: { at: string; coins: import("@/lib/crypto-market").CoinMarket[] } | null;
   /** b40 REG-1: skip the live equity fetch (deadline fallback); the last good equities are used. */
   skipEquityFetch?: boolean;
+  /**
+   * b50 P1: the request's one equity fetch, started at the top of GET /api/ticker before the snapshot
+   * reads spend the Worker's subrequest budget. When given, no second fetch is made.
+   */
+  equityFresh?: Promise<Record<string, any> | null>;
 }
 
 const EDGE_EQUITY_KEY = "https://af-internal.invalid/ticker-equity-last-good";
@@ -89,7 +94,7 @@ export async function loadPublicTicker(opts: PublicTickerOptions = {}): Promise<
       })
     ),
     // b40 REG-1: the deadline fallback skips the live equity fetch and serves the last good equities.
-    opts.skipEquityFetch ? Promise.resolve(null) : boundedPart(
+    opts.equityFresh ? boundedPart(opts.equityFresh.catch(() => null)) : opts.skipEquityFetch ? Promise.resolve(null) : boundedPart(
       fetchLiveQuotes(equitySymbols).catch((err) => {
         console.error("[ticker] Equity live fetch failed:", err instanceof Error ? err.message.slice(0, 120) : "failed");
         return null;
@@ -139,6 +144,17 @@ export async function loadPublicTicker(opts: PublicTickerOptions = {}): Promise<
     return { ...row, provider };
   });
   return feed;
+}
+
+/**
+ * b50 P1: start the live NZX/ASX fetch once per request, first thing (see equityFresh). Never throws.
+ */
+export function startEquityFetch(): Promise<Record<string, any> | null> {
+  const equitySymbols = [...TICKER_TAPE.nzx, ...TICKER_TAPE.asx].map((row) => row.symbol);
+  return fetchLiveQuotes(equitySymbols).catch((err) => {
+    console.error("[ticker] Equity live fetch failed:", err instanceof Error ? err.message.slice(0, 120) : "failed");
+    return null;
+  });
 }
 
 /** Home HTML waits only a short time. The client tape still refreshes after that. */

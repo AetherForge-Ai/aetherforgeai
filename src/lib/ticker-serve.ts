@@ -72,10 +72,22 @@ export async function edgeSnapshotGet<T extends { version: number }>(ms = 300, d
     return null;
   }
 }
-function edgeErrorClass(err: unknown): string {
+/**
+ * b50 P2 (TT b49: edge=error-error edgeMs=0 — the runtime throws a plain Error, so the class alone says
+ * nothing). Known Workers runtime messages are mapped to a fixed word; the message itself is never sent.
+ */
+export function runtimeErrorClass(err: unknown): string {
+  const msg = err instanceof Error ? err.message : String(err ?? "");
+  if (/too many subrequests/i.test(msg)) return "error-subreq";
+  if (/different request|cross-request|I\/O on behalf/i.test(msg)) return "error-xreq";
+  if (/invalid url/i.test(msg)) return "error-url";
+  if (/not supported|not implemented|unsupported/i.test(msg)) return "error-unsupported";
+  if (/body.*(used|read)|already been used/i.test(msg)) return "error-bodyused";
+  if (/abort/i.test(msg)) return "error-abort";
   const name = err instanceof Error ? err.name || "error" : typeof err;
   return `error-${String(name).toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 16) || "unknown"}`;
 }
+const edgeErrorClass = runtimeErrorClass;
 
 export async function edgeSnapshotPut<T extends { version: number }>(snap: T): Promise<void> {
   const cache = edgeCache();
