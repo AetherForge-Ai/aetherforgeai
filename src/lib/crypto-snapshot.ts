@@ -18,7 +18,7 @@
  */
 
 import "server-only";
-import { edgeSnapshotPut } from "@/lib/ticker-serve";
+import { edgeSnapshotPut, runtimeErrorClass } from "@/lib/ticker-serve";
 
 import { readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -602,8 +602,7 @@ function noteOutcome(id: SnapshotId, outcome: string) {
 }
 /** b49: a short, header-safe error class (e.g. error-typeerror), never the message. */
 export function errorClass(err: unknown): string {
-  const name = err instanceof Error ? err.name || err.constructor?.name || "error" : typeof err;
-  return `error-${String(name).toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 16) || "unknown"}`;
+  return runtimeErrorClass(err); // b50: known runtime messages map to fixed words
 }
 
 async function readWatchlistOnce(id: SnapshotId): Promise<{ raw: string | null; outcome: string }> {
@@ -637,8 +636,10 @@ async function readWatchlist(id: SnapshotId): Promise<string | null> {
   } catch (err) {
     res = { raw: null, outcome: errorClass(err) };
   }
-  // b49 H-1: a torn read or a store error is retried once; the writer's header lands within ms.
-  if (!res.raw && res.outcome !== "no-row" && res.outcome !== "empty") {
+  // b49 H-1: a torn read is retried once; the writer's header lands within ms.
+  // b50 P1: only a torn read — a store error is not retried (each retry spends 1 + N subrequests, and
+  // the Worker's per-request subrequest budget is shared with the NZX/ASX fetch).
+  if (!res.raw && res.outcome.startsWith("torn-")) {
     await new Promise((r) => setTimeout(r, TORN_READ_RETRY_MS));
     try {
       const again = await readWatchlistOnce(id);
