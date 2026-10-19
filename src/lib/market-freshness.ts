@@ -173,6 +173,9 @@ export const QUOTE_DELAY_TABLE: ReadonlyArray<{ market: string; source: string; 
   // b38 H-15: every live crypto source is named (TT: Yahoo Finance served most crypto loads, unnamed here).
   { market: "Crypto", source: "CoinGecko first; CoinPaprika, CoinCap, Binance, Kraken, Coinbase or Yahoo Finance when it does not answer", delay: "a few minutes; a quote older than 5 minutes is labelled with its age" },
   { market: "DEX tokens", source: "GeckoTerminal; DexPaprika when it does not answer", delay: "a few minutes; a quote older than 5 minutes is labelled with its age" },
+  // b44 H-15: a delay line for every remaining price provider named under "Who else handles data".
+  { market: "Gold and silver", source: "gold-api.com", delay: "a spot price that can be a few minutes old" },
+  { market: "Foreign exchange", source: "ExchangeRate-API for today's rate; Frankfurter for past trade dates", delay: "a daily rate, not intraday" },
 ];
 
 function openDelayWords(venue: EquityVenue): string {

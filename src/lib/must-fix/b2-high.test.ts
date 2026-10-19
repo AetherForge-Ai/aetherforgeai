@@ -185,7 +185,7 @@ describe("H-15 /returns and /trust", () => {
     expect(read("src/middleware.ts")).toMatch(/permanentRedirect[\s\S]*301/);
   });
   it("trust lists every delay and a real retention statement", () => {
-    expect(QUOTE_DELAY_TABLE.map((r) => r.market)).toEqual(["NZX shares", "ASX shares", "US shares", "Crypto", "DEX tokens"]);
+    expect(QUOTE_DELAY_TABLE.map((r) => r.market)).toEqual(["NZX shares", "ASX shares", "US shares", "Crypto", "DEX tokens", "Gold and silver", "Foreign exchange"]);
     expect(QUOTE_DELAY_WORDS.NZX).toBe("Delayed ~20 min");
     expect(AI_REQUEST_LINES.join(" ")).not.toContain("do not set a retention period");
     expect(read("src/app/trust/page.tsx")).toContain("TRUST_HOSTING_LINE");
