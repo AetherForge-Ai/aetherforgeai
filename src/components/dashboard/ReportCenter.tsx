@@ -55,6 +55,7 @@ import {
 import { isTransactionDialogOpen } from "@/lib/transaction-sticky";
 import { getTxDialogSnapshot, subscribeTxDialog } from "@/lib/transaction-dialog-store";
 import { Loader2, Lock, Play, FileDown, Mail, FileText, Sparkles, Clock, Zap, ArrowRight, ChevronDown, Eye } from "lucide-react";
+import { reconcileCashOnBook, reconcileReportCash } from "@/lib/report-cash";
 import { neutraliseRatingWording, neutraliseReportStrings, stripReportMarkdown } from "@/lib/report-copy";
 import { reportRunStatus } from "@/lib/dashboard-surface";
 import { listedReportBody, plainReportPdf } from "@/lib/report-body";
@@ -163,7 +164,10 @@ export function ReportCenter({
   onDesk,
   seed = null,
   onFreeQuota,
+  cashNzd = null,
 }: {
+  /** b43 P2: the dashboard's ledger cash balance; a report's "Cash on book" shows this figure. */
+  cashNzd?: number | null;
   /** Reports the Free monthly quota to the dashboard plan-usage card (no extra fetch). */
   onFreeQuota?: (quota: { used: number; limit: number } | null) => void;
   botAccess: BotAccess;
@@ -189,6 +193,8 @@ export function ReportCenter({
   const [running, setRunning] = React.useState<BotKind | null>(null);
   const [compileSeconds, setCompileSeconds] = React.useState(0);
   const [report, setReport] = React.useState<ApexReport | null>(null);
+  // b43 P2: when the shown report ran (history row time, or now for a fresh run).
+  const [reportRunAt, setReportRunAt] = React.useState<string | null>(null);
   const [textOnly, setTextOnly] = React.useState<{ title: string; body: string } | null>(null);
   const [lastPdfUrl, setLastPdfUrl] = React.useState<string | null>(null);
   const [lastAiEnhanced, setLastAiEnhanced] = React.useState(false);
@@ -575,6 +581,7 @@ export function ReportCenter({
     runLock.current = false;
     const grounded = reconcileStoredReport(res.data.report, bookFor(kind));
     setReport(grounded);
+    setReportRunAt(new Date().toISOString());
     setReportEmailed(res.data.emailed === true && !reportReadsAsNotCurrent(grounded.executiveSummary || ""));
     setTextOnly(null);
     setLastPdfUrl(res.data.pdfUrl);
@@ -1044,7 +1051,7 @@ export function ReportCenter({
                   </div>
                   <p className="text-xs text-muted-foreground">{fmtDate(r.generatedAt)}</p>
                   <p className="mt-1 line-clamp-2 max-w-xl text-xs leading-relaxed text-foreground/80">
-                    {r.listedBody}
+                    {reconcileCashOnBook(r.listedBody, cashNzd, r.generatedAt)}
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
@@ -1066,6 +1073,7 @@ export function ReportCenter({
                         setReportEmailed(reportPayloadWasEmailed(r.payload) && !notCurrent);
                         // View path: stored JSON is sanitized before ApexReport renders it again.
                         setReport(neutraliseReportStrings(viewed));
+                        setReportRunAt(r.generatedAt || null);
                         setOpen(true);
                       } else {
                         setReport(null);
@@ -1074,6 +1082,7 @@ export function ReportCenter({
                           title: r.title,
                           body: r.listedBody,
                         });
+                        setReportRunAt(r.generatedAt || null);
                         setOpen(true);
                       }
                     }}
@@ -1141,11 +1150,18 @@ export function ReportCenter({
           {report?.isDemo ? (
             <p className="text-sm text-muted-foreground">Illustrative demo — not real market data.</p>
           ) : report ? (
-            <ApexReportView report={report} />
+            <>
+              {reportRunAt ? (
+                <p className="text-xs text-muted-foreground" data-report-run-at>
+                  Report run {fmtDate(reportRunAt)}. Cash on book shows your current ledger balance.
+                </p>
+              ) : null}
+              <ApexReportView report={reconcileReportCash(report, cashNzd, reportRunAt)} />
+            </>
           ) : textOnly ? (
             <article className="min-w-0 max-w-full space-y-3 break-words text-sm leading-relaxed">
               <h3 className="font-display text-lg font-bold text-foreground">{textOnly.title}</h3>
-              <p className="whitespace-pre-wrap text-foreground/90">{stripReportMarkdown(textOnly.body)}</p>
+              <p className="whitespace-pre-wrap text-foreground/90">{stripReportMarkdown(reconcileCashOnBook(textOnly.body, cashNzd, reportRunAt))}</p>
             </article>
           ) : null}
         </DialogContent>

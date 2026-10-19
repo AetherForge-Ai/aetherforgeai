@@ -1,7 +1,6 @@
 import { auth } from "@/lib/auth";
 import { toNextJsHandler } from "better-auth/next-js";
 import { NextResponse } from "next/server";
-import { clearSignOutMarkerHeader } from "@/lib/sign-out-marker";
 import { validateSignupConsent } from "@/lib/signup-consent";
 import { authRateLimitRule, normaliseLoginEmail, sha256Hex, takeRateLimit, takeAtomicLimit, rateLimitHeaders, rateLimitIdentity, AUTH_EMAIL_LIMIT, AUTH_EMAIL_WINDOW_MS } from "@/lib/ip-rate-limit";
 import { ensureDurableRateLimit } from "@/lib/durable-counter.server";
@@ -11,22 +10,6 @@ ensureDurableRateLimit();
 
 const handler = toNextJsHandler(auth);
 
-/**
- * b42 P1: a response that issues a new session token (sign-in, sign-up, verify-email auto sign-in)
- * also removes the af_so sign-out marker, so the new session counts. Clears and get-session never do.
- */
-async function clearMarkerOnSignIn(res: Response, pathname: string): Promise<Response> {
-  if (/\/(get-session|sign-out)\/?$/.test(pathname) || res.status >= 400) return res;
-  const lines = typeof res.headers.getSetCookie === "function" ? res.headers.getSetCookie() : [];
-  if (!lines.length) return res;
-  const ctx = await auth.$context;
-  const tokenName = ctx.authCookies.sessionToken.name;
-  const issues = lines.some((l) => l.startsWith(`${tokenName}=`) && !setCookieClears(l, tokenName));
-  if (!issues) return res;
-  const headers = new Headers(res.headers);
-  headers.append("set-cookie", clearSignOutMarkerHeader());
-  return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
-}
 
 /**
  * b27 H-4 (session drops): better-auth's get-session clears the session cookie whenever its
@@ -36,7 +19,7 @@ async function clearMarkerOnSignIn(res: Response, pathname: string): Promise<Res
  */
 export async function GET(req: Request) {
   const pathname = new URL(req.url).pathname;
-  if (!/\/get-session\/?$/.test(pathname)) return clearMarkerOnSignIn(await handler.GET(req), pathname);
+  if (!/\/get-session\/?$/.test(pathname)) return handler.GET(req);
   const res = await handler.GET(req);
   const lines = typeof res.headers.getSetCookie === "function" ? res.headers.getSetCookie() : [];
   if (!lines.length) return res;
@@ -126,7 +109,7 @@ export async function POST(req: Request) {
     }
   }
   const signingOut = /\/sign-out\/?$/.test(pathname);
-  const res = await clearMarkerOnSignIn(await handler.POST(req), pathname);
+  const res = await handler.POST(req);
   if (!signingOut || (res.status !== 400 && res.status !== 401)) return res;
   return NextResponse.json({ success: true, alreadySignedOut: true }, { status: 200 });
 }

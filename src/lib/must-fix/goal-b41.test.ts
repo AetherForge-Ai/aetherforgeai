@@ -43,11 +43,11 @@ describe("b41 P1: Sign out cannot be cancelled by a fast navigation", () => {
     const at = session.indexOf("await isSessionTokenRevoked(token)");
     expect(at).toBeGreaterThan(0);
     expect(at).toBeLessThan(session.indexOf("sessionCache.get(key)"));
-    expect(read("src/app/api/session/logout/route.ts")).toMatch(/await revokeTokenEverywhere\(ctx, token\)/);
+    expect(read("src/app/api/session/logout/route.ts")).toMatch(/revokeTokenEverywhere\(ctx, token\)/);
     expect(AUTH_COOKIE_NAMES).toContain("af_ls");
   });
 
-  it("the Sign out click awaits the POST (keepalive, beacon fallback) before navigating", async () => {
+  it("the Sign out click awaits the POST (keepalive, one retry; b43 overlay) before navigating", async () => {
     const order: string[] = [];
     vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {
       order.push(`fetch ${url} ${init.method} keepalive=${init.keepalive}`);
@@ -59,14 +59,15 @@ describe("b41 P1: Sign out cannot be cancelled by a fast navigation", () => {
     vi.stubGlobal("window", { location: { replace: () => undefined } });
     const { signOutNow } = await import("@/lib/sign-out");
     await signOutNow({ navigate: (u) => order.push(`go ${u}`) });
-    expect(order).toEqual(["fetch /api/session/logout POST keepalive=true", "fetch done", "go /logout?done=1"]);
+    expect(order).toEqual(["fetch /api/session/logout POST keepalive=true", "fetch done", "go /login"]);
 
     order.length = 0;
     vi.stubGlobal("fetch", async () => {
+      order.push("try");
       throw new Error("aborted");
     });
     await signOutNow({ navigate: (u) => order.push(`go ${u}`) });
-    expect(order).toEqual(["beacon", "go /logout?done=1"]);
+    expect(order).toEqual(["try", "try", "go /logout"]);
     const nav = read("src/components/TopNav.tsx");
     expect(nav.match(/href="\/logout" onClick=\{onSignOutClick\}/g)).toHaveLength(2);
   });
