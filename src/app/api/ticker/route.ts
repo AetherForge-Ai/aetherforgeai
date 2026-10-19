@@ -1,3 +1,5 @@
+import { keepAlive } from "@/lib/keep-alive.server";
+import { kickCryptoRefreshIfOld } from "@/lib/crypto-board-store";
 import { NextResponse } from "next/server";
 import { PUBLIC_EQUITY_SOURCE, publicCryptoSourcesLabel } from "@/lib/data-sources";
 import { cryptoVenueForLabel } from "@/lib/crypto-price-chain";
@@ -81,10 +83,29 @@ export async function GET(req: Request) {
       headers: { ...edgeBody.headers, ...belowFloorHeaders(edgeBody.version, floor), "x-af-snapshot-stale": "1", "Set-Cookie": snapshotFloorCookie(Math.max(edgeBody.version, floor)) },
     });
   }
+  // b47 H-1 (a) (TT b46: 5 × 503 at 2.8–4.5 s; Worker logs not readable with the current token): every
+  // candidate came back empty, often well before the budget. The stored DB copy gets one more read with
+  // all the time left (up to 4.85 s in total) before a 503 is chosen.
+  const left = LAST_RESORT_END_MS - (Date.now() - t0);
+  if (left > 300) {
+    const late = await withDeadline(readCryptoSnapshot(left - 50).catch(() => null), left, null);
+    const lateSnap = pickServedSnapshot(late, lastGoodSnap);
+    trace.lateDurable = late ? "hit" : "miss";
+    if (lateSnap) {
+      const reply = await withDeadline(snapshotOnlyResponse(lateSnap, floor).catch(() => null), Math.max(200, LAST_RESORT_END_MS - (Date.now() - t0)), null);
+      if (reply) {
+        console.warn(`[api/ticker] path=late-durable ${traceLine(trace, t0)}`);
+        return reply;
+      }
+      trace.lateReply = "empty";
+    }
+  }
   console.warn(`[api/ticker] 503 path=no-copy-anywhere ${traceLine(trace, t0)}`);
   return noCopyResponse();
 }
 
+/** b47: the last-resort stored-copy read ends by this point (the bar is 5 s). */
+const LAST_RESORT_END_MS = 4_850;
 /** b46 H-1 (a): after this long a ready snapshot reply is served instead of waiting on the build. */
 const EARLY_SNAPSHOT_MS = 2_000;
 const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -122,8 +143,24 @@ function firstNonNull<T>(work: Array<Promise<T | null>>, ms: number): Promise<T 
 async function floorSnapshot(snap: CryptoSnap, floor: number): Promise<CryptoSnap> {
   if (!(floor > 0) || snap.version >= floor) return snap;
   const exact = await edgeSnapshotGetVersion<CryptoSnap>(floor).catch(() => null);
-  return exact ?? snap;
+  if (exact) return exact;
+  // b47 H-1 (c) (TT b46: 1 step-back, −10.6 s): then the stored DB copy, read with the floor (forces a
+  // store read when memory is older); then hold briefly for a copy at or above the floor to land.
+  const stored = await readCryptoSnapshot(1_500, { floor }).catch(() => null);
+  if (stored && stored.version >= floor) return stored;
+  const until = Date.now() + FLOOR_HOLD_MS;
+  while (Date.now() < until) {
+    await delay(250);
+    const next =
+      (await edgeSnapshotGetVersion<CryptoSnap>(floor, 300).catch(() => null)) ??
+      (await edgeSnapshotGet<CryptoSnap>(300).catch(() => null));
+    if (next && next.version >= floor) return next;
+  }
+  console.warn(`[api/ticker] path=below-floor floor=${floor} served=${snap.version}`);
+  return pickServedSnapshot(stored, snap) ?? snap;
 }
+/** b47: how long a reply waits for a copy at or above the client's floor before it is served marked. */
+const FLOOR_HOLD_MS = 1_000;
 
 /** b45 H-1: whole-request budget; the 5 s bar minus headroom for the Worker to send the reply. */
 const TICKER_TOTAL_BUDGET_MS = 4_600;
@@ -144,7 +181,7 @@ async function keepEquityRows(feed: Feed): Promise<Feed> {
     lastEquityRows = { nzx: feed.rows.nzx.length ? feed.rows.nzx : lastEquityRows?.nzx ?? [], asx: feed.rows.asx.length ? feed.rows.asx : lastEquityRows?.asx ?? [] };
     if (Date.now() - lastEquityPut > 60_000) {
       lastEquityPut = Date.now();
-      void edgeJsonPut("equity", lastEquityRows);
+      void keepAlive(edgeJsonPut("equity", lastEquityRows)); // b47: waitUntil, or the put is cancelled with the reply
     }
     return { ...feed, rows: { ...feed.rows, ...lastEquityRows } };
   }
@@ -231,10 +268,16 @@ async function buildTicker(floor: number, cookie: string | null, hooksAllowed: b
   // b46 H-1 (c): still below the floor — serve the floor version itself (colo copy by version).
   if (snap) snap = await floorSnapshot(snap, floor);
   if (snap) {
+    // b47 H-1 freeze: a tape read of a list over 5 min old starts a single-flight background refresh.
+    try {
+      kickCryptoRefreshIfOld(snap.at);
+    } catch {
+      /* best effort */
+    }
     lastGoodSnap = snap;
     if (snap.version > lastEdgePut) {
       lastEdgePut = snap.version;
-      void edgeSnapshotPut(snap);
+      void keepAlive(edgeSnapshotPut(snap)); // b47: waitUntil, or the put is cancelled with the reply
     }
   }
   const feed = await keepEquityRows(await loadPublicTicker({ snapshot: snap }));
@@ -281,7 +324,7 @@ async function buildTicker(floor: number, cookie: string | null, hooksAllowed: b
   if (!stale && !testFeedForce) {
     const prevVersion = lastGoodResponse?.version ?? 0;
     lastGoodResponse = { body, headers, version: snap.version };
-    if (snap.version > prevVersion) void edgeJsonPut("body", lastGoodResponse);
+    if (snap.version > prevVersion) void keepAlive(edgeJsonPut("body", lastGoodResponse)); // b47: waitUntil
   }
   return NextResponse.json(body, {
     headers: { ...headers, "Set-Cookie": snapshotFloorCookie(Math.max(snap.version, floor)) },

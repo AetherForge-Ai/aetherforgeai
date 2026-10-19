@@ -21,7 +21,7 @@ describe("b43 sign-out (Chief ruling): blocking overlay, awaited revoke, then /l
     expect(so.indexOf("const release = showOverlay();")).toBeLessThan(so.indexOf("await revokeOnce(ms)"));
     expect(so.indexOf("clearClientUserState()")).toBeLessThan(so.indexOf('go(ok ? "/login"'));
     expect(so).toMatch(/document\.addEventListener\(t, swallow, true\)/);
-    expect(so).toMatch(/"beforeunload", blockUnload/);
+    expect(so).not.toMatch(/"beforeunload"/); // b47 P3: dropped
   });
   it("the server revoke deletes the Totalum row under waitUntil and is awaited before the reply", () => {
     const r = read("src/app/api/session/logout/route.ts");

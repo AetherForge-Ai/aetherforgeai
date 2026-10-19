@@ -1054,6 +1054,7 @@ export function RecordTransactionPanel({
                 <div className="flex h-9 items-center rounded-md border border-input px-3 text-sm">{formatDisplayDate(date)}</div>
                 <input
                   id="record-date"
+                  lang="en-NZ"
                   onClick={(e) => {
                     try {
                       (e.currentTarget as HTMLInputElement & { showPicker?: () => void }).showPicker?.();
