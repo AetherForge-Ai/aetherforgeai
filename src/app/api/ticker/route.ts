@@ -1,12 +1,12 @@
 import { keepAlive } from "@/lib/keep-alive.server";
-import { stampTicker, tickerPathHeaders, tickerReason, TICKER_EXPOSED_HEADERS, type TickerPath } from "@/lib/ticker-path";
+import { noneHeaders, snapshotIsStale, stampTicker, tickerPathHeaders, tickerReason, TICKER_EXPOSED_HEADERS, type TickerPath } from "@/lib/ticker-path";
 import { kickCryptoRefreshIfOld } from "@/lib/crypto-board-store";
 import { NextResponse } from "next/server";
 import { PUBLIC_EQUITY_SOURCE, publicCryptoSourcesLabel } from "@/lib/data-sources";
 import { cryptoVenueForLabel } from "@/lib/crypto-price-chain";
-import { readCryptoSnapshot, snapshotHeaders } from "@/lib/crypto-snapshot";
+import { cryptoReadOutcome, readCryptoSnapshot, snapshotHeaders } from "@/lib/crypto-snapshot";
 import { loadPublicTicker } from "@/lib/public-ticker";
-import { COLD_START_READ_MS, edgeJsonGet, edgeJsonPut, edgeSnapshotGet, edgeSnapshotGetVersion, edgeSnapshotPut, pickServedSnapshot, withDeadline } from "@/lib/ticker-serve";
+import { COLD_START_READ_MS, type EdgeDiag, edgeJsonGet, edgeJsonPut, edgeSnapshotGet, edgeSnapshotGetVersion, edgeSnapshotPut, pickServedSnapshot, withDeadline } from "@/lib/ticker-serve";
 import { snapshotFloorCookie, snapshotFloorFrom } from "@/lib/snapshot-floor";
 import { readFeedForce } from "@/lib/feed-freshness-hook";
 import { feedOffFromCookieHeader } from "@/lib/test-hooks";
@@ -52,6 +52,7 @@ export async function GET(req: Request) {
       if (!found) return null;
       const floored = await floorSnapshot(found.snap, floor);
       const reply = await snapshotOnlyResponse(floored.snap, floor);
+      if (reply) rememberServed(floored.snap);
       return reply ? stampTicker(reply, tickerPathHeaders(floored.floorVersion ? "floor-version" : found.path, floored.snap)) : null;
     })
     .then((r) => ((trace.fallbackReply = r ? "ok" : "empty"), r))
@@ -67,8 +68,8 @@ export async function GET(req: Request) {
       delay(EARLY_SNAPSHOT_MS).then(() =>
         lastGoodResponse && lastGoodResponse.version >= floor
           ? stampTicker(
-              NextResponse.json(lastGoodResponse.body, {
-                headers: { ...lastGoodResponse.headers, "x-af-snapshot-stale": "1", "Set-Cookie": snapshotFloorCookie(Math.max(lastGoodResponse.version, floor)) },
+              NextResponse.json(withStaleFromAge(lastGoodResponse.body, lastGoodResponse.headers["x-af-snapshot-at"]), {
+                headers: { ...lastGoodResponse.headers, "Set-Cookie": snapshotFloorCookie(Math.max(lastGoodResponse.version, floor)) },
               }),
               tickerPathHeaders("deadline", { version: lastGoodResponse.version, at: lastGoodResponse.headers["x-af-snapshot-at"] })
             )
@@ -81,8 +82,8 @@ export async function GET(req: Request) {
   if (lastGoodResponse) {
     console.warn(`[api/ticker] path=last-good-memory ${traceLine(trace, t0)}`);
     return stampTicker(
-      NextResponse.json(lastGoodResponse.body, {
-        headers: { ...lastGoodResponse.headers, ...belowFloorHeaders(lastGoodResponse.version, floor), "x-af-snapshot-stale": "1", "Set-Cookie": snapshotFloorCookie(Math.max(lastGoodResponse.version, floor)) },
+      NextResponse.json(withStaleFromAge(lastGoodResponse.body, lastGoodResponse.headers["x-af-snapshot-at"]), {
+        headers: { ...lastGoodResponse.headers, ...belowFloorHeaders(lastGoodResponse.version, floor), "Set-Cookie": snapshotFloorCookie(Math.max(lastGoodResponse.version, floor)) },
       }),
       tickerPathHeaders("last-good", { version: lastGoodResponse.version, at: lastGoodResponse.headers["x-af-snapshot-at"] })
     );
@@ -91,8 +92,8 @@ export async function GET(req: Request) {
   if (edgeBody?.body && edgeBody.version > 0) {
     console.warn(`[api/ticker] path=last-good-colo ${traceLine(trace, t0)}`);
     return stampTicker(
-      NextResponse.json(edgeBody.body, {
-        headers: { ...edgeBody.headers, ...belowFloorHeaders(edgeBody.version, floor), "x-af-snapshot-stale": "1", "Set-Cookie": snapshotFloorCookie(Math.max(edgeBody.version, floor)) },
+      NextResponse.json(withStaleFromAge(edgeBody.body, edgeBody.headers?.["x-af-snapshot-at"]), {
+        headers: { ...edgeBody.headers, ...belowFloorHeaders(edgeBody.version, floor), "Set-Cookie": snapshotFloorCookie(Math.max(edgeBody.version, floor)) },
       }),
       tickerPathHeaders("last-good", { version: edgeBody.version, at: edgeBody.headers?.["x-af-snapshot-at"] })
     );
@@ -106,11 +107,12 @@ export async function GET(req: Request) {
     const lateT = Date.now();
     const late = await withDeadline(readCryptoSnapshot(left - 50).catch(() => null), left, null);
     const lateSnap = pickServedSnapshot(late, lastGoodSnap);
-    trace.lateDurable = late ? "hit" : Date.now() - lateT >= left - 20 ? "timeout" : "miss";
+    trace.lateDurable = late ? "hit" : Date.now() - lateT >= left - 20 ? "timeout" : missClass(cryptoReadOutcome());
     trace.lateDurableMs = String(Date.now() - lateT);
     if (lateSnap) {
       const reply = await withDeadline(snapshotOnlyResponse(lateSnap, floor).catch(() => null), Math.max(200, LAST_RESORT_END_MS - (Date.now() - t0)), null);
       if (reply) {
+        rememberServed(lateSnap);
         console.warn(`[api/ticker] path=late-durable ${traceLine(trace, t0)}`);
         return stampTicker(reply, tickerPathHeaders("late-durable", lateSnap));
       }
@@ -120,8 +122,8 @@ export async function GET(req: Request) {
   console.warn(`[api/ticker] 503 path=no-copy-anywhere ${traceLine(trace, t0)}`);
   // b48: the 503 says which reads failed or timed out, and how long each took.
   return stampTicker(noCopyResponse(), {
+    ...noneHeaders(floor),
     "x-af-503-reason": tickerReason(trace, Date.now() - t0),
-    "Access-Control-Expose-Headers": TICKER_EXPOSED_HEADERS,
   });
 }
 
@@ -212,25 +214,44 @@ async function keepEquityRows(feed: Feed): Promise<Feed> {
   return lastEquityRows ? { ...feed, rows: { ...feed.rows, nzx: lastEquityRows.nzx, asx: lastEquityRows.asx } } : feed;
 }
 
-/** b40 REG-1 / b46: edge copy and durable copy read in parallel; the newer one that arrives wins. */
+/** b49: a durable miss names its class (no-row, torn-version, error-<class>…); plain "miss" if unknown. */
+function missClass(outcome: string): string {
+  return outcome && !outcome.startsWith("ok") && outcome !== "none" && outcome !== "pending" ? outcome : "miss";
+}
+
+/**
+ * b40 REG-1 / b46: edge copy and durable copy read in parallel; the newer one that arrives wins.
+ * b49 H-1 (TT b48 503: edge=miss 0 ms, durable=miss 865 ms): each read names its outcome class, and a
+ * durable miss is retried once with the time left (a torn read during a refresh write is a miss).
+ */
 async function fallbackSnapshot(trace: Record<string, string> = {}): Promise<{ snap: CryptoSnap; path: TickerPath } | null> {
   const t = Date.now();
   const EDGE_MS = 1_500;
   const DURABLE_MS = COLD_START_READ_MS + 200;
-  const edge = edgeSnapshotGet<CryptoSnap>(EDGE_MS)
+  const diag: EdgeDiag = { outcome: "miss" };
+  const edge = edgeSnapshotGet<CryptoSnap>(EDGE_MS, diag)
     .catch(() => null)
     .then((v) => {
       const ms = Date.now() - t;
-      trace.edge = v ? "hit" : ms >= EDGE_MS - 20 ? "timeout" : "miss";
+      trace.edge = v ? "hit" : ms >= EDGE_MS - 20 ? "timeout" : diag.outcome;
       trace.edgeMs = String(ms);
       return v ? { snap: v, path: "shared-cache" as TickerPath } : null;
     });
-  const durable = withDeadline(readCryptoSnapshot(COLD_START_READ_MS).catch(() => null), DURABLE_MS, null).then((v) => {
-    const ms = Date.now() - t;
-    trace.durable = v ? "hit" : ms >= DURABLE_MS - 20 ? "timeout" : "miss";
+  const durableOnce = (ms: number) => withDeadline(readCryptoSnapshot(ms).catch(() => null), ms + 200, null);
+  const durable = (async () => {
+    let v = await durableOnce(COLD_START_READ_MS);
+    let ms = Date.now() - t;
+    trace.durable = v ? "hit" : ms >= DURABLE_MS - 20 ? "timeout" : missClass(cryptoReadOutcome());
+    const left = DURABLE_MS - ms;
+    if (!v && left > 400) {
+      // b49: one retry with the time left.
+      v = await durableOnce(left - 200);
+      ms = Date.now() - t;
+      trace.durableRetry = v ? "hit" : Date.now() - t >= DURABLE_MS - 20 ? "timeout" : missClass(cryptoReadOutcome());
+    }
     trace.durableMs = String(ms);
     return v ? { snap: v, path: "store-read" as TickerPath } : null;
-  });
+  })();
   const first = await firstNonNull<{ snap: CryptoSnap; path: TickerPath }>([edge, durable], COLD_START_READ_MS + 300);
   if (first) {
     // This isolate's own copy wins when it is newer; then the reply is a deadline answer from memory.
@@ -239,6 +260,30 @@ async function fallbackSnapshot(trace: Record<string, string> = {}): Promise<{ s
   }
   trace.memory = lastGoodSnap ? "hit" : "miss";
   return lastGoodSnap ? { snap: lastGoodSnap, path: "deadline" } : null;
+}
+
+/**
+ * b49 H-1: every successful serve keeps this isolate's copy and puts the snapshot in the colo cache
+ * under waitUntil (keepAlive), so the next cold isolate in this colo finds it (TT: edge=miss in IAD).
+ * Once per version per isolate per minute, so a busy isolate does not rewrite the same entry.
+ */
+let lastPutAt = 0;
+function rememberServed(snap: CryptoSnap) {
+  if (!lastGoodSnap || snap.version >= lastGoodSnap.version) lastGoodSnap = snap;
+  if (snap.version > lastEdgePut || Date.now() - lastPutAt > 60_000) {
+    lastEdgePut = Math.max(lastEdgePut, snap.version);
+    lastPutAt = Date.now();
+    void keepAlive(edgeSnapshotPut(snap));
+  }
+}
+
+/** b49: a stored reply body re-served later carries the stale flag of its snapshot's age now. */
+function withStaleFromAge(body: unknown, at: string | undefined): unknown {
+  const b = body as { data?: Record<string, unknown> } | null;
+  if (!b || typeof b !== "object" || !b.data) return body;
+  const { stale: _old, ...data } = b.data;
+  void _old;
+  return { ...b, data: { ...data, ...(snapshotIsStale(at) ? { stale: true } : {}) } };
 }
 
 /** b40 REG-1: a 200 built only from a snapshot (no live equity fetch), always marked stale. */
@@ -256,7 +301,7 @@ async function snapshotOnlyResponse(snap: CryptoSnap, floor: number) {
         asx: "https://www.asx.com.au/markets/company/TLX",
         cryptoVenue: cryptoVenueForLabel(feed.providers.crypto).href,
       },
-      stale: true,
+      ...(snapshotIsStale(snap.at) ? { stale: true } : {}),
     },
   };
   return NextResponse.json(body, {
@@ -265,7 +310,7 @@ async function snapshotOnlyResponse(snap: CryptoSnap, floor: number) {
       "CDN-Cache-Control": "no-store",
       ...snapshotHeaders(snap),
       ...belowFloorHeaders(snap.version, floor),
-      "x-af-snapshot-stale": "1",
+      ...(snapshotIsStale(snap.at) ? { "x-af-snapshot-stale": "1" } : {}),
       "Set-Cookie": snapshotFloorCookie(Math.max(snap.version, floor)),
     },
   });
@@ -320,11 +365,7 @@ async function buildTicker(floor: number, cookie: string | null, hooksAllowed: b
     } catch {
       /* best effort */
     }
-    lastGoodSnap = snap;
-    if (snap.version > lastEdgePut) {
-      lastEdgePut = snap.version;
-      void keepAlive(edgeSnapshotPut(snap)); // b47: waitUntil, or the put is cancelled with the reply
-    }
+    rememberServed(snap); // b47/b49: lastGoodSnap + colo put under waitUntil
   }
   const feed = await keepEquityRows(await loadPublicTicker({ snapshot: snap }));
   // G-05: named stale/failed mark for this browser. Omitted unless the account is allow-listed.
@@ -335,10 +376,10 @@ async function buildTicker(floor: number, cookie: string | null, hooksAllowed: b
   // b45 H-1 (2): never a version-0 reply. With no stored snapshot the build hands over to the
   // snapshot fallback in GET (TT b42: 3 × 200 with x-af-snapshot-version 0).
   if (!snap) return null;
-  // b40 H-1 (c): a body older than the client's floor (no newer copy found above) is always marked
-  // stale; a cookie client is never served below its floor unmarked.
-  const belowFloor = !!snap && floor > 0 && snap.version < floor;
-  const stale = !!snap && (coldStart || belowFloor || !feed.rows.crypto.length || !feed.live.crypto);
+  // b40 H-1 (c) / b49: a body below the client's floor is never unmarked — it carries
+  // x-af-snapshot-below-floor (belowFloorHeaders); the stale flag follows the one age rule.
+  // b49: one stale rule from the snapshot's age (plus an empty crypto list). Below-floor keeps its header.
+  const stale = !!snap && (snapshotIsStale(snap.at) || !feed.rows.crypto.length);
 
   console.log(
     `[api/ticker] Served rows — crypto ${feed.live.crypto ? "live" : "quiet"} (${feed.rows.crypto.length}), equities ${feed.live.equities ? "live" : "quiet"} (${feed.rows.nzx.length + feed.rows.asx.length})`

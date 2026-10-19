@@ -126,6 +126,12 @@ export async function loadStatusFeeds(now = Date.now()): Promise<StatusFeedRow[]
     const edge = await within(edgeSnapshotGet<{ version: number; at: string }>(800), 900); // b46 M-2: was 300 ms
     cryptoAt = edge?.at ? remember("crypto", edge.at) : await lastOkFor("crypto");
   }
+  if (!cryptoAt) {
+    // b49 M-2 (TT b48: crypto "Last OK unavailable" on a miss): one more, longer stored-snapshot read
+    // (with its torn-read retry); the snapshot's own time is shown rather than "unavailable".
+    const again = await within(readCryptoSnapshot(2_500), 2_700);
+    cryptoAt = again?.at ? remember("crypto", again.at) : null;
+  }
   edgeTimePut("crypto", cryptoAt);
   // b46 M-2 (TT b45: crypto "check timed out" 4/140): the crypto time comes from the snapshot, so a slow
   // tape probe does not make the crypto row a timed-out check when a snapshot time was read.

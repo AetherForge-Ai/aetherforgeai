@@ -587,24 +587,69 @@ export function packWatchlistBody(body: string, max = WATCHLIST_SNAPSHOT_MAX): s
   return packed.length <= max ? packed : null;
 }
 
-async function readWatchlist(id: SnapshotId): Promise<string | null> {
+/**
+ * b49 H-1 (TT b48: one 503 with durable=miss at 865 ms while a snapshot existed 9 s earlier): the
+ * outcome of the last stored-copy read, so /api/ticker can say why it missed. Values are short safe
+ * words: ok, no-row, empty, parse, torn-missing, torn-version, timeout, error-<class>. Best effort
+ * (the last read in this isolate), never a secret or a body.
+ */
+let lastCryptoReadOutcome = "none";
+export function cryptoReadOutcome(): string {
+  return lastCryptoReadOutcome;
+}
+function noteOutcome(id: SnapshotId, outcome: string) {
+  if (id === "crypto") lastCryptoReadOutcome = outcome;
+}
+/** b49: a short, header-safe error class (e.g. error-typeerror), never the message. */
+export function errorClass(err: unknown): string {
+  const name = err instanceof Error ? err.name || err.constructor?.name || "error" : typeof err;
+  return `error-${String(name).toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 16) || "unknown"}`;
+}
+
+async function readWatchlistOnce(id: SnapshotId): Promise<{ raw: string | null; outcome: string }> {
   const row = await findWatchlistRow(TICKER[id]);
-  if (!row?.name) return null;
+  if (!row) return { raw: null, outcome: "no-row" };
+  if (!row.name) return { raw: null, outcome: "empty" };
   const raw = unpackWatchlist(row.name);
-  if (!raw) return null;
+  if (!raw) return { raw: null, outcome: "parse" };
   let parts = 0;
   try {
     const parsed = JSON.parse(raw) as { parts?: unknown };
     parts = typeof parsed.parts === "number" ? parsed.parts : 0;
   } catch {
-    return null;
+    return { raw: null, outcome: "parse" };
   }
-  if (parts < 1) return raw;
+  if (parts < 1) return { raw, outcome: "ok" };
   const stored = await Promise.all(
     Array.from({ length: parts }, (_, index) => findWatchlistRow(chunkTicker(id, index + 1)))
   );
-  if (stored.some((part) => !part?.name)) return null;
-  return joinWatchlistPayload(row.name, stored.map((part) => part?.name || ""));
+  if (stored.some((part) => !part?.name)) return { raw: null, outcome: "torn-missing" };
+  const joined = joinWatchlistPayload(row.name, stored.map((part) => part?.name || ""));
+  return joined ? { raw: joined, outcome: "ok" } : { raw: null, outcome: "torn-version" };
+}
+
+/** b49: retry gap after a torn read (a writer was mid-way: chunks are written before the header). */
+export const TORN_READ_RETRY_MS = 250;
+async function readWatchlist(id: SnapshotId): Promise<string | null> {
+  let res: { raw: string | null; outcome: string };
+  try {
+    res = await readWatchlistOnce(id);
+  } catch (err) {
+    res = { raw: null, outcome: errorClass(err) };
+  }
+  // b49 H-1: a torn read or a store error is retried once; the writer's header lands within ms.
+  if (!res.raw && res.outcome !== "no-row" && res.outcome !== "empty") {
+    await new Promise((r) => setTimeout(r, TORN_READ_RETRY_MS));
+    try {
+      const again = await readWatchlistOnce(id);
+      res = again.raw ? { raw: again.raw, outcome: "ok-retry" } : { raw: null, outcome: `${again.outcome}` };
+    } catch (err) {
+      res = { raw: null, outcome: errorClass(err) };
+    }
+  }
+  noteOutcome(id, res.outcome);
+  if (!res.raw && res.outcome.startsWith("error-")) throw new Error(res.outcome);
+  return res.raw;
 }
 
 async function writeNamedWatchlist(ticker: string, body: string): Promise<boolean> {
@@ -731,12 +776,15 @@ function firstSnapshotRaw(id: SnapshotId, works: Promise<string | null>[]): Prom
 async function defaultRead(id: SnapshotId): Promise<string | null> {
   const file = readTempFile(id);
   if (snapshotHasRows(id, file)) return file;
+  noteOutcome(id, "pending");
   const db = readWatchlist(id).catch((err) => {
     console.error("[crypto-snapshot] watchlist read failed:", err instanceof Error ? err.message.slice(0, 80) : "failed");
     return null;
   });
   const cache = withTimeout(readWorkersCache(id), SNAPSHOT_READ_TIMEOUT_MS);
   const first = await firstSnapshotRaw(id, [cache, withTimeout(db, SNAPSHOT_DB_TIMEOUT_MS)]);
+  if (first && lastCryptoReadOutcome === "pending") noteOutcome(id, "ok-cache");
+  else if (!first && lastCryptoReadOutcome === "pending") noteOutcome(id, "timeout");
   void Promise.all([cache, db])
     .then(([cached, fromDb]) => {
       const chosen = chooseSnapshotRaw(id, fromDb, cached);
@@ -789,7 +837,18 @@ function withTimeout<T>(work: Promise<T>, ms: number): Promise<T | null> {
 }
 
 async function readRaw(id: SnapshotId, timeoutMs: number): Promise<string | null> {
-  if (durableOverride) return withTimeout(durableOverride.read(id), Math.min(timeoutMs, STORE_HARD_TIMEOUT_MS));
+  if (durableOverride) {
+    noteOutcome(id, "pending");
+    const raw = await withTimeout(
+      durableOverride.read(id).then(
+        (raw) => (raw ? raw : (noteOutcome(id, "no-row"), null)),
+        (err) => (noteOutcome(id, errorClass(err)), null)
+      ),
+      Math.min(timeoutMs, STORE_HARD_TIMEOUT_MS)
+    );
+    if (lastCryptoReadOutcome === "pending") noteOutcome(id, raw ? (snapshotHasRows(id, raw) ? "ok" : "parse") : "timeout");
+    return raw;
+  }
   return withTimeout(defaultRead(id), STORE_HARD_TIMEOUT_MS);
 }
 

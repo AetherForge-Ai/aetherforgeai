@@ -5,6 +5,12 @@ import type { CoinMarket } from "@/lib/crypto-market";
 export const CRYPTO_PARTIAL_REFRESH_AFTER_MS = 10 * 60 * 1000;
 /** b38 H-1: a row whose own quote is older than this shows a visible "delayed" marker. */
 export const CRYPTO_ROW_DELAYED_AFTER_MS = 15 * 60 * 1000;
+/**
+ * b49 (TT b48: one /markets crypto row 16 h old, never refreshing): a partial refresh kept every row it
+ * did not match, so a coin no source returns any more aged forever. A row whose own quote lags the
+ * list by more than this is dropped instead of carried.
+ */
+export const CRYPTO_ROW_DROP_AFTER_MS = 2 * 60 * 60 * 1000;
 
 /**
  * b38 H-1: refresh matching coins from a partial list; the rest keep their price AND their own
@@ -30,7 +36,8 @@ export function mergeStaleCryptoList(
   const byId = new Map(ok.filter((c) => c.id).map((c) => [String(c.id).toLowerCase(), c]));
   const bySymbol = new Map(ok.map((c) => [c.symbol.toUpperCase(), c]));
   let matched = 0;
-  const coins = existing.coins.map((coin) => {
+  const rowAt = (c: CoinMarket) => Date.parse(c.quotedAt || existing.at || "");
+  const mapped = existing.coins.map((coin) => {
     const fresh = (coin.id ? byId.get(String(coin.id).toLowerCase()) : undefined) ?? bySymbol.get(coin.symbol.toUpperCase());
     // Never replace a row with an older quote than it already has.
     if (fresh?.quotedAt && coin.quotedAt && Date.parse(fresh.quotedAt) < Date.parse(coin.quotedAt)) return coin;
@@ -44,7 +51,23 @@ export function mergeStaleCryptoList(
       source: fresh.source || coin.source,
     };
   });
+  // b49: unmatched rows far behind the new list are dropped, not carried (never refreshed otherwise).
+  const coins = mapped.filter((c) => !(Number.isFinite(atMs) && Number.isFinite(rowAt(c)) && atMs - rowAt(c) > CRYPTO_ROW_DROP_AFTER_MS));
   return matched ? coins : null;
+}
+
+/** b49: drop rows whose own quote lags the newest row in the list by more than CRYPTO_ROW_DROP_AFTER_MS. */
+export function dropLaggingRows<T extends { quotedAt?: string | null }>(rows: T[]): T[] {
+  let newest = -Infinity;
+  for (const r of rows) {
+    const t = Date.parse(r.quotedAt || "");
+    if (Number.isFinite(t) && t > newest) newest = t;
+  }
+  if (!Number.isFinite(newest)) return rows;
+  return rows.filter((r) => {
+    const t = Date.parse(r.quotedAt || "");
+    return !Number.isFinite(t) || newest - t <= CRYPTO_ROW_DROP_AFTER_MS;
+  });
 }
 
 /** b41 H-1: how many incoming rows pass the per-row checks against the saved list (for /status). */

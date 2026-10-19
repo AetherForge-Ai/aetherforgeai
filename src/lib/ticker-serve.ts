@@ -36,17 +36,45 @@ function edgeCache(): CacheLike | null {
   return c?.default ?? null;
 }
 
-export async function edgeSnapshotGet<T extends { version: number }>(ms = 300): Promise<T | null> {
+/**
+ * b49 H-1 (TT b48: edge=miss in 0 ms): the outcome of an edge read, so a miss can be told apart from a
+ * missing Cache API binding, an exception, a timeout or an unreadable body. Short safe words only.
+ */
+export type EdgeDiag = { outcome: string };
+export async function edgeSnapshotGet<T extends { version: number }>(ms = 300, diag?: EdgeDiag): Promise<T | null> {
+  const note = (o: string) => {
+    if (diag) diag.outcome = o;
+  };
   const cache = edgeCache();
-  if (!cache) return null;
-  const hit = await withDeadline(cache.match(EDGE_SNAP_KEY), ms, undefined);
-  if (!hit) return null;
+  if (!cache) return note("nobinding"), null;
+  let threw = "";
+  let done = false;
+  const hit = await withDeadline(
+    cache.match(EDGE_SNAP_KEY).then(
+      (r) => ((done = true), r),
+      (err) => {
+        done = true;
+        threw = edgeErrorClass(err);
+        return undefined;
+      }
+    ),
+    ms,
+    undefined
+  );
+  if (!hit) return note(threw || (done ? "miss" : "timeout")), null;
   try {
     const snap = (await withDeadline(hit.json() as Promise<T>, ms, null)) as T | null;
-    return snap && typeof snap.version === "number" ? snap : null;
-  } catch {
+    const ok = snap && typeof snap.version === "number" ? snap : null;
+    note(ok ? "hit" : "badbody");
+    return ok;
+  } catch (err) {
+    note(edgeErrorClass(err));
     return null;
   }
+}
+function edgeErrorClass(err: unknown): string {
+  const name = err instanceof Error ? err.name || "error" : typeof err;
+  return `error-${String(name).toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 16) || "unknown"}`;
 }
 
 export async function edgeSnapshotPut<T extends { version: number }>(snap: T): Promise<void> {

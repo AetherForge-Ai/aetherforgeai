@@ -3,7 +3,7 @@
  * when the index was built and then cached. These pure helpers re-evaluate it from the row's own
  * quotedAt — on the server when a response is built, and in the browser when the row renders.
  */
-import { cryptoRowDelayed } from "@/lib/crypto-row-delay";
+import { cryptoRowDelayed, dropLaggingRows } from "@/lib/crypto-row-delay";
 
 export const DELAYED_SUFFIX = " · delayed";
 
@@ -19,8 +19,13 @@ export function rowAsOfNow<T extends DelayRow>(row: T, now = Date.now()): T {
 }
 
 export function reevaluateRowDelay<T extends { tabs: Array<{ id: string; rows: DelayRow[] }> }>(index: T, now = Date.now()): T {
-  return {
-    ...index,
-    tabs: index.tabs.map((tab) => (tab.id === "CRYPTO" || tab.id === "DEX" ? { ...tab, rows: tab.rows.map((r) => rowAsOfNow(r, now)) } : tab)),
-  };
+  // b49: on the CRYPTO tab a row hours behind the rest of the list is dropped (TT b48: one 16 h old row).
+  const tabs = index.tabs.map((tab) =>
+    tab.id === "CRYPTO" || tab.id === "DEX"
+      ? { ...tab, rows: (tab.id === "CRYPTO" ? dropLaggingRows(tab.rows) : tab.rows).map((r) => rowAsOfNow(r, now)) }
+      : tab
+  );
+  const out = { ...index, tabs } as T;
+  if ("priceRowCount" in index) (out as T & { priceRowCount: number }).priceRowCount = tabs.reduce((sum, tab) => sum + tab.rows.length, 0);
+  return out;
 }

@@ -19,8 +19,8 @@ describe("b40 REG-1 / H-1 (a): deadline serves a snapshot, never a 503 while one
     expect(TICKER_ROUTE_DEADLINE_MS).toBeLessThanOrEqual(3_000);
   });
   it("H-1 (c): a body below the client's floor is marked stale", () => {
-    expect(route).toMatch(/const belowFloor = !!snap && floor > 0 && snap\.version < floor;/);
-    expect(route).toMatch(/coldStart \|\| belowFloor/);
+    expect(route).toMatch(/belowFloorHeaders\(snap\.version, floor\)/); // b49: below floor is marked by its own header
+    expect(route).toMatch(/snapshotIsStale\(snap\.at\) \|\| !feed\.rows\.crypto\.length/); // b49
     expect(route).toMatch(/lastGoodResponse && lastGoodResponse\.version >= floor/);
   });
   it("/markets fills an empty crypto tab from the snapshot (edge copy first)", () => {
