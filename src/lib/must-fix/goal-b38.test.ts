@@ -6,7 +6,7 @@ import { mergeIndexTabs } from "@/lib/ticker-serve";
 import { QUOTE_DELAY_TABLE } from "@/lib/market-freshness";
 import { journalDeletedMap, journalPendingWrite, listPendingWrites, pendingDeleteIds, replayPendingWrites } from "@/lib/write-journal";
 
-// pull-check:v3-goal-b44-2026-10-19
+// pull-check:v3-goal-b45-2026-10-19
 const read = (p: string) => readFileSync(p, "utf8");
 function mem() {
   const m = new Map<string, string>();
@@ -15,7 +15,7 @@ function mem() {
 
 describe("b38 build", () => {
   it("pins the build", () => {
-    expect(read("public/build-version.txt").trim()).toBe("v3-goal-b44-2026-10-19");
+    expect(read("public/build-version.txt").trim()).toBe("v3-goal-b45-2026-10-19");
   });
 });
 
@@ -78,7 +78,7 @@ describe("b38 REG-1 / H-1: never hang, never step back, never 503 with a copy", 
     const r = read("src/app/api/ticker/route.ts");
     expect(r).toMatch(/TICKER_ROUTE_DEADLINE_MS/);
     expect(r).toMatch(/lastGoodResponse/);
-    expect(r).toMatch(/"x-af-snapshot-version": "0"/);
+    expect(r).not.toMatch(/"x-af-snapshot-version": "0"/); // b45: never a version-0 reply
   });
   it("/markets bounds the session and index reads", () => {
     const p = read("src/app/markets/page.tsx");
@@ -146,7 +146,7 @@ describe("b38 rulings 2–4: cold start, step-backs, slow session", () => {
     const r = read("src/app/api/ticker/route.ts");
     expect(r).toMatch(/readCryptoSnapshot\(COLD_START_READ_MS\)/);
     expect(r).toMatch(/coldStart \|\|/);
-    expect(r).toMatch(/if \(!feed\.rows\.crypto\.length && !snap\) return (noCopyResponse\(\)|null)/ /* b41: hands over to the fallback read */);
+    expect(r).toMatch(/if \(!snap\) return null;/); // b45: no snapshot hands over to the fallback
     expect(read("src/components/MarketTicker.tsx")).toMatch(/Prices loading… back in a few seconds\./);
   });
   it("documents that only no-cookie clients may step back", () => {

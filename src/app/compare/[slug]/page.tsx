@@ -5,6 +5,7 @@ import { DisclaimerNotice } from "@/components/legal/DisclaimerNotice";
 import { FactLine } from "@/components/learn/FactLine";
 import { publicPageMetadata } from "@/lib/reviewed-book";
 import { COMPARISONS } from "@/data/learn-content";
+import { TAX_INDICATIVE_LABEL } from "@/lib/tax-disclaimer";
 
 export const dynamicParams = false;
 export function generateStaticParams() {
@@ -50,6 +51,10 @@ export default async function ComparePage({ params }: { params: Promise<{ slug: 
           </table>
         </div>
         <p className="mt-6 text-xs text-muted-foreground">No reviews or testimonials are quoted on this page.</p>
+        {/* b45 G-23-TAXLABEL: comparison pages discuss NZ FIF and tax rules. */}
+        <p className="mt-6 text-xs text-muted-foreground" data-tax-label>
+          <strong className="font-semibold text-foreground">{TAX_INDICATIVE_LABEL}</strong>
+        </p>
         <DisclaimerNotice variant="full" className="mt-10" />
       </article>
     </div>

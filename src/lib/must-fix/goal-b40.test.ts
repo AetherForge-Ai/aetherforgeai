@@ -12,7 +12,7 @@ const read = (p: string) => readFileSync(p, "utf8");
 describe("b40 REG-1 / H-1 (a): deadline serves a snapshot, never a 503 while one exists", () => {
   const route = read("src/app/api/ticker/route.ts");
   it("starts the edge/durable fallback with the build and serves it stale after the deadline", () => {
-    expect(route).toMatch(/const fallbackSnap = fallbackSnapshot\(\)/);
+    expect(route).toMatch(/const fallbackReply = fallbackSnapshot\(\)/); // b45: built in parallel
     expect(route).toMatch(/snapshotOnlyResponse\(snap, floor\)/);
     expect(route).toMatch(/"x-af-snapshot-stale": "1"/);
     expect(route.indexOf("snapshotOnlyResponse(snap, floor)")).toBeLessThan(route.lastIndexOf("return noCopyResponse();"));

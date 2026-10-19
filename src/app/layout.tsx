@@ -33,7 +33,10 @@ const sora = localFont({
   // b28 review: swap, not optional. With preload off, "optional" left headings on the fallback
   // face for a whole first visit. next/font's metric-matched fallback keeps the swap shift small.
   display: "swap",
-  preload: false,
+  // b45 P3 (TT b42 Lighthouse run 1: CLS 0.193 on /tax, 0.231 on /pricing, first cold load only): the
+  // heading face arrived after first paint and the swap reflowed the h1, shifting the sections below.
+  // Preloading it (one small latin subset) lets it land before first paint on a cold visit.
+  preload: true,
 });
 const manrope = localFont({
   src: "./fonts/manrope-latin.woff2",

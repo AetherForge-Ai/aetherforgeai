@@ -18,6 +18,7 @@
  */
 
 import "server-only";
+import { edgeSnapshotPut } from "@/lib/ticker-serve";
 
 import { readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -1064,6 +1065,9 @@ async function commitUnderLease(tagged: CoinMarket[], at: string): Promise<void>
     memoryCrypto = parsed;
     memoryCryptoCheckedAt = Date.now();
   }
+  // b45 H-1 (c): the writer also refreshes the colo copy, so a cookie client whose floor came from this
+  // write finds it in the colo even when another isolate's store read still lags (TT b42: −41 s / −43 s).
+  await keepAlive(edgeSnapshotPut(parsed).catch(() => undefined));
   // b24 G-05: one write point, so every path that refreshes the list fills /status.
   recordCryptoAttempt(true);
 }
