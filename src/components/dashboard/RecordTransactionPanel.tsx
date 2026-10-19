@@ -1046,7 +1046,8 @@ export function RecordTransactionPanel({
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="record-date">Date</Label>
-              {/* b45 G-14 P3: Chrome's calendar button inside the hidden date input was an invisible extra tab
+              {/* b46 P3: on keyboard focus the native field shows, so the focused part (day, month or year) is visible.
+                  b45 G-14 P3: Chrome's calendar button inside the hidden date input was an invisible extra tab
                   stop. It is hidden (CSS) and a click opens the picker instead; the input itself stays the one
                   keyboard stop (a tabindex of -1 on it would leave the date unreachable), with a visible ring. */}
               <div className="relative rounded-md focus-within:ring-2 focus-within:ring-ring">
@@ -1073,7 +1074,7 @@ export function RecordTransactionPanel({
                     setQuoteChain("");
                     setFxDirty(false);
                   }}
-                  className="af-date-overlay absolute inset-0 cursor-pointer opacity-0"
+                  className="af-date-overlay absolute inset-0 cursor-pointer rounded-md bg-background px-3 text-sm opacity-0 focus-visible:opacity-100 focus-visible:outline-none"
                   aria-label={`Date ${formatDisplayDate(date)}`}
                 />
               </div>

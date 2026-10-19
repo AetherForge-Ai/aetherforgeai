@@ -2,17 +2,19 @@
 // awaited), then a reload, then a fresh sign-in through the /login form. Fixture fixture-h9-tax@example.test
 // only; the password is read from the box fixtures file and never printed. GET/POST to auth routes only.
 import { chromium } from "@playwright/test";
-import { writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { fixturePassword } from "./fixture-password.mjs";
 const BASE = process.env.BASE || "https://aetherforgeai.co.nz";
 const OUT = process.env.OUT || "/workspace/aetherforge-qa/goal-loop/b44-signout-playwright";
-const EMAIL = "fixture-h9-tax@example.test";
+// CI (signout-race.yml) passes FIXTURE_EMAIL / FIXTURE_PASSWORD from repository secrets; neither is printed.
+const EMAIL = process.env.FIXTURE_EMAIL || "fixture-h9-tax@example.test";
 const PASS = fixturePassword(EMAIL);
+mkdirSync(OUT, { recursive: true });
 const SESSION_SET = /better-auth\.session_(token|data)=(?!;)[^;]+|af_ls=(?!;)[^;]+/;
 const t = () => new Date().toLocaleTimeString("en-NZ", { timeZone: "Pacific/Auckland", hour12: false });
 const log = [];
 const note = (o) => { const line = { t: t(), ...o }; log.push(line); console.log(JSON.stringify(line)); };
-const browser = await chromium.launch({ executablePath: process.env.CHROME || "/usr/bin/google-chrome", args: ["--no-sandbox"] });
+const browser = await chromium.launch({ ...(process.env.CI ? {} : { executablePath: process.env.CHROME || "/usr/bin/google-chrome" }), args: ["--no-sandbox"] });
 const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 } });
 const page = await ctx.newPage();
 page.on("dialog", (d) => d.dismiss().catch(() => undefined));
@@ -26,7 +28,8 @@ async function formSignIn(tag) {
   const path = new URL(page.url()).pathname;
   const shown = (await page.content()).includes(EMAIL);
   const err = path.startsWith("/login") ? ((await page.locator('[role="alert"]').first().textContent({ timeout: 1000 }).catch(() => "")) || "").trim().slice(0, 120) : "";
-  await page.screenshot({ path: `${OUT}/${tag}.png` });
+  // Signed-in pages show the account email, so CI (SIGNED_IN_SHOTS=0) skips these screenshots.
+  if (process.env.SIGNED_IN_SHOTS !== "0") await page.screenshot({ path: `${OUT}/${tag}.png` });
   return { path, shown, err };
 }
 const first = await formSignIn("00-initial-sign-in");

@@ -27,10 +27,28 @@ jobs:
           H4_EMAIL: ${{ secrets.H4_EMAIL }}
           H4_PASSWORD: ${{ secrets.H4_PASSWORD }}
         run: |
-          if [ -z "$H4_EMAIL" ] || [ -z "$H4_PASSWORD" ]; then echo "H4_EMAIL / H4_PASSWORD secrets are not set"; exit 1; fi
+          if [ -z "$H4_EMAIL" ] || [ -z "$H4_PASSWORD" ]; then
+            echo "H4_EMAIL / H4_PASSWORD secrets are not set"
+            # b46: a scheduled run without secrets stops quietly; a manual run fails so it is noticed.
+            if [ "${{ github.event_name }}" = "schedule" ]; then echo "SKIP=1" >> "$GITHUB_ENV"; exit 0; fi
+            exit 1
+          fi
       - name: Playwright H-4 (3 runs)
+        if: env.SKIP != '1'
         env:
           BASE: https://aetherforgeai.co.nz
           H4_EMAIL: ${{ secrets.H4_EMAIL }}
           H4_PASSWORD: ${{ secrets.H4_PASSWORD }}
-        run: npx playwright test -c qa/playwright
+        run: |
+          set -o pipefail
+          mkdir -p h4-out
+          npx playwright test -c qa/playwright 2>&1 | tee h4-out/console.log
+      # b46: the log is uploaded like signout-race; the spec prints timings only, never the credentials.
+      - name: Upload log
+        if: always() && env.SKIP != '1'
+        uses: actions/upload-artifact@v4
+        with:
+          name: h4-playwright-${{ github.run_id }}
+          path: h4-out/
+          if-no-files-found: warn
+          retention-days: 14

@@ -35,7 +35,7 @@ describe("b45 G-23-TAXLABEL: NZ tax content carries the tax label", () => {
 describe("b45 H-1 ticker: deadline fallback, floor, version 0, equity rows", () => {
   const route = read("src/app/api/ticker/route.ts");
   it("the snapshot-only reply is built in parallel and gets the rest of the budget", () => {
-    expect(route).toContain("const fallbackReply = fallbackSnapshot()");
+    expect(route).toContain("const fallbackReply = fallbackSnapshot(trace)"); // b46
     expect(route).toContain("TICKER_TOTAL_BUDGET_MS - (Date.now() - t0)");
     expect(route).not.toContain("withDeadline(snapshotOnlyResponse(snap, floor).catch(() => null), 600, null)");
   });
@@ -71,6 +71,6 @@ describe("b45 G-14: Playwright Tab-cycle harness exists", () => {
 
 describe("b45 version", () => {
   it("build marker", () => {
-    expect(read("public/build-version.txt")).toContain("v3-goal-b45-2026-10-19");
+    expect(read("public/build-version.txt")).toContain("v3-goal-b46-2026-10-19");
   });
 });

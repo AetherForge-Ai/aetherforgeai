@@ -6,7 +6,7 @@ import { mergeIndexTabs } from "@/lib/ticker-serve";
 import { QUOTE_DELAY_TABLE } from "@/lib/market-freshness";
 import { journalDeletedMap, journalPendingWrite, listPendingWrites, pendingDeleteIds, replayPendingWrites } from "@/lib/write-journal";
 
-// pull-check:v3-goal-b45-2026-10-19
+// pull-check:v3-goal-b46-2026-10-19
 const read = (p: string) => readFileSync(p, "utf8");
 function mem() {
   const m = new Map<string, string>();
@@ -15,7 +15,7 @@ function mem() {
 
 describe("b38 build", () => {
   it("pins the build", () => {
-    expect(read("public/build-version.txt").trim()).toBe("v3-goal-b45-2026-10-19");
+    expect(read("public/build-version.txt").trim()).toBe("v3-goal-b46-2026-10-19");
   });
 });
 
@@ -76,7 +76,7 @@ describe("b38 REG-1 / H-1: never hang, never step back, never 503 with a copy", 
   });
   it("/api/ticker is bounded, falls back to the last good answer, and sends headers on every 200", () => {
     const r = read("src/app/api/ticker/route.ts");
-    expect(r).toMatch(/TICKER_ROUTE_DEADLINE_MS/);
+    expect(r).toMatch(/TICKER_TOTAL_BUDGET_MS/); // b46: one whole-request budget
     expect(r).toMatch(/lastGoodResponse/);
     expect(r).not.toMatch(/"x-af-snapshot-version": "0"/); // b45: never a version-0 reply
   });
@@ -221,7 +221,7 @@ describe("b38 H-1 (c), H-4, session, M-2, M-6, tape marker", () => {
   it("cookie clients below their floor use the colo's newest copy", () => {
     const r = read("src/app/api/ticker/route.ts");
     expect(r).toMatch(/floor > 0 && \(!snap \|\| snap\.version < floor\)/);
-    expect(r).toMatch(/edgeSnapshotGet<CryptoSnap>\(\)/);
+    expect(r).toMatch(/edgeSnapshotGet<CryptoSnap>\(800\)/); // b46
   });
   it("H-4: quota comes from the light route, with a 3 s 'did not load' fallback, and a CI workflow", () => {
     const rc = read("src/components/dashboard/ReportCenter.tsx");

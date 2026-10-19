@@ -1,4 +1,5 @@
 import { cryptoRowDelayed } from "@/lib/crypto-row-delay";
+import { reevaluateRowDelay } from "@/lib/row-delay-label";
 import "server-only";
 
 import { coinDepthComplete, isDuplicateOrTokenisedCoin, isJunkCoin } from "@/lib/coin-junk";
@@ -133,6 +134,7 @@ function cryptoRowsFromCoins(coins: CryptoTabCoin[], quotedAt: string): PublicPr
     // b38 H-1: each row's own time; over 15 min it is marked delayed.
     asOf: cryptoRowDelayed(coin.quotedAt || quotedAt) ? `${asOfLabel(coin.quotedAt || quotedAt)} · delayed` : asOfLabel(coin.quotedAt || quotedAt),
     delayed: cryptoRowDelayed(coin.quotedAt || quotedAt),
+    quotedAt: coin.quotedAt || quotedAt || null,
     blockchain: coin.blockchain || "",
     change1h: coin.change1h == null ? "—" : formatSignedPercent(coin.change1h),
     change7d: (() => {
@@ -261,6 +263,7 @@ async function loadDexTab(): Promise<PublicPriceTab> {
         ? `${asOfLabel((row as { quotedAt?: string | null }).quotedAt || quotedAt)} · delayed`
         : asOfLabel((row as { quotedAt?: string | null }).quotedAt || quotedAt),
       delayed: cryptoRowDelayed((row as { quotedAt?: string | null }).quotedAt || quotedAt),
+      quotedAt: (row as { quotedAt?: string | null }).quotedAt || quotedAt || null,
       blockchain: row.network || "",
       dex: row.dex || "",
     }));
@@ -407,16 +410,17 @@ export async function ensureCryptoTab(index: PublicMarketIndex): Promise<PublicM
   const filled = await cryptoTabFromSnapshot();
   if (!filled) return index;
   const tabs = at === -1 ? [...index.tabs, filled] : index.tabs.map((tab, i) => (i === at ? filled : tab));
-  return { tabs, priceRowCount: tabs.reduce((sum, tab) => sum + tab.rows.length, 0) };
+  return reevaluateRowDelay({ tabs, priceRowCount: tabs.reduce((sum, tab) => sum + tab.rows.length, 0) });
 }
 
 export async function loadPublicMarketIndex(): Promise<PublicMarketIndex> {
+  // b46 H-1 (b): "delayed" is re-evaluated against now on every response, not frozen in the memo.
   if (memo && memo.value.priceRowCount > 0) {
     if (Date.now() >= nextRefreshAt) void startBuild();
-    return memo.value;
+    return reevaluateRowDelay(memo.value);
   }
   const value = await startBuild();
-  return value.priceRowCount > 0 ? value : emptyIndex();
+  return value.priceRowCount > 0 ? reevaluateRowDelay(value) : emptyIndex();
 }
 
 const quoteMemo = new Map<string, { at: number; value: Promise<string | null> }>();

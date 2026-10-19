@@ -154,7 +154,7 @@ describe("b41 H-1: the snapshot cannot freeze while a source answers; refusals a
   it("the build no longer answers 503 itself; the fallback snapshot read gets its full time", () => {
     const route = read("src/app/api/ticker/route.ts");
     expect(route).toMatch(/if \(!snap\) return null;/); // b45
-    expect(route).toMatch(/withDeadline\(fallbackReply, Math.max\(300, TICKER_TOTAL_BUDGET_MS/); // b45: rest of the budget
+    expect(route).toMatch(/firstNonNull\(/); // b46: first ready reply within the budget
     expect(route.match(/return noCopyResponse\(\)/g)).toHaveLength(1);
   });
 
