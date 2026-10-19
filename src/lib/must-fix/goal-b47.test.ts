@@ -40,6 +40,6 @@ describe("b47 P3", () => {
     expect(read("src/lib/sign-out.ts")).not.toContain("beforeunload\", ");
   });
   it("build marker", () => {
-    expect(read("public/build-version.txt")).toContain("v3-goal-b47-2026-10-19");
+    expect(read("public/build-version.txt")).toContain("v3-goal-b48-2026-10-19");
   });
 });

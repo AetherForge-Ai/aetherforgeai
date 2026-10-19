@@ -1,4 +1,5 @@
 import { keepAlive } from "@/lib/keep-alive.server";
+import { stampTicker, tickerPathHeaders, tickerReason, TICKER_EXPOSED_HEADERS, type TickerPath } from "@/lib/ticker-path";
 import { kickCryptoRefreshIfOld } from "@/lib/crypto-board-store";
 import { NextResponse } from "next/server";
 import { PUBLIC_EQUITY_SOURCE, publicCryptoSourcesLabel } from "@/lib/data-sources";
@@ -31,7 +32,7 @@ export async function GET(req: Request) {
     console.warn("[api/ticker] 503 path=test-feed-off");
     return NextResponse.json(
       { ok: false, error: "Feed switched off in test mode" },
-      { status: 503, headers: { "Cache-Control": "no-store", "CDN-Cache-Control": "no-store" } }
+      { status: 503, headers: { "Cache-Control": "no-store", "CDN-Cache-Control": "no-store", "x-af-503-reason": "testFeedOff=on ms=0", "Access-Control-Expose-Headers": TICKER_EXPOSED_HEADERS } }
     );
   }
   // b37 REG-1: the whole build is bounded. b40 REG-1/H-1 (a): a fallback snapshot read (edge copy,
@@ -45,14 +46,18 @@ export async function GET(req: Request) {
   // fallback reads run in parallel (edge copy, durable copy, and the small last-good body copy), and
   // after EARLY_SNAPSHOT_MS the first ready snapshot reply wins over a still-running build.
   const trace: Record<string, string> = {};
+  // b48: every reply names its branch (x-af-ticker-path), snapshot age and version.
   const fallbackReply = fallbackSnapshot(trace)
-    .then((s) => pickServedSnapshot(s, lastGoodSnap))
-    .then((snap) => (snap ? floorSnapshot(snap, floor) : null))
-    .then((snap) => (snap ? snapshotOnlyResponse(snap, floor) : null))
+    .then(async (found) => {
+      if (!found) return null;
+      const floored = await floorSnapshot(found.snap, floor);
+      const reply = await snapshotOnlyResponse(floored.snap, floor);
+      return reply ? stampTicker(reply, tickerPathHeaders(floored.floorVersion ? "floor-version" : found.path, floored.snap)) : null;
+    })
     .then((r) => ((trace.fallbackReply = r ? "ok" : "empty"), r))
     .catch(() => ((trace.fallbackReply = "threw"), null));
   const buildP = buildTicker(floor, cookie, hooksAllowed)
-    .then((r) => ((trace.build = r ? "ok" : "null"), r))
+    .then((r) => ((trace.build = r ? "ok" : "null"), (trace.buildMs = String(Date.now() - t0)), r))
     .catch(() => ((trace.build = "threw"), null));
   const winner = await firstNonNull(
     [
@@ -61,9 +66,12 @@ export async function GET(req: Request) {
       // This isolate's last good reply (at or above the floor) is also ready after EARLY_SNAPSHOT_MS.
       delay(EARLY_SNAPSHOT_MS).then(() =>
         lastGoodResponse && lastGoodResponse.version >= floor
-          ? NextResponse.json(lastGoodResponse.body, {
-              headers: { ...lastGoodResponse.headers, "x-af-snapshot-stale": "1", "Set-Cookie": snapshotFloorCookie(Math.max(lastGoodResponse.version, floor)) },
-            })
+          ? stampTicker(
+              NextResponse.json(lastGoodResponse.body, {
+                headers: { ...lastGoodResponse.headers, "x-af-snapshot-stale": "1", "Set-Cookie": snapshotFloorCookie(Math.max(lastGoodResponse.version, floor)) },
+              }),
+              tickerPathHeaders("deadline", { version: lastGoodResponse.version, at: lastGoodResponse.headers["x-af-snapshot-at"] })
+            )
           : null
       ),
     ],
@@ -72,36 +80,49 @@ export async function GET(req: Request) {
   if (winner) return winner;
   if (lastGoodResponse) {
     console.warn(`[api/ticker] path=last-good-memory ${traceLine(trace, t0)}`);
-    return NextResponse.json(lastGoodResponse.body, {
-      headers: { ...lastGoodResponse.headers, ...belowFloorHeaders(lastGoodResponse.version, floor), "x-af-snapshot-stale": "1", "Set-Cookie": snapshotFloorCookie(Math.max(lastGoodResponse.version, floor)) },
-    });
+    return stampTicker(
+      NextResponse.json(lastGoodResponse.body, {
+        headers: { ...lastGoodResponse.headers, ...belowFloorHeaders(lastGoodResponse.version, floor), "x-af-snapshot-stale": "1", "Set-Cookie": snapshotFloorCookie(Math.max(lastGoodResponse.version, floor)) },
+      }),
+      tickerPathHeaders("last-good", { version: lastGoodResponse.version, at: lastGoodResponse.headers["x-af-snapshot-at"] })
+    );
   }
   const edgeBody = await edgeJsonGet<{ body: unknown; headers: Record<string, string>; version: number }>("body", 400);
   if (edgeBody?.body && edgeBody.version > 0) {
     console.warn(`[api/ticker] path=last-good-colo ${traceLine(trace, t0)}`);
-    return NextResponse.json(edgeBody.body, {
-      headers: { ...edgeBody.headers, ...belowFloorHeaders(edgeBody.version, floor), "x-af-snapshot-stale": "1", "Set-Cookie": snapshotFloorCookie(Math.max(edgeBody.version, floor)) },
-    });
+    return stampTicker(
+      NextResponse.json(edgeBody.body, {
+        headers: { ...edgeBody.headers, ...belowFloorHeaders(edgeBody.version, floor), "x-af-snapshot-stale": "1", "Set-Cookie": snapshotFloorCookie(Math.max(edgeBody.version, floor)) },
+      }),
+      tickerPathHeaders("last-good", { version: edgeBody.version, at: edgeBody.headers?.["x-af-snapshot-at"] })
+    );
   }
+  trace.coloBody = "miss";
   // b47 H-1 (a) (TT b46: 5 × 503 at 2.8–4.5 s; Worker logs not readable with the current token): every
   // candidate came back empty, often well before the budget. The stored DB copy gets one more read with
   // all the time left (up to 4.85 s in total) before a 503 is chosen.
   const left = LAST_RESORT_END_MS - (Date.now() - t0);
   if (left > 300) {
+    const lateT = Date.now();
     const late = await withDeadline(readCryptoSnapshot(left - 50).catch(() => null), left, null);
     const lateSnap = pickServedSnapshot(late, lastGoodSnap);
-    trace.lateDurable = late ? "hit" : "miss";
+    trace.lateDurable = late ? "hit" : Date.now() - lateT >= left - 20 ? "timeout" : "miss";
+    trace.lateDurableMs = String(Date.now() - lateT);
     if (lateSnap) {
       const reply = await withDeadline(snapshotOnlyResponse(lateSnap, floor).catch(() => null), Math.max(200, LAST_RESORT_END_MS - (Date.now() - t0)), null);
       if (reply) {
         console.warn(`[api/ticker] path=late-durable ${traceLine(trace, t0)}`);
-        return reply;
+        return stampTicker(reply, tickerPathHeaders("late-durable", lateSnap));
       }
       trace.lateReply = "empty";
     }
   }
   console.warn(`[api/ticker] 503 path=no-copy-anywhere ${traceLine(trace, t0)}`);
-  return noCopyResponse();
+  // b48: the 503 says which reads failed or timed out, and how long each took.
+  return stampTicker(noCopyResponse(), {
+    "x-af-503-reason": tickerReason(trace, Date.now() - t0),
+    "Access-Control-Expose-Headers": TICKER_EXPOSED_HEADERS,
+  });
 }
 
 /** b47: the last-resort stored-copy read ends by this point (the bar is 5 s). */
@@ -140,24 +161,24 @@ function firstNonNull<T>(work: Array<Promise<T | null>>, ms: number): Promise<T 
 }
 
 /** b46 H-1 (c): below the client's floor, fetch the floor version itself from the colo copy. */
-async function floorSnapshot(snap: CryptoSnap, floor: number): Promise<CryptoSnap> {
-  if (!(floor > 0) || snap.version >= floor) return snap;
+async function floorSnapshot(snap: CryptoSnap, floor: number): Promise<{ snap: CryptoSnap; floorVersion: boolean }> {
+  if (!(floor > 0) || snap.version >= floor) return { snap, floorVersion: false };
   const exact = await edgeSnapshotGetVersion<CryptoSnap>(floor).catch(() => null);
-  if (exact) return exact;
+  if (exact) return { snap: exact, floorVersion: true };
   // b47 H-1 (c) (TT b46: 1 step-back, −10.6 s): then the stored DB copy, read with the floor (forces a
   // store read when memory is older); then hold briefly for a copy at or above the floor to land.
   const stored = await readCryptoSnapshot(1_500, { floor }).catch(() => null);
-  if (stored && stored.version >= floor) return stored;
+  if (stored && stored.version >= floor) return { snap: stored, floorVersion: true };
   const until = Date.now() + FLOOR_HOLD_MS;
   while (Date.now() < until) {
     await delay(250);
     const next =
       (await edgeSnapshotGetVersion<CryptoSnap>(floor, 300).catch(() => null)) ??
       (await edgeSnapshotGet<CryptoSnap>(300).catch(() => null));
-    if (next && next.version >= floor) return next;
+    if (next && next.version >= floor) return { snap: next, floorVersion: true };
   }
   console.warn(`[api/ticker] path=below-floor floor=${floor} served=${snap.version}`);
-  return pickServedSnapshot(stored, snap) ?? snap;
+  return { snap: pickServedSnapshot(stored, snap) ?? snap, floorVersion: false };
 }
 /** b47: how long a reply waits for a copy at or above the client's floor before it is served marked. */
 const FLOOR_HOLD_MS = 1_000;
@@ -192,15 +213,32 @@ async function keepEquityRows(feed: Feed): Promise<Feed> {
 }
 
 /** b40 REG-1 / b46: edge copy and durable copy read in parallel; the newer one that arrives wins. */
-async function fallbackSnapshot(trace: Record<string, string> = {}): Promise<CryptoSnap | null> {
-  const edge = edgeSnapshotGet<CryptoSnap>(1_500)
+async function fallbackSnapshot(trace: Record<string, string> = {}): Promise<{ snap: CryptoSnap; path: TickerPath } | null> {
+  const t = Date.now();
+  const EDGE_MS = 1_500;
+  const DURABLE_MS = COLD_START_READ_MS + 200;
+  const edge = edgeSnapshotGet<CryptoSnap>(EDGE_MS)
     .catch(() => null)
-    .then((v) => ((trace.edge = v ? "hit" : "miss"), v));
-  const durable = withDeadline(readCryptoSnapshot(COLD_START_READ_MS).catch(() => null), COLD_START_READ_MS + 200, null).then(
-    (v) => ((trace.durable = v ? "hit" : "miss"), v)
-  );
-  const first = await firstNonNull<CryptoSnap>([edge, durable], COLD_START_READ_MS + 300);
-  return first ? pickServedSnapshot(first, lastGoodSnap) : lastGoodSnap;
+    .then((v) => {
+      const ms = Date.now() - t;
+      trace.edge = v ? "hit" : ms >= EDGE_MS - 20 ? "timeout" : "miss";
+      trace.edgeMs = String(ms);
+      return v ? { snap: v, path: "shared-cache" as TickerPath } : null;
+    });
+  const durable = withDeadline(readCryptoSnapshot(COLD_START_READ_MS).catch(() => null), DURABLE_MS, null).then((v) => {
+    const ms = Date.now() - t;
+    trace.durable = v ? "hit" : ms >= DURABLE_MS - 20 ? "timeout" : "miss";
+    trace.durableMs = String(ms);
+    return v ? { snap: v, path: "store-read" as TickerPath } : null;
+  });
+  const first = await firstNonNull<{ snap: CryptoSnap; path: TickerPath }>([edge, durable], COLD_START_READ_MS + 300);
+  if (first) {
+    // This isolate's own copy wins when it is newer; then the reply is a deadline answer from memory.
+    const best = pickServedSnapshot(first.snap, lastGoodSnap);
+    return best === first.snap ? first : best ? { snap: best, path: "deadline" } : first;
+  }
+  trace.memory = lastGoodSnap ? "hit" : "miss";
+  return lastGoodSnap ? { snap: lastGoodSnap, path: "deadline" } : null;
 }
 
 /** b40 REG-1: a 200 built only from a snapshot (no live equity fetch), always marked stale. */
@@ -260,13 +298,21 @@ async function buildTicker(floor: number, cookie: string | null, hooksAllowed: b
   // no cookie and no x-af-snapshot-floor header (curl, scripts) may see an older version from another
   // isolate; that is accepted by design and only for no-cookie clients.
   let snap = pickServedSnapshot(read ?? coldRead, lastGoodSnap);
+  // b48: which branch supplied the snapshot (reported in x-af-ticker-path).
+  let path: TickerPath = snap && snap === coldRead && !read ? "cold" : "snapshot-hit";
   // b38 H-1 (c): a cookie client must never step back. Below its floor, use the colo's newest copy.
   if ((floor > 0 && (!snap || snap.version < floor)) || !snap) {
     const edge = await edgeSnapshotGet<CryptoSnap>(800);
+    const before = snap;
     snap = pickServedSnapshot(snap, edge);
+    if (snap && snap !== before) path = "shared-cache";
   }
   // b46 H-1 (c): still below the floor — serve the floor version itself (colo copy by version).
-  if (snap) snap = await floorSnapshot(snap, floor);
+  if (snap) {
+    const floored = await floorSnapshot(snap, floor);
+    snap = floored.snap;
+    if (floored.floorVersion) path = "floor-version";
+  }
   if (snap) {
     // b47 H-1 freeze: a tape read of a list over 5 min old starts a single-flight background refresh.
     try {
@@ -326,7 +372,10 @@ async function buildTicker(floor: number, cookie: string | null, hooksAllowed: b
     lastGoodResponse = { body, headers, version: snap.version };
     if (snap.version > prevVersion) void keepAlive(edgeJsonPut("body", lastGoodResponse)); // b47: waitUntil
   }
-  return NextResponse.json(body, {
-    headers: { ...headers, "Set-Cookie": snapshotFloorCookie(Math.max(snap.version, floor)) },
-  });
+  return stampTicker(
+    NextResponse.json(body, {
+      headers: { ...headers, "Set-Cookie": snapshotFloorCookie(Math.max(snap.version, floor)) },
+    }),
+    tickerPathHeaders(path, snap)
+  );
 }
