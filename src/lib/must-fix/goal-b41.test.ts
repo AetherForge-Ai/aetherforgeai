@@ -155,7 +155,7 @@ describe("b41 H-1: the snapshot cannot freeze while a source answers; refusals a
     const route = read("src/app/api/ticker/route.ts");
     expect(route).toMatch(/if \(!snap\) return null;/); // b45
     expect(route).toMatch(/firstNonNull\(/); // b46: first ready reply within the budget
-    expect(route.match(/return noCopyResponse\(\)/g)).toHaveLength(1);
+    expect(route.match(/stampTicker\(noCopyResponse\(\)/g)).toHaveLength(1); // b48: stamped with x-af-503-reason
   });
 
   it("P3: equities merge per symbol and survive a missed fetch; /status has more time sources", () => {

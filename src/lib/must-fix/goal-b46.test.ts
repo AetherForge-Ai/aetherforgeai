@@ -14,7 +14,7 @@ describe("b46 H-1 (a): every 503 path is logged; snapshot served before the dead
     expect(r).toContain("path=last-good-colo");
     expect(r.match(/status: 503/g)?.length).toBe(2);
     expect(r).toContain("EARLY_SNAPSHOT_MS = 2_000");
-    expect(r).toContain("firstNonNull<CryptoSnap>([edge, durable]");
+    expect(r).toMatch(/firstNonNull<\{ snap: CryptoSnap; path: TickerPath \}>\(\[edge, durable\]/); // b48
   });
 });
 
@@ -75,6 +75,6 @@ describe("b46 P3", () => {
     expect(read("src/components/dashboard/RecordTransactionPanel.tsx")).toContain("focus-visible:opacity-100");
   });
   it("build marker", () => {
-    expect(read("public/build-version.txt")).toContain("v3-goal-b47-2026-10-19");
+    expect(read("public/build-version.txt")).toContain("v3-goal-b48-2026-10-19");
   });
 });
