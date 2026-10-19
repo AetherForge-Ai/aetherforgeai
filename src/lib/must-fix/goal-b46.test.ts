@@ -14,7 +14,7 @@ describe("b46 H-1 (a): every 503 path is logged; snapshot served before the dead
     expect(r).toContain("path=last-good-colo");
     expect(r.match(/status: 503/g)?.length).toBe(2);
     expect(r).toContain("EARLY_SNAPSHOT_MS = 2_000");
-    expect(r).toContain("firstNonNull<CryptoSnap>([edge, durable]");
+    expect(r).toMatch(/firstNonNull<\{ snap: CryptoSnap; path: TickerPath \}>\(\[edge, durable\]/); // b48
   });
 });
 

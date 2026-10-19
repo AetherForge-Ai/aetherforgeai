@@ -2,6 +2,7 @@
 import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { stampTicker, tickerPathHeaders, tickerReason, TICKER_PATHS } from "@/lib/ticker-path";
+vi.mock("server-only", () => ({}));
 
 const read = (p: string) => readFileSync(p, "utf8");
 
@@ -42,18 +43,19 @@ describe("b48 /api/ticker replies carry the headers (simulated store)", () => {
     vi.doMock("@/lib/market-data", () => ({ fetchLiveQuotes: async () => ({}) }));
     vi.doMock("@/lib/test-hooks.server", () => ({ currentUserMayUseTestHooks: async () => false }));
     const snap = await import("@/lib/crypto-snapshot");
-    const shared = { body: body() };
+    const shared = { body: body(), lease: null as string | null };
     snap.installSnapshotDurable({
       read: async () => shared.body,
       write: async (_id: string, b: string) => ((shared.body = b), true),
-      readLease: async () => null,
-      writeLease: async () => true,
+      readLease: async () => shared.lease,
+      writeLease: async (b: string) => ((shared.lease = b), true),
     });
     const route = await import("@/app/api/ticker/route");
     return { snap, route, shared };
   }
-  const coins = Array.from({ length: 120 }, (_, i) => ({
-    id: i === 0 ? "bitcoin" : `c${i}`, symbol: i === 0 ? "BTC" : `C${i}`, name: `Coin ${i}`, image: "", rank: i + 1, price: 100 + i,
+  const TAPE = ["BTC", "ETH", "SOL", "XRP", "BNB", "ADA", "DOGE", "TRX", "AVAX", "LINK", "DOT", "LTC"];
+  const coins = Array.from({ length: 400 }, (_, i) => ({
+    id: i < TAPE.length ? TAPE[i].toLowerCase() : `c${i}`, symbol: i < TAPE.length ? TAPE[i] : `C${i}`, name: `Coin ${i}`, image: "", rank: i + 1, price: 100 + i,
     marketCap: 1e12 - i * 1e6, volume24h: 1e6, change24h: 1, change7d: 0, change1h: 0, fdv: null, high24h: null, low24h: null,
     circulatingSupply: null, totalSupply: null, maxSupply: null, ath: null, athDate: null, atl: null, atlDate: null, sparkline7d: [],
     blockchain: "", quotedAt: null, source: "coingecko", priceUnavailable: false, moves: null,

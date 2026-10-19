@@ -13,9 +13,9 @@ describe("b40 REG-1 / H-1 (a): deadline serves a snapshot, never a 503 while one
   const route = read("src/app/api/ticker/route.ts");
   it("starts the edge/durable fallback with the build and serves it stale after the deadline", () => {
     expect(route).toMatch(/const fallbackReply = fallbackSnapshot\(trace\)/); // b46
-    expect(route).toMatch(/snapshotOnlyResponse\(snap, floor\)/);
+    expect(route).toMatch(/snapshotOnlyResponse\((floored\.)?snap, floor\)/); // b48
     expect(route).toMatch(/"x-af-snapshot-stale": "1"/);
-    expect(route.indexOf("snapshotOnlyResponse(snap, floor)")).toBeLessThan(route.lastIndexOf("return noCopyResponse();"));
+    expect(route.indexOf("snapshotOnlyResponse(floored.snap, floor)")).toBeLessThan(route.lastIndexOf("stampTicker(noCopyResponse()")); // b48
     expect(TICKER_ROUTE_DEADLINE_MS).toBeLessThanOrEqual(3_000);
   });
   it("H-1 (c): a body below the client's floor is marked stale", () => {
