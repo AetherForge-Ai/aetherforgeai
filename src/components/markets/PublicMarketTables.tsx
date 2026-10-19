@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { PublicMarketIndex } from "@/lib/public-market-types";
+import { RowAsOf } from "@/components/markets/RowAsOf";
 
 /**
  * First page of each markets tab, rendered in the document so a fetch without
@@ -68,7 +69,7 @@ export function PublicMarketTables({ index }: { index: PublicMarketIndex }) {
                     {cryptoTab ? <td className="py-1.5 pr-3">{row.blockchain || "—"}</td> : null}
                     {tab.id === "DEX" ? <td className="py-1.5 pr-3">{row.dex || "—"}</td> : null}
                     <td className="py-1.5 text-muted-foreground">
-                      {row.source ? `${row.source}${row.asOf ? ` · ${row.asOf}` : ""}` : row.asOf || "Not in this response"}
+                      <RowAsOf source={row.source} asOf={row.asOf} quotedAt={row.quotedAt} />
                     </td>
                   </tr>
                 ))}

@@ -53,9 +53,48 @@ export async function edgeSnapshotPut<T extends { version: number }>(snap: T): P
   const cache = edgeCache();
   if (!cache) return;
   try {
+    const body = JSON.stringify(snap);
+    // b46 H-1 (c): every served or written version is also kept under its own key, so a client whose
+    // floor is above this isolate's copy can be served exactly that version.
+    await cache.put(EDGE_SNAP_VERSION_KEY(snap.version), new Response(body, { headers: { "Content-Type": "application/json", "Cache-Control": "max-age=1800" } }));
     const current = await edgeSnapshotGet<T>(200);
     if (current && current.version >= snap.version) return;
-    await cache.put(EDGE_SNAP_KEY, new Response(JSON.stringify(snap), { headers: { "Content-Type": "application/json", "Cache-Control": "max-age=900" } }));
+    await cache.put(EDGE_SNAP_KEY, new Response(body, { headers: { "Content-Type": "application/json", "Cache-Control": "max-age=900" } }));
+  } catch {
+    /* best effort */
+  }
+}
+
+const EDGE_SNAP_VERSION_KEY = (version: number) => `https://af-internal.invalid/crypto-snapshot-v/${version}`;
+
+/** b46 H-1 (c): the snapshot with exactly this version from the colo copy, or null. */
+export async function edgeSnapshotGetVersion<T extends { version: number }>(version: number, ms = 800): Promise<T | null> {
+  const cache = edgeCache();
+  if (!cache || !(version > 0)) return null;
+  const hit = await withDeadline(cache.match(EDGE_SNAP_VERSION_KEY(version)), ms, undefined);
+  if (!hit) return null;
+  const snap = (await withDeadline((hit.json() as Promise<T>).catch(() => null), ms, null)) as T | null;
+  return snap && snap.version === version ? snap : null;
+}
+
+/**
+ * b46 H-1 (a)/(4): small colo copies a cold isolate can read fast — the last good ticker reply body
+ * (a few KB, vs the full snapshot) and the last non-empty NZX/ASX rows.
+ */
+const EDGE_BODY_KEY = "https://af-internal.invalid/ticker-last-good-body";
+const EDGE_EQUITY_KEY = "https://af-internal.invalid/ticker-last-equity-rows";
+export async function edgeJsonGet<T>(key: "body" | "equity", ms = 800): Promise<T | null> {
+  const cache = edgeCache();
+  if (!cache) return null;
+  const hit = await withDeadline(cache.match(key === "body" ? EDGE_BODY_KEY : EDGE_EQUITY_KEY), ms, undefined);
+  if (!hit) return null;
+  return (await withDeadline((hit.json() as Promise<T>).catch(() => null), ms, null)) as T | null;
+}
+export async function edgeJsonPut(key: "body" | "equity", value: unknown): Promise<void> {
+  const cache = edgeCache();
+  if (!cache) return;
+  try {
+    await cache.put(key === "body" ? EDGE_BODY_KEY : EDGE_EQUITY_KEY, new Response(JSON.stringify(value), { headers: { "Content-Type": "application/json", "Cache-Control": "max-age=1800" } }));
   } catch {
     /* best effort */
   }

@@ -1,0 +1,47 @@
+# b46 H-1/sign-out (TT request): same-tab sign-out race against production at 1/101/202 ms after the
+# Sign out click, each followed by a reload and a fresh sign-in through /login.
+# Credentials come only from repository secrets FIXTURE_EMAIL and FIXTURE_PASSWORD (an @example.test
+# fixture account). They are passed as env, never echoed, and GitHub masks them in logs. Signed-in
+# screenshots (which show the account email) are not taken in CI. Manual dispatch only.
+name: signout-race
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  signout-race:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npx playwright install --with-deps chromium
+      - name: Check secrets are set
+        env:
+          FIXTURE_EMAIL: ${{ secrets.FIXTURE_EMAIL }}
+          FIXTURE_PASSWORD: ${{ secrets.FIXTURE_PASSWORD }}
+        run: |
+          if [ -z "$FIXTURE_EMAIL" ] || [ -z "$FIXTURE_PASSWORD" ]; then echo "FIXTURE_EMAIL / FIXTURE_PASSWORD secrets are not set"; exit 1; fi
+      - name: Sign-out race (1/101/202 ms, reload, fresh sign-in)
+        env:
+          BASE: https://aetherforgeai.co.nz
+          OUT: ${{ github.workspace }}/signout-race-out
+          SIGNED_IN_SHOTS: "0"
+          FIXTURE_EMAIL: ${{ secrets.FIXTURE_EMAIL }}
+          FIXTURE_PASSWORD: ${{ secrets.FIXTURE_PASSWORD }}
+        run: |
+          set -o pipefail
+          mkdir -p "$OUT"
+          node qa/local-harness/signout-prod.mjs 2>&1 | tee "$OUT/console.log"
+      - name: Upload log and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: signout-race-${{ github.run_id }}
+          path: signout-race-out/
+          if-no-files-found: warn
+          retention-days: 14

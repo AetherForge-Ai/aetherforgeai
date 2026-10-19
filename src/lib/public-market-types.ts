@@ -24,6 +24,9 @@ export interface PublicPriceRow {
   source?: string;
   /** Includes the words "as of" for this row. */
   asOf?: string;
+  /** b46 H-1 (b): this row's own quote time (crypto and DEX), so "delayed" is re-evaluated when the
+   * response is built and again when the browser renders, never frozen at cache time. */
+  quotedAt?: string | null;
   /** Native chain or platform for a coin. */
   blockchain?: string;
   /** Server-rendered moves. An em dash means the feed did not send that figure. */
