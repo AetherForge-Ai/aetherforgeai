@@ -515,3 +515,8 @@ main p > a.text-primary {
 .content-light .text-rose-600 {
   color: #e11d48;
 }
+
+/* b45 G-14 P3: no separate (invisible) tab stop for the calendar button in the Add panel date field. */
+.af-date-overlay::-webkit-calendar-picker-indicator {
+  display: none;
+}

@@ -35,8 +35,16 @@ export async function GET(req: Request) {
   // then the durable one) starts alongside the build, so when the 4 s deadline is hit an isolate with
   // no lastGoodResponse still serves a snapshot as a 200 with its true time and the stale mark.
   // A 503 only when no snapshot exists anywhere.
+  const t0 = Date.now();
   const floor = snapshotFloorFrom(req);
-  const fallbackSnap = fallbackSnapshot();
+  // b45 H-1 (a) (TT b41/b42: 10 and 12 × 503 at 3.7–4.2 s with a snapshot present). The real path:
+  // after the 3 s deadline the snapshot-only reply was only *started*, then given 600 ms; building it
+  // (loadPublicTicker) often took longer, so it fell through to the 503. The snapshot-only reply is now
+  // built in parallel from the start, and at the deadline it gets the rest of the 4.6 s budget.
+  const fallbackReply = fallbackSnapshot()
+    .then((s) => pickServedSnapshot(s, lastGoodSnap))
+    .then((snap) => (snap ? snapshotOnlyResponse(snap, floor) : null))
+    .catch(() => null);
   const built = await Promise.race([
     buildTicker(floor, cookie, hooksAllowed).catch(() => null),
     new Promise<null>((r) => setTimeout(() => r(null), TICKER_ROUTE_DEADLINE_MS)),
@@ -47,18 +55,34 @@ export async function GET(req: Request) {
       headers: { ...lastGoodResponse.headers, "x-af-snapshot-stale": "1", "Set-Cookie": snapshotFloorCookie(Math.max(lastGoodResponse.version, floor)) },
     });
   }
-  // b41 H-1: the fallback read gets its full bounded time, not 400 ms, before a 503 is ever chosen.
-  const snap = pickServedSnapshot(await withDeadline(fallbackSnap, COLD_START_READ_MS + 200, null), lastGoodSnap);
-  if (snap) {
-    const fromSnap = await withDeadline(snapshotOnlyResponse(snap, floor).catch(() => null), 600, null);
-    if (fromSnap) return fromSnap;
-  }
+  const fromSnap = await withDeadline(fallbackReply, Math.max(300, TICKER_TOTAL_BUDGET_MS - (Date.now() - t0)), null);
+  if (fromSnap) return fromSnap;
   if (lastGoodResponse) {
     return NextResponse.json(lastGoodResponse.body, {
-      headers: { ...lastGoodResponse.headers, "x-af-snapshot-stale": "1", "Set-Cookie": snapshotFloorCookie(Math.max(lastGoodResponse.version, floor)) },
+      headers: { ...lastGoodResponse.headers, ...belowFloorHeaders(lastGoodResponse.version, floor), "x-af-snapshot-stale": "1", "Set-Cookie": snapshotFloorCookie(Math.max(lastGoodResponse.version, floor)) },
     });
   }
   return noCopyResponse();
+}
+
+/** b45 H-1: whole-request budget; the 5 s bar minus headroom for the Worker to send the reply. */
+const TICKER_TOTAL_BUDGET_MS = 4_600;
+
+/** b45 H-1 (c): a reply below the client's floor names the floor it is under, so it is never unmarked. */
+function belowFloorHeaders(version: number, floor: number): Record<string, string> {
+  return floor > 0 && version < floor ? { "x-af-snapshot-below-floor": String(floor) } : {};
+}
+
+/** b45 H-1 (3) (TT b42: one 200 with 0 NZX and 0 ASX rows): keep this isolate's last equity rows. */
+type Feed = Awaited<ReturnType<typeof loadPublicTicker>>;
+let lastEquityRows: { nzx: Feed["rows"]["nzx"]; asx: Feed["rows"]["asx"] } | null = null;
+function keepEquityRows(feed: Feed): Feed {
+  if (feed.rows.nzx.length || feed.rows.asx.length) {
+    lastEquityRows = { nzx: feed.rows.nzx, asx: feed.rows.asx };
+    return feed;
+  }
+  // Rows keep their own quotedAt; live.equities stays false, so nothing is relabelled as live.
+  return lastEquityRows ? { ...feed, rows: { ...feed.rows, nzx: lastEquityRows.nzx, asx: lastEquityRows.asx } } : feed;
 }
 
 /** b40 REG-1: edge copy first (fast), then the durable snapshot; never throws, bounded. */
@@ -70,7 +94,7 @@ async function fallbackSnapshot(): Promise<CryptoSnap | null> {
 
 /** b40 REG-1: a 200 built only from a snapshot (no live equity fetch), always marked stale. */
 async function snapshotOnlyResponse(snap: CryptoSnap, floor: number) {
-  const feed = await loadPublicTicker({ snapshot: snap, skipEquityFetch: true });
+  const feed = keepEquityRows(await loadPublicTicker({ snapshot: snap, skipEquityFetch: true }));
   if (!feed.rows.crypto.length) return null;
   const body = {
     ok: true,
@@ -91,6 +115,7 @@ async function snapshotOnlyResponse(snap: CryptoSnap, floor: number) {
       "Cache-Control": "no-store, no-cache, must-revalidate",
       "CDN-Cache-Control": "no-store",
       ...snapshotHeaders(snap),
+      ...belowFloorHeaders(snap.version, floor),
       "x-af-snapshot-stale": "1",
       "Set-Cookie": snapshotFloorCookie(Math.max(snap.version, floor)),
     },
@@ -136,13 +161,15 @@ async function buildTicker(floor: number, cookie: string | null, hooksAllowed: b
       void edgeSnapshotPut(snap);
     }
   }
-  const feed = await loadPublicTicker({ snapshot: snap });
+  const feed = keepEquityRows(await loadPublicTicker({ snapshot: snap }));
   // G-05: named stale/failed mark for this browser. Omitted unless the account is allow-listed.
   const testFeedForce = readFeedForce(cookie, hooksAllowed);
   // Never a 200 with an empty crypto list: no copy anywhere is a 503 the tape retries.
   // b41 H-1 (TT: 2 × 503 with a snapshot available): this used to return the 503 as the build's
   // answer, which skipped the fallback snapshot read already running in GET. Null hands over to it.
-  if (!feed.rows.crypto.length && !snap) return null;
+  // b45 H-1 (2): never a version-0 reply. With no stored snapshot the build hands over to the
+  // snapshot fallback in GET (TT b42: 3 × 200 with x-af-snapshot-version 0).
+  if (!snap) return null;
   // b40 H-1 (c): a body older than the client's floor (no newer copy found above) is always marked
   // stale; a cookie client is never served below its floor unmarked.
   const belowFloor = !!snap && floor > 0 && snap.version < floor;
@@ -171,11 +198,12 @@ async function buildTicker(floor: number, cookie: string | null, hooksAllowed: b
         "Cache-Control": "no-store, no-cache, must-revalidate",
         "CDN-Cache-Control": "no-store",
         // b37 H-1: every 200 names its snapshot (version 0 = built without a stored list).
-        ...(snap ? snapshotHeaders(snap) : { "x-af-snapshot-at": feed.asOf || new Date().toISOString(), "x-af-snapshot-version": "0" }),
+        ...snapshotHeaders(snap),
+        ...belowFloorHeaders(snap.version, floor),
         ...(stale ? { "x-af-snapshot-stale": "1" } : {}),
   };
-  if (snap && !stale && !testFeedForce) lastGoodResponse = { body, headers, version: snap.version };
+  if (!stale && !testFeedForce) lastGoodResponse = { body, headers, version: snap.version };
   return NextResponse.json(body, {
-    headers: { ...headers, ...(snap ? { "Set-Cookie": snapshotFloorCookie(Math.max(snap.version, floor)) } : {}) },
+    headers: { ...headers, "Set-Cookie": snapshotFloorCookie(Math.max(snap.version, floor)) },
   });
 }

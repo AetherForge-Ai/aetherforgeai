@@ -1,3 +1,4 @@
+import { TAX_INDICATIVE_LABEL } from "@/lib/tax-disclaimer";
 /**
  * Public Help Assistant safety (CR-2). Pure, client/server safe.
  * - refuses personalised buy/sell requests with general information
@@ -80,9 +81,25 @@ export function sanitizeGuideReply(text: string): string {
 }
 
 export function withGuideDisclaimer(text: string): string {
-  const body = String(text || "").trim();
-  if (body.endsWith(GUIDE_REPLY_DISCLAIMER)) return body;
+  let body = String(text || "").trim();
+  if (body.endsWith(GUIDE_REPLY_DISCLAIMER)) body = body.slice(0, -GUIDE_REPLY_DISCLAIMER.length).trim();
+  body = withTaxLabel(body);
   return body ? `${body}\n\n${GUIDE_REPLY_DISCLAIMER}` : GUIDE_REPLY_DISCLAIMER;
+}
+
+/**
+ * b45 G-23-TAXLABEL (GOAL-LOCK lines 31-32, Chief ruling): any AI answer with NZ tax figures or
+ * rules carries "Indicative, not tax advice." on its own line before the closing disclaimer.
+ */
+const NZ_TAX_TOPIC =
+  /\b(?:FIF|foreign investment fund|fair dividend rate|FDR|comparative value|de minimis|RWT|resident withholding|PIR|prescribed investor rate|imputation credits?|IR3|IRD|Inland Revenue|tax year|tax rate|taxable|income tax|capital gains? tax|bright-?line|NZ\$50,?000 (?:threshold|exemption))\b/i;
+export function mentionsNzTax(text: string): boolean {
+  return NZ_TAX_TOPIC.test(String(text || ""));
+}
+export function withTaxLabel(text: string): string {
+  const body = String(text || "").trim();
+  if (!body || !mentionsNzTax(body) || body.includes(TAX_INDICATIVE_LABEL)) return body;
+  return `${body}\n\n${TAX_INDICATIVE_LABEL}`;
 }
 
 /** Day key in Pacific/Auckland so the budget resets at NZ midnight. */
@@ -131,5 +148,6 @@ export function withAssistantDisclaimer(text: string): string {
   let body = String(text || "").trim();
   body = body.replace(/[_*]*\s*(?:snapshot from your live book\.\s*)?educational\s*\/\s*(?:portfolio\s+)?execution help[^\n]*?financial advice\.?\s*[_*]*\s*$/i, "").trim();
   body = body.replace(/[_*]*\s*general information, not financial advice\.?\s*[_*]*\s*$/i, "").trim();
+  body = withTaxLabel(body);
   return body ? `${body}\n\n${GUIDE_REPLY_DISCLAIMER}` : GUIDE_REPLY_DISCLAIMER;
 }

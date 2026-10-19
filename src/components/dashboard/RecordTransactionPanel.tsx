@@ -1046,10 +1046,20 @@ export function RecordTransactionPanel({
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="record-date">Date</Label>
-              <div className="relative">
+              {/* b45 G-14 P3: Chrome's calendar button inside the hidden date input was an invisible extra tab
+                  stop. It is hidden (CSS) and a click opens the picker instead; the input itself stays the one
+                  keyboard stop (a tabindex of -1 on it would leave the date unreachable), with a visible ring. */}
+              <div className="relative rounded-md focus-within:ring-2 focus-within:ring-ring">
                 <div className="flex h-9 items-center rounded-md border border-input px-3 text-sm">{formatDisplayDate(date)}</div>
                 <input
                   id="record-date"
+                  onClick={(e) => {
+                    try {
+                      (e.currentTarget as HTMLInputElement & { showPicker?: () => void }).showPicker?.();
+                    } catch {
+                      /* showPicker needs a user gesture; the native behaviour still applies */
+                    }
+                  }}
                   type="date"
                   max={today}
                   value={date}
@@ -1063,7 +1073,7 @@ export function RecordTransactionPanel({
                     setQuoteChain("");
                     setFxDirty(false);
                   }}
-                  className="absolute inset-0 cursor-pointer opacity-0"
+                  className="af-date-overlay absolute inset-0 cursor-pointer opacity-0"
                   aria-label={`Date ${formatDisplayDate(date)}`}
                 />
               </div>

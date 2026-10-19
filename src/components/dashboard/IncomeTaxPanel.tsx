@@ -6,6 +6,7 @@ import Link from "next/link";
 import { incomeTaxSummary, taxYearsOnBook, type TaxFigure } from "@/lib/income-tax-summary";
 import { aucklandCivilToday, nzTaxYearEnding } from "@/lib/nz-tax-year";
 import type { PortfolioSnapshot } from "@/lib/portfolio-snapshot";
+import { TAX_INDICATIVE_LABEL } from "@/lib/tax-disclaimer";
 
 export function IncomeTaxPanel({ snapshot, loading }: { snapshot: PortfolioSnapshot | null; loading: boolean }) {
   const years = useMemo(() => (snapshot ? taxYearsOnBook(snapshot) : []), [snapshot]);
@@ -71,6 +72,8 @@ export function IncomeTaxPanel({ snapshot, loading }: { snapshot: PortfolioSnaps
           Tax papers
         </Link>
       </p>
+      {/* b45 G-23-TAXLABEL */}
+      <p className="text-xs text-muted-foreground" data-tax-label>{TAX_INDICATIVE_LABEL}</p>
     </section>
   );
 }
