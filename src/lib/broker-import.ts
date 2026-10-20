@@ -29,6 +29,7 @@ export type ImportBroker =
   | "swyftx"
   | "binance"
   | "easycrypto"
+  | "investnow"
   | "aetherforge"
   | "generic";
 export type BrokerConfidence = "high" | "medium" | "low";
@@ -167,6 +168,7 @@ const BROKER_LABEL: Record<ImportBroker, string> = {
   binance: "Binance",
   easycrypto: "Easy Crypto",
   aetherforge: "AetherForge",
+  investnow: "InvestNow (column map; real layout unverified)",
   generic: "Generic",
 };
 
@@ -670,6 +672,11 @@ export function rewriteKnownLayout(lines: string[]): { lines: string[]; layout: 
   return { lines: [...lines.slice(0, at), ...out], layout: layout.name };
 }
 
+/** BS-02: a title row such as "InvestNow - General Ledger Report" above the header row. */
+export function isInvestNowPreamble(preamble: readonly string[]): boolean {
+  return preamble.some((line) => /invest\s*now/i.test(line));
+}
+
 export function planBrokerImport(
   text: string,
   options?: {
@@ -682,6 +689,8 @@ export function planBrokerImport(
     reviewedRates?: Record<string, number | null>;
     /** Line number to a ticker the member typed. A blank fix is ignored. Nothing is substituted on its own. */
     tickerFixes?: Record<string, string>;
+    /** BS-02: the member picked a broker whose layout has no fixed header (InvestNow). */
+    broker?: "investnow";
   }
 ): ImportPlan {
   const lines = rewriteKnownLayout(linesOf(text || "")).lines;
@@ -692,7 +701,11 @@ export function planBrokerImport(
 
   const headerCells = splitCsvLine(lines[headerAt]).map(normHeader);
 
-  const detection = detectBroker(headerCells);
+  // BS-02: InvestNow has no documented CSV; its General Ledger Report (.xlsx, or a CSV saved from it)
+  // goes through the generic column map. Headers are UNKNOWN, so it is chosen in the picker or named in
+  // a title row above the header; it is never guessed from column names.
+  const investNow = options?.broker === "investnow" || isInvestNowPreamble(lines.slice(0, headerAt));
+  const detection = investNow ? detectionOf("investnow", "low", 0.5) : detectBroker(headerCells);
   const broker = detection.broker;
   const columns = mapFromHeaders(headerCells, options?.mapping);
   const holdingsShape = columns.side < 0 && columns.ticker >= 0 && columns.quantity >= 0 && columns.price >= 0;

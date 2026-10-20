@@ -35,7 +35,7 @@ jobs:
         run: npx tsc --noEmit --skipLibCheck
       - name: NZ tax / IRD examples to the cent
         if: always()
-        run: npx vitest run --maxWorkers=2 src/lib/tax src/lib/fif src/lib/taxable src/lib/dividend src/lib/ir3 src/lib/must-fix/goal-b8.test.ts
+        run: npx vitest run --maxWorkers=2 src/lib/tax src/lib/nz-tax-calc src/lib/fif src/lib/taxable src/lib/dividend src/lib/ir3 src/lib/must-fix/goal-b8.test.ts
       - name: H-10 broker import fixtures
         if: always()
         run: npx vitest run --maxWorkers=2 src/lib/broker-import src/lib/import
