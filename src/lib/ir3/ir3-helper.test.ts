@@ -133,7 +133,7 @@ describe("G-31 quick sale wired into the FIF paper and IR3 17B", () => {
     const h = buildIr3Helper({ income: taxableIncome(book, 2026), fif });
     expect(h.lines.find((l) => l.incomeType === "FIF income")!.grossNzd).toBe(12_200);
     expect(fifPaperLines(fif).join("\n")).toMatch(/quick sale adjustment NZD 2200\.00 \(IR461/);
-    expect(fifCsv(fif)).toMatch(/quick-sale adjustment \(IR461, in FDR\),,,,2200\.00/);
+    expect(fifCsv(fif)).toMatch(/quick-sale adjustment \(IR461, in FDR\)",,,,2200\.00/);
   });
   it("no quick sale (buys only): totals unchanged, no quick-sale line", () => {
     const only = [usd("buy", "2024-06-01", 10_000, 10), usd("buy", "2025-10-01", 5_000, 11)];
