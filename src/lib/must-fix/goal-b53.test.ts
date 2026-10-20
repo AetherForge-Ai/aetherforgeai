@@ -1,4 +1,4 @@
-// pull-check:v3-goal-b53a-2026-10-21 (b53 pins; b53a build fix in goal-b53a.test.ts)
+// pull-check:v3-goal-b53b-2026-10-21 (b53 pins; b53a build fix in goal-b53a.test.ts)
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { slotAlreadyBuilt } from "@/lib/track-record-slot";
@@ -8,7 +8,7 @@ const read = (p: string) => readFileSync(p, "utf8");
 describe("b53 ship pins (BS-01, G-20, BS-02, BS-02-VERIFY)", () => {
   it("cron-fallback runs twice an hour and can be dispatched", () => {
     const y = read(".github/workflows/cron-fallback.yml");
-    expect(y).toContain('cron: "7,37 * * * *"');
+    expect(y).toContain('cron: "10,40,55 * * * *"');
     expect(y).toContain("workflow_dispatch:");
   });
   it("a duplicate track-record slot run is a no-op", () => {

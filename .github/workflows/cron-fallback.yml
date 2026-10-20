@@ -7,10 +7,9 @@
 name: cron-fallback
 on:
   schedule:
-    # b53: GitHub dropped the 04:37, 05:37 and 06:37 UTC slots on 20 Oct (syntax valid, main is default,
-    # workflow active, dispatch works). Two minutes per hour so one dropped slot is covered; the busy
-    # check, the concurrency group and the track-record slot key make a double run a no-op.
-    - cron: "7,37 * * * *"
+    # b53b BS-01/G-20: slot-aware. Runs at :10, :40 and :55 so a missed 16:07 broker-sync slot (grace 45 min)
+    # is dispatched by 16:55 and a missed :23 track-record slot by :10 the next hour (both within 1 hour).
+    - cron: "10,40,55 * * * *"
   workflow_dispatch:
 permissions:
   actions: write
@@ -27,33 +26,9 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       REPO: ${{ github.repository }}
     steps:
-      - name: Dispatch overdue cron jobs
-        run: |
-          set -euo pipefail
-          now=$(date -u +%s)
-          # A cron.yml run already queued or running covers it; do not stack another.
-          busy=$(gh api "repos/$REPO/actions/workflows/cron.yml/runs?per_page=10" --jq '[.workflow_runs[] | select(.status=="queued" or .status=="in_progress")] | length')
-          if [ "$busy" != "0" ]; then echo "cron.yml has $busy run(s) queued or running; nothing to do."; exit 0; fi
-          ids=$(gh api "repos/$REPO/actions/workflows/cron.yml/runs?per_page=40" --jq '.workflow_runs[].id')
-          last_ok() {
-            local job="$1" best=0 t
-            for id in $ids; do
-              t=$(gh api "repos/$REPO/actions/runs/$id/jobs" --jq "[.jobs[] | select(.name==\"$job\" and .conclusion==\"success\") | .completed_at] | first // empty")
-              if [ -n "$t" ]; then t=$(date -u -d "$t" +%s); if [ "$t" -gt "$best" ]; then best=$t; fi; fi
-            done
-            echo "$best"
-          }
-          check() {
-            local job="$1" limit_h="$2" last age
-            last=$(last_ok "$job")
-            age=$(( (now - last) / 3600 ))
-            if [ "$last" = "0" ] || [ $(( now - last )) -gt $(( limit_h * 3600 )) ]; then
-              echo "::notice title=cron-fallback::$job last succeeded ${age}h ago (limit ${limit_h}h); dispatching cron.yml job=$job"
-              gh workflow run cron.yml --repo "$REPO" --ref main -f job="$job"
-              return 0
-            fi
-            echo "$job last succeeded ${age}h ago (limit ${limit_h}h): on time"
-          }
-          # broker-sync: daily (24 h) + 3 h slack. track-record: every 6 h + 2 h slack.
-          check broker-sync 27
-          check track-record 8
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts/cron-watchdog.mjs
+          sparse-checkout-cone-mode: false
+      - name: Dispatch missed cron.yml slots
+        run: node scripts/cron-watchdog.mjs
