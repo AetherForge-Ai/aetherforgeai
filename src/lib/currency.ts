@@ -357,6 +357,15 @@ export function sumRoundedMoney(parts: readonly number[]): number {
   return cents / 100;
 }
 
+/**
+ * b51 G-12: THE rounding rule for every tax figure — to the cent, half-up (half away from zero on the
+ * decimal digits), via roundMoney — shared by the page (formatNzd), the PDF (tax-pack) and every CSV.
+ * A money cell is that rounded value with exactly 2 decimals.
+ */
+export function moneyCell(value: number): string {
+  return roundMoney(value).toFixed(2);
+}
+
 export function roundMoney(value: number): number {
   if (!Number.isFinite(value)) return 0;
   const negative = value < 0;

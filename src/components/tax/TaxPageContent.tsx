@@ -44,8 +44,8 @@ const SOURCES = [
     label: "Inland Revenue — Foreign investment funds",
   },
   {
-    href: "https://www.ird.govt.nz/income-tax/income-tax-for-individuals/types-of-individual-income/foreign-income/foreign-tax-credits",
-    label: "Inland Revenue — Foreign tax credits",
+    href: "https://www.ird.govt.nz/income-tax/income-tax-for-individuals/types-of-individual-income/overseas-income",
+    label: "Inland Revenue — Overseas income and foreign tax credits",
   },
 ] as const;
 

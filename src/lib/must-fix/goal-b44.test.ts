@@ -37,6 +37,6 @@ describe("b44 G-14: Add panel focus trap keeps fixed-position controls", () => {
 
 describe("b44 version", () => {
   it("build marker", () => {
-    expect(read("public/build-version.txt")).toContain("v3-goal-b50-2026-10-19");
+    expect(read("public/build-version.txt")).toContain("v3-goal-b51-2026-10-20");
   });
 });

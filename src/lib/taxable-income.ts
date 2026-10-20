@@ -1,3 +1,4 @@
+import { moneyCell } from "@/lib/currency";
 import { csvEscape } from "@/lib/csv-cell";
 /**
  * Taxable-income summary for one 1 April–31 March year.
@@ -195,7 +196,7 @@ export const TAXABLE_INCOME_CSV_COLUMNS = [
 
 function cellMoney(value: number | null): string {
   if (value == null) return "";
-  return roundMoney(value).toFixed(2);
+  return moneyCell(value); // b51 G-12: the one rule
 }
 
 export function taxableIncomeCsv(report: TaxableIncomeReport, formatDate: (value: string) => string): string {
