@@ -16,7 +16,7 @@ export interface FunnelRow {
   plan_result: string;
 }
 
-/** Crypto random anon id (never Math.random). */
+/** Crypto random anon id (Web Crypto only). */
 export function newAnonId(): string {
   const b = new Uint8Array(18);
   crypto.getRandomValues(b);

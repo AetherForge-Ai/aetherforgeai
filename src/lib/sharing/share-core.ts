@@ -25,7 +25,7 @@ function hex(bytes: Uint8Array): string {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-/** 32 random bytes from Web Crypto (never Math.random), base64url. */
+/** 32 random bytes from Web Crypto (Web Crypto only), base64url. */
 export function newShareToken(): string {
   const bytes = new Uint8Array(32);
   crypto.getRandomValues(bytes);

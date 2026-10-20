@@ -36,7 +36,7 @@ export async function POST(req: Request) {
       const share = (await sharesFor({ token_hash: tokenHash }))[0];
       if (!share) return NextResponse.json({ ok: false, error: "This link is not valid." }, { status: 404 });
       const out = acceptShare(share, user._id, now);
-      if (!out.ok) return NextResponse.json({ ok: false, error: `This link cannot be used (${out.reason}).` }, { status: 410 });
+      if (!out.ok || !("share" in out)) return NextResponse.json({ ok: false, error: `This link cannot be used (${"reason" in out ? out.reason : "invalid"}).` }, { status: 410 });
       await updateShareRow(share._id, { invitee: out.share.invitee, status: "accepted" });
       await logShareEvent({ share: share._id, portfolio_id: share.portfolio_id, actor: user._id, event: "accept", ip_trunc: ip });
       return NextResponse.json({ ok: true, data: { status: "accepted" } });

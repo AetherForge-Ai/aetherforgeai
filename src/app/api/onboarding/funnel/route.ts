@@ -22,7 +22,7 @@ export async function POST(req: Request) {
   const key = user?._id || anonId || "anon";
   if (!limit(key)) return NextResponse.json({ ok: false, error: "Too many events." }, { status: 429 });
   const decision = funnelRow({ event: body.event, stepKey: body.stepKey, planResult: body.planResult, userId: user?._id || null, anonId, consent: body.consent === true });
-  if (!decision.write) return new NextResponse(null, { status: decision.reason === "no_consent" ? 204 : 400 });
+  if (!decision.write) return new NextResponse(null, { status: "reason" in decision && decision.reason === "no_consent" ? 204 : 400 });
   try {
     const { user: u, ...rest } = decision.row;
     await totalumSdk.crud.createRecord(ONBOARDING_FUNNEL_EVENT.table, (u ? { ...rest, user: u } : rest) as never);
