@@ -1,4 +1,4 @@
-// pull-check:v3-goal-b53-2026-10-21
+// pull-check:v3-goal-b53a-2026-10-21 (b53 pins; b53a build fix in goal-b53a.test.ts)
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { slotAlreadyBuilt } from "@/lib/track-record-slot";
