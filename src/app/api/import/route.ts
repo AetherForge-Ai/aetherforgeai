@@ -148,6 +148,7 @@ async function planWithReviewedFx(
     openingCashNzd?: number;
     fundBuys?: boolean;
     tickerFixes?: Record<string, string>;
+    broker?: "investnow";
   }
 ) {
   const draft = planBrokerImport(text, options);
@@ -208,6 +209,7 @@ export async function POST(req: Request) {
       fundBuys?: unknown;
       batchId?: unknown;
       tickerFixes?: unknown;
+      broker?: unknown;
     };
     const text = typeof body.text === "string" ? body.text : "";
     if (importTextTooLarge(text)) {
@@ -261,9 +263,10 @@ export async function POST(req: Request) {
     const tickerFixes = fixesOf(body.tickerFixes);
     const acknowledgeSkipped = body.acknowledgeSkipped === true;
     const fundBuys = body.fundBuys === true;
+    const broker = body.broker === "investnow" ? ("investnow" as const) : undefined; // BS-02 picker
     const openingCashNzd = typeof user.cash_balance === "number" ? user.cash_balance : 0;
     if (body.confirm !== true) {
-      const draft = await planWithReviewedFx(text, { mapping, openingCashNzd, fundBuys, tickerFixes });
+      const draft = await planWithReviewedFx(text, { mapping, openingCashNzd, fundBuys, tickerFixes, broker });
       if (draft.needsMapping) {
         return NextResponse.json({
           ok: true,
@@ -280,6 +283,7 @@ export async function POST(req: Request) {
       fundBuys,
       existingKeys: keysFrom(stored),
       tickerFixes,
+      broker,
     });
     // b22 H-10: a re-upload of an imported file is a 409 even when every row is already a duplicate.
     if (body.confirm === true) {
@@ -309,6 +313,7 @@ export async function POST(req: Request) {
       fundBuys,
       existingKeys: keysFrom(fresh),
       tickerFixes,
+      broker,
     });
     const invalid = validateImportForWrite(committed, acknowledgeSkipped);
     if (invalid || !importWrites(committed, acknowledgeSkipped)) {

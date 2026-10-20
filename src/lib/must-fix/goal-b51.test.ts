@@ -30,7 +30,7 @@ describe("b51 M-2: /status fallbacks start together", () => {
 });
 
 describe("b51 BS-01: cron watchdog", () => {
-  const wf = read("qa/parked/cron-fallback.yml.txt") // b51a: parked (Totalum sync diagnosis); not a live workflow;
+  const wf = read(".github/workflows/cron-fallback.yml"); // BS-01: restored (Totalum has Workflows read/write)
   it("hourly; dispatches cron.yml only when overdue; no secrets, no app calls", () => {
     expect(wf).toMatch(/cron: "37 \* \* \* \*"/);
     expect(wf).toMatch(/check broker-sync 27/);
@@ -47,6 +47,6 @@ describe("b51 BS-01: cron watchdog", () => {
 
 describe("b51 build marker", () => {
   it("pins the build", () => {
-    expect(read("public/build-version.txt")).toContain("v3-goal-b51a-2026-10-20");
+    expect(read("public/build-version.txt")).toContain("v3-goal-b52-2026-10-20");
   });
 });

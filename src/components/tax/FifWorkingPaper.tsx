@@ -117,6 +117,12 @@ export function FifPositionCard({
       <p className="mt-1 text-sm text-muted-foreground">
         Fair dividend rate {signedOrBlank(position.fdrNzd)}. Comparative value {signedOrBlank(position.cvNzd)}.
       </p>
+      {position.quickSaleNzd ? (
+        <p className="mt-1 text-sm text-muted-foreground" data-quick-sale>
+          Fair dividend rate = 5% of opening {moneyOrBlank(position.fdrBaseNzd ?? null)} + quick sale adjustment{" "}
+          {moneyOrBlank(position.quickSaleNzd)} (IR461, April 2026). Indicative, not tax advice.
+        </p>
+      ) : null}
       {position.omittedDividendCash ? (
         <p className="mt-2 text-sm text-muted-foreground">
           A dividend on this holding has no stored gross, so it is left out of gains.

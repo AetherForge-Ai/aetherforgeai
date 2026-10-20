@@ -6,6 +6,7 @@ const LINKS = [
   { href: "/tax/income", label: "Income summary" },
   { href: "/tax/fif", label: "FIF" },
   { href: "/tax/realised", label: "Realised" },
+  { href: "/tax/ir3", label: "IR3 helper" },
 ] as const;
 
 /** Cross-links between the tax papers. Sub-pages stay reachable, and each one can return here. */
