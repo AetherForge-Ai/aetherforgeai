@@ -1,0 +1,44 @@
+# Unit tests in CI (Lukas/Chief 20 Oct 2026: the box is low on memory, so tests run here, not locally).
+# Runs on pull requests into develop/main and on manual dispatch. No secrets, no app calls, no deploy.
+name: tests
+on:
+  pull_request:
+    branches: [develop, main]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch, tag or SHA to test (default: the dispatched ref)"
+        required: false
+        default: ""
+permissions:
+  contents: read
+concurrency:
+  group: tests-${{ github.event.pull_request.number || github.event.inputs.ref || github.ref }}
+  cancel-in-progress: true
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref || '' }}
+          fetch-depth: 0
+      # Some guard tests diff against origin/develop.
+      - run: git fetch --no-tags origin develop:refs/remotes/origin/develop || true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Typecheck (tsc --noEmit)
+        run: npx tsc --noEmit --skipLibCheck
+      - name: NZ tax / IRD examples to the cent
+        if: always()
+        run: npx vitest run --maxWorkers=2 src/lib/tax src/lib/fif src/lib/taxable src/lib/dividend src/lib/ir3 src/lib/must-fix/goal-b8.test.ts
+      - name: H-10 broker import fixtures
+        if: always()
+        run: npx vitest run --maxWorkers=2 src/lib/broker-import src/lib/import
+      - name: Full unit suite
+        if: always()
+        run: npx vitest run --maxWorkers=2

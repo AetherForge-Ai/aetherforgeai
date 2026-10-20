@@ -7,7 +7,7 @@ const read = (p: string) => readFileSync(p, "utf8");
 
 describe("b31 version bump", () => {
   it("marker and pull-check line", () => {
-    expect(read("public/build-version.txt").trim()).toMatch(/^v3-goal-b(3[1-9]|[4-9]\d)-/);
+    expect(read("public/build-version.txt").trim()).toMatch(/^v3-goal-b(3[1-9]|[4-9]\d)[a-z]?-/);
     expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-goal-b31-2026-10-19");
   });
 });
