@@ -13,6 +13,8 @@ import { latestIso, savedSnapshotLabel, shapeStatusFeed, type StatusFeedRow } fr
 
 /** b31 M-2/REG-1: a probe waits at most this long; on a timeout the last OK time is shown. */
 export const STATUS_PROBE_TIMEOUT_MS = 1_500;
+/** b51 M-2: how long the tape may keep loading for the equity quote time (the page bar is 5 s). */
+export const STATUS_TAPE_LATE_MS = 3_000;
 const lastOk: Record<string, string> = {};
 
 function remember(key: string, at: string | null | undefined): string | null {
@@ -74,8 +76,12 @@ async function within<T>(work: Promise<T>, ms = STATUS_PROBE_TIMEOUT_MS): Promis
  * b37 M-2: the "unavailable" fallback is gone. The saved time is always considered (seed plus memory), and
  * with no time anywhere the row says so plainly instead of reading as an outage.
  */
-async function equityRow(row: StatusFeedRow, now: number): Promise<StatusFeedRow> {
+async function equityRow(row: StatusFeedRow, now: number, tapeLate?: Promise<{ rows: { nzx: Array<{ quotedAt?: string | null }>; asx: Array<{ quotedAt?: string | null }> } } | null>): Promise<StatusFeedRow> {
   if (!/^unavailable/.test(row.text)) return row;
+  const lateTape = async () => {
+    const t = tapeLate ? await tapeLate.catch(() => null) : null;
+    return t ? latestIso([...t.rows.nzx, ...t.rows.asx].map((r) => r.quotedAt ?? null)) : null;
+  };
   const { latestSavedEquityAt } = await import("@/lib/stock-board.server");
   // b41 P3: then the ticker's own last good equity quotes (memory, then the colo copy).
   const { lastGoodEquityAt } = await import("@/lib/public-ticker");
@@ -86,7 +92,7 @@ async function equityRow(row: StatusFeedRow, now: number): Promise<StatusFeedRow
     return rows ? latestIso([...(rows.nzx ?? []), ...(rows.asx ?? [])].map((r) => r.quotedAt)) : null;
   };
   const at =
-    latestSavedEquityAt() ?? (await lastOkFor("equity")) ?? (await within(lastGoodEquityAt(), 800)) ?? (await within(coloRows(), 700));
+    latestSavedEquityAt() ?? (await lastOkFor("equity")) ?? (await within(lastGoodEquityAt(), 800)) ?? (await within(coloRows(), 700)) ?? remember("equity", await lateTape());
   return at
     ? { ...row, tone: "amber", text: savedSnapshotLabel(at, now) }
     : { ...row, tone: "amber", text: EQUITY_NO_TIME_TEXT };
@@ -96,10 +102,20 @@ export const EQUITY_NO_TIME_TEXT = "— no saved quote time yet";
 
 /** Provider timestamps only. A failed or baseline feed is unavailable. */
 export async function loadStatusFeeds(now = Date.now()): Promise<StatusFeedRow[]> {
+  // b51 M-2: every crypto fallback starts now, alongside the probes (see the crypto row below).
+  const { readCryptoSnapshot } = await import("@/lib/crypto-snapshot");
+  const { edgeSnapshotGet } = await import("@/lib/ticker-serve");
+  const snapP = within(readCryptoSnapshot());
+  const edgeP = within(edgeSnapshotGet<{ version: number; at: string }>(800), 900);
+  const lastOkP = lastOkFor("crypto");
+  const attemptP = within(readSharedCryptoAttempt(), 1_600);
+  // b51 M-2 (TT b50: equities "no saved quote time yet" 2/140, cold IAD isolates): the tape keeps
+  // loading past the probe timeout; a late tape still supplies the NZX/ASX quote time (same request).
+  const tapeLate = loadPublicTickerBounded(STATUS_TAPE_LATE_MS);
   const [fx, metals, tape] = await Promise.all([
     within(getFxSnapshot()),
     within(getMetalsSpot()),
-    within(loadPublicTickerBounded(STATUS_PROBE_TIMEOUT_MS - 100)),
+    within(tapeLate, STATUS_PROBE_TIMEOUT_MS - 100),
   ]);
   const tapeTimedOut = !tape;
   const fxTimedOut = !fx;
@@ -114,22 +130,21 @@ export async function loadStatusFeeds(now = Date.now()): Promise<StatusFeedRow[]
   const equityAt = equityFresh ?? (await lastOkFor("equity"));
   // b37 M-2: crypto "Last OK" comes from the shared snapshot, the same source as the page's
   // x-af-snapshot-at stamp, so the two times can't disagree. The tape is used only when there's no snapshot.
-  const { readCryptoSnapshot } = await import("@/lib/crypto-snapshot");
-  const snap = await within(readCryptoSnapshot());
+  // b51 M-2 (TT b50: crypto "unavailable" on 1 of 140 loads, a 5.1 s cold IAD load): the fallbacks used to
+  // run one after another (up to ~5 s). They now start together and the first in priority order wins:
+  // snapshot → tape → colo snapshot copy → colo last-OK time → last successful shared refresh attempt
+  // (a succeeded refresh wrote a snapshot at that time) → one longer stored read.
+  const snap = await snapP;
   let cryptoAt = remember("crypto", snap?.at ?? null);
+  if (!cryptoAt) cryptoAt = tapeTimedOut ? null : remember("crypto", latestIso((tape?.rows.crypto ?? []).map((row) => row.quotedAt)));
+  if (!cryptoAt) cryptoAt = remember("crypto", (await edgeP)?.at ?? null);
+  if (!cryptoAt) cryptoAt = await lastOkP;
   if (!cryptoAt) {
-    cryptoAt = tapeTimedOut ? null : remember("crypto", latestIso((tape?.rows.crypto ?? []).map((row) => row.quotedAt)));
+    const att = (await attemptP)?.last;
+    cryptoAt = att?.ok && att.at ? remember("crypto", att.at) : null;
   }
   if (!cryptoAt) {
-    // b40 M-2: the edge snapshot copy, then the colo's last OK time; never "unavailable" while one exists.
-    const { edgeSnapshotGet } = await import("@/lib/ticker-serve");
-    const edge = await within(edgeSnapshotGet<{ version: number; at: string }>(800), 900); // b46 M-2: was 300 ms
-    cryptoAt = edge?.at ? remember("crypto", edge.at) : await lastOkFor("crypto");
-  }
-  if (!cryptoAt) {
-    // b49 M-2 (TT b48: crypto "Last OK unavailable" on a miss): one more, longer stored-snapshot read
-    // (with its torn-read retry); the snapshot's own time is shown rather than "unavailable".
-    const again = await within(readCryptoSnapshot(2_500), 2_700);
+    const again = await within(readCryptoSnapshot(2_000), 2_200);
     cryptoAt = again?.at ? remember("crypto", again.at) : null;
   }
   edgeTimePut("crypto", cryptoAt);
@@ -140,7 +155,7 @@ export async function loadStatusFeeds(now = Date.now()): Promise<StatusFeedRow[]
   const metalsAt = metalsTimedOut ? lastOk.metals ?? null : remember("metals", metals?.live ? metals.quotedAt : null);
   const killed = cryptoFeedKilled();
   return [
-    await equityRow(withLastOk(shapeStatusFeed({ label: FEED_FORCE_LABEL.equity, at: equityAt, now, ...FEED_FRESHNESS_WINDOWS.equity }), tapeTimedOut), now),
+    await equityRow(withLastOk(shapeStatusFeed({ label: FEED_FORCE_LABEL.equity, at: equityAt, now, ...FEED_FRESHNESS_WINDOWS.equity }), tapeTimedOut), now, tapeLate),
     withLastOk(shapeStatusFeed({
       label: FEED_FORCE_LABEL.crypto,
       at: cryptoAt,
@@ -149,7 +164,7 @@ export async function loadStatusFeeds(now = Date.now()): Promise<StatusFeedRow[]
       failed: killed,
       failedText: "— switched off by the operator",
     }), cryptoTimedOut),
-    (await within(cryptoAttemptRow())) ?? localCryptoAttemptRow(),
+    (await within(cryptoAttemptRow(attemptP))) ?? localCryptoAttemptRow(),
     withLastOk(shapeStatusFeed({
       label: FEED_FORCE_LABEL.fx,
       at: fxAt,
@@ -178,8 +193,10 @@ function localCryptoAttemptRow(): StatusFeedRow {
 }
 let lastSharedAttempt: CryptoAttempt | null = null;
 
-async function cryptoAttemptRow(): Promise<StatusFeedRow> {
-  const { last, scope } = await readSharedCryptoAttempt();
+async function cryptoAttemptRow(early?: Promise<Awaited<ReturnType<typeof readSharedCryptoAttempt>> | null> | null): Promise<StatusFeedRow> {
+  // b51: reuse the read started with the crypto row (one store read per load, not two).
+  const got = (early ? await early : null) ?? (await readSharedCryptoAttempt());
+  const { last, scope } = got;
   if (!last) return { label: "Crypto list last attempt", tone: "amber", text: "— no refresh attempt recorded yet" };
   lastSharedAttempt = last;
   return {

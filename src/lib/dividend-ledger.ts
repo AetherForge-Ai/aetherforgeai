@@ -1,3 +1,4 @@
+import { moneyCell } from "@/lib/currency";
 import { csvEscape } from "@/lib/csv-cell";
 /**
  * Dividend breakdown stored in the existing transaction.notes field.
@@ -137,7 +138,7 @@ export function buildDividendRecord(input: {
 }
 
 function money(value: number): string {
-  return roundMoney(value).toFixed(2);
+  return moneyCell(value); // b51 G-12: the one rule
 }
 
 function fxText(value: number): string {
@@ -323,7 +324,7 @@ export const DIVIDEND_CSV_COLUMNS = [
 /** Blank when the figure was not stored. A stored zero stays 0.00. */
 function csvMoneyCell(value: number | null): string {
   if (value == null) return "";
-  return roundMoney(value).toFixed(2);
+  return moneyCell(value); // b51 G-12: the one rule
 }
 
 export function dividendCsv(rows: readonly DividendView[], formatDate: (value: string) => string): string {

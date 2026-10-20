@@ -132,12 +132,12 @@ describe("b49: a crypto row hours behind the list is dropped (TT b48: one row 16
 
 describe("b49 M-2: /status crypto Last OK falls back to the snapshot time", () => {
   it("does one longer stored read before giving up", () => {
-    expect(read("src/lib/status-feeds.server.ts")).toMatch(/within\(readCryptoSnapshot\(2_500\), 2_700\)/);
+    expect(read("src/lib/status-feeds.server.ts")).toMatch(/within\(readCryptoSnapshot\(2_000\), 2_200\)/);
   });
 });
 
 describe("b49 build marker", () => {
   it("pins the build", () => {
-    expect(read("public/build-version.txt")).toContain("v3-goal-b50-2026-10-19");
+    expect(read("public/build-version.txt")).toContain("v3-goal-b51-2026-10-20");
   });
 });
