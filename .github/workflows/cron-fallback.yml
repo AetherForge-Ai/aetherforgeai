@@ -7,7 +7,10 @@
 name: cron-fallback
 on:
   schedule:
-    - cron: "37 * * * *"
+    # b53: GitHub dropped the 04:37, 05:37 and 06:37 UTC slots on 20 Oct (syntax valid, main is default,
+    # workflow active, dispatch works). Two minutes per hour so one dropped slot is covered; the busy
+    # check, the concurrency group and the track-record slot key make a double run a no-op.
+    - cron: "7,37 * * * *"
   workflow_dispatch:
 permissions:
   actions: write

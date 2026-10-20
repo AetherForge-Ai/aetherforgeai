@@ -16,7 +16,7 @@ describe("b52 Batch 2 ship pins", () => {
     expect(read("src/lib/tax-pack.ts")).toContain("quick-sale adjustment (IR461, in FDR)");
   });
   it("BS-02: InvestNow import is labelled real-layout unverified", () => {
-    expect(read("src/lib/broker-import.ts")).toContain("real layout unverified");
+    expect(read("src/lib/broker-import.ts")).toContain("Beta, layout not yet verified against a real export");
   });
   it("BS-01: cron fallback workflow restored", () => {
     expect(existsSync(".github/workflows/cron-fallback.yml")).toBe(true);

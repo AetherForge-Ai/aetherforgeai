@@ -32,7 +32,7 @@ describe("b51 M-2: /status fallbacks start together", () => {
 describe("b51 BS-01: cron watchdog", () => {
   const wf = read(".github/workflows/cron-fallback.yml"); // BS-01: restored (Totalum has Workflows read/write)
   it("hourly; dispatches cron.yml only when overdue; no secrets, no app calls", () => {
-    expect(wf).toMatch(/cron: "37 \* \* \* \*"/);
+    expect(wf).toMatch(/cron: "(7,)?37 \* \* \* \*"/);
     expect(wf).toMatch(/check broker-sync 27/);
     expect(wf).toMatch(/check track-record 8/);
     expect(wf).toMatch(/gh workflow run cron\.yml --repo "\$REPO" --ref main -f job="\$job"/);
