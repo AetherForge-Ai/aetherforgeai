@@ -1,3 +1,143 @@
 # https://developers.cloudflare.com/workers/static-assets/headers
 /_next/static/*
   Cache-Control: public,max-age=31536000,immutable
+
+# b38: Content-Type for public static files (TT: /brand, /docs, favicon and webmanifest had none).
+/brand/about-hero.jpg
+  Content-Type: image/jpeg
+  X-Content-Type-Options: nosniff
+/brand/aetherforge-icon-192.png
+  Content-Type: image/png
+  X-Content-Type-Options: nosniff
+/brand/aetherforge-icon-512.png
+  Content-Type: image/png
+  X-Content-Type-Options: nosniff
+/brand/aetherforge-mark.png
+  Content-Type: image/png
+  X-Content-Type-Options: nosniff
+/brand/af-home-hero-portfolio-web.png
+  Content-Type: image/png
+  X-Content-Type-Options: nosniff
+/brand/bot-headmaster-fullbody.png
+  Content-Type: image/png
+  X-Content-Type-Options: nosniff
+/brand/bot-headmaster-fullbody.webp
+  Content-Type: image/webp
+  X-Content-Type-Options: nosniff
+/brand/bot-headmaster.jpg
+  Content-Type: image/jpeg
+  X-Content-Type-Options: nosniff
+/brand/bot-koins-fullbody.png
+  Content-Type: image/png
+  X-Content-Type-Options: nosniff
+/brand/bot-koins-fullbody.webp
+  Content-Type: image/webp
+  X-Content-Type-Options: nosniff
+/brand/bot-koins.png
+  Content-Type: image/png
+  X-Content-Type-Options: nosniff
+/brand/bot-personal-guide.svg
+  Content-Type: image/svg+xml
+  X-Content-Type-Options: nosniff
+/brand/bot-smitty-dashboard.png
+  Content-Type: image/png
+  X-Content-Type-Options: nosniff
+/brand/bot-smitty-fullbody.png
+  Content-Type: image/png
+  X-Content-Type-Options: nosniff
+/brand/bot-smitty-fullbody.webp
+  Content-Type: image/webp
+  X-Content-Type-Options: nosniff
+/brand/bot-smitty-holdings.png
+  Content-Type: image/png
+  X-Content-Type-Options: nosniff
+/brand/bot-smitty-holdings.webp
+  Content-Type: image/webp
+  X-Content-Type-Options: nosniff
+/brand/bot-smitty-sitter.png
+  Content-Type: image/png
+  X-Content-Type-Options: nosniff
+/brand/bot-smitty.png
+  Content-Type: image/png
+  X-Content-Type-Options: nosniff
+/brand/bot-stox-fullbody.png
+  Content-Type: image/png
+  X-Content-Type-Options: nosniff
+/brand/bot-stox-fullbody.webp
+  Content-Type: image/webp
+  X-Content-Type-Options: nosniff
+/brand/bot-stox.png
+  Content-Type: image/png
+  X-Content-Type-Options: nosniff
+/brand/bot-totalum.png
+  Content-Type: image/png
+  X-Content-Type-Options: nosniff
+/brand/favicon-32.png
+  Content-Type: image/png
+  X-Content-Type-Options: nosniff
+/brand/forge-intelligence-logo.png
+  Content-Type: image/png
+  X-Content-Type-Options: nosniff
+/brand/founder-portrait.jpeg
+  Content-Type: image/jpeg
+  X-Content-Type-Options: nosniff
+/brand/gold-bricks-messy.png
+  Content-Type: image/png
+  X-Content-Type-Options: nosniff
+/brand/gold-bricks-stack.png
+  Content-Type: image/png
+  X-Content-Type-Options: nosniff
+/brand/home-hero-portfolio.png
+  Content-Type: image/png
+  X-Content-Type-Options: nosniff
+/brand/home-hero-portfolio.webp
+  Content-Type: image/webp
+  X-Content-Type-Options: nosniff
+/brand/og-1200x630.png
+  Content-Type: image/png
+  X-Content-Type-Options: nosniff
+/brand/precious-metals-smitty.png
+  Content-Type: image/png
+  X-Content-Type-Options: nosniff
+/brand/precious-metals-smitty.webp
+  Content-Type: image/webp
+  X-Content-Type-Options: nosniff
+/brand/precious-metals-trolley-cauldron.png
+  Content-Type: image/png
+  X-Content-Type-Options: nosniff
+/brand/precious-metals-trolley.png
+  Content-Type: image/png
+  X-Content-Type-Options: nosniff
+/brand/silver-bricks-messy.png
+  Content-Type: image/png
+  X-Content-Type-Options: nosniff
+/brand/silver-bricks-stack.png
+  Content-Type: image/png
+  X-Content-Type-Options: nosniff
+/docs/edit-or-delete-a-row.png
+  Content-Type: image/png
+  X-Content-Type-Options: nosniff
+/docs/export-your-ledger.png
+  Content-Type: image/png
+  X-Content-Type-Options: nosniff
+/docs/import-a-csv.png
+  Content-Type: image/png
+  X-Content-Type-Options: nosniff
+/docs/income-and-tax-view.png
+  Content-Type: image/png
+  X-Content-Type-Options: nosniff
+/docs/read-price-freshness.png
+  Content-Type: image/png
+  X-Content-Type-Options: nosniff
+/docs/record-a-trade.png
+  Content-Type: image/png
+  X-Content-Type-Options: nosniff
+/docs/run-a-report.png
+  Content-Type: image/png
+  X-Content-Type-Options: nosniff
+/favicon.ico
+  Content-Type: image/x-icon
+  X-Content-Type-Options: nosniff
+/site.webmanifest
+  Content-Type: application/manifest+json
+  X-Content-Type-Options: nosniff

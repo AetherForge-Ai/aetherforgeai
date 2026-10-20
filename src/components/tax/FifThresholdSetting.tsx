@@ -1,4 +1,5 @@
 "use client";
+import { TAX_INDICATIVE_LABEL } from "@/lib/tax-disclaimer";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -46,6 +47,8 @@ export function FifThresholdSetting({ initialNzd }: { initialNzd: number }) {
       <p className="mt-2 text-xs text-muted-foreground" aria-live="polite">
         {state === "saving" ? "Saving…" : message || "Saved for this portfolio. The working paper and the tax pack print the value used."}
       </p>
+      {/* b45 G-23-TAXLABEL */}
+      <p className="mt-2 text-xs text-muted-foreground" data-tax-label>{TAX_INDICATIVE_LABEL}</p>
     </fieldset>
   );
 }

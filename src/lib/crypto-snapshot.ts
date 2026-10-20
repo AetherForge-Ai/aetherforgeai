@@ -18,6 +18,7 @@
  */
 
 import "server-only";
+import { edgeSnapshotPut, runtimeErrorClass } from "@/lib/ticker-serve";
 
 import { readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -586,24 +587,70 @@ export function packWatchlistBody(body: string, max = WATCHLIST_SNAPSHOT_MAX): s
   return packed.length <= max ? packed : null;
 }
 
-async function readWatchlist(id: SnapshotId): Promise<string | null> {
+/**
+ * b49 H-1 (TT b48: one 503 with durable=miss at 865 ms while a snapshot existed 9 s earlier): the
+ * outcome of the last stored-copy read, so /api/ticker can say why it missed. Values are short safe
+ * words: ok, no-row, empty, parse, torn-missing, torn-version, timeout, error-<class>. Best effort
+ * (the last read in this isolate), never a secret or a body.
+ */
+let lastCryptoReadOutcome = "none";
+export function cryptoReadOutcome(): string {
+  return lastCryptoReadOutcome;
+}
+function noteOutcome(id: SnapshotId, outcome: string) {
+  if (id === "crypto") lastCryptoReadOutcome = outcome;
+}
+/** b49: a short, header-safe error class (e.g. error-typeerror), never the message. */
+export function errorClass(err: unknown): string {
+  return runtimeErrorClass(err); // b50: known runtime messages map to fixed words
+}
+
+async function readWatchlistOnce(id: SnapshotId): Promise<{ raw: string | null; outcome: string }> {
   const row = await findWatchlistRow(TICKER[id]);
-  if (!row?.name) return null;
+  if (!row) return { raw: null, outcome: "no-row" };
+  if (!row.name) return { raw: null, outcome: "empty" };
   const raw = unpackWatchlist(row.name);
-  if (!raw) return null;
+  if (!raw) return { raw: null, outcome: "parse" };
   let parts = 0;
   try {
     const parsed = JSON.parse(raw) as { parts?: unknown };
     parts = typeof parsed.parts === "number" ? parsed.parts : 0;
   } catch {
-    return null;
+    return { raw: null, outcome: "parse" };
   }
-  if (parts < 1) return raw;
+  if (parts < 1) return { raw, outcome: "ok" };
   const stored = await Promise.all(
     Array.from({ length: parts }, (_, index) => findWatchlistRow(chunkTicker(id, index + 1)))
   );
-  if (stored.some((part) => !part?.name)) return null;
-  return joinWatchlistPayload(row.name, stored.map((part) => part?.name || ""));
+  if (stored.some((part) => !part?.name)) return { raw: null, outcome: "torn-missing" };
+  const joined = joinWatchlistPayload(row.name, stored.map((part) => part?.name || ""));
+  return joined ? { raw: joined, outcome: "ok" } : { raw: null, outcome: "torn-version" };
+}
+
+/** b49: retry gap after a torn read (a writer was mid-way: chunks are written before the header). */
+export const TORN_READ_RETRY_MS = 250;
+async function readWatchlist(id: SnapshotId): Promise<string | null> {
+  let res: { raw: string | null; outcome: string };
+  try {
+    res = await readWatchlistOnce(id);
+  } catch (err) {
+    res = { raw: null, outcome: errorClass(err) };
+  }
+  // b49 H-1: a torn read is retried once; the writer's header lands within ms.
+  // b50 P1: only a torn read — a store error is not retried (each retry spends 1 + N subrequests, and
+  // the Worker's per-request subrequest budget is shared with the NZX/ASX fetch).
+  if (!res.raw && res.outcome.startsWith("torn-")) {
+    await new Promise((r) => setTimeout(r, TORN_READ_RETRY_MS));
+    try {
+      const again = await readWatchlistOnce(id);
+      res = again.raw ? { raw: again.raw, outcome: "ok-retry" } : { raw: null, outcome: `${again.outcome}` };
+    } catch (err) {
+      res = { raw: null, outcome: errorClass(err) };
+    }
+  }
+  noteOutcome(id, res.outcome);
+  if (!res.raw && res.outcome.startsWith("error-")) throw new Error(res.outcome);
+  return res.raw;
 }
 
 async function writeNamedWatchlist(ticker: string, body: string): Promise<boolean> {
@@ -730,12 +777,15 @@ function firstSnapshotRaw(id: SnapshotId, works: Promise<string | null>[]): Prom
 async function defaultRead(id: SnapshotId): Promise<string | null> {
   const file = readTempFile(id);
   if (snapshotHasRows(id, file)) return file;
+  noteOutcome(id, "pending");
   const db = readWatchlist(id).catch((err) => {
     console.error("[crypto-snapshot] watchlist read failed:", err instanceof Error ? err.message.slice(0, 80) : "failed");
     return null;
   });
   const cache = withTimeout(readWorkersCache(id), SNAPSHOT_READ_TIMEOUT_MS);
   const first = await firstSnapshotRaw(id, [cache, withTimeout(db, SNAPSHOT_DB_TIMEOUT_MS)]);
+  if (first && lastCryptoReadOutcome === "pending") noteOutcome(id, "ok-cache");
+  else if (!first && lastCryptoReadOutcome === "pending") noteOutcome(id, "timeout");
   void Promise.all([cache, db])
     .then(([cached, fromDb]) => {
       const chosen = chooseSnapshotRaw(id, fromDb, cached);
@@ -788,7 +838,18 @@ function withTimeout<T>(work: Promise<T>, ms: number): Promise<T | null> {
 }
 
 async function readRaw(id: SnapshotId, timeoutMs: number): Promise<string | null> {
-  if (durableOverride) return withTimeout(durableOverride.read(id), Math.min(timeoutMs, STORE_HARD_TIMEOUT_MS));
+  if (durableOverride) {
+    noteOutcome(id, "pending");
+    const raw = await withTimeout(
+      durableOverride.read(id).then(
+        (raw) => (raw ? raw : (noteOutcome(id, "no-row"), null)),
+        (err) => (noteOutcome(id, errorClass(err)), null)
+      ),
+      Math.min(timeoutMs, STORE_HARD_TIMEOUT_MS)
+    );
+    if (lastCryptoReadOutcome === "pending") noteOutcome(id, raw ? (snapshotHasRows(id, raw) ? "ok" : "parse") : "timeout");
+    return raw;
+  }
   return withTimeout(defaultRead(id), STORE_HARD_TIMEOUT_MS);
 }
 
@@ -932,6 +993,9 @@ export async function readDexSnapshot(timeoutMs = SNAPSHOT_READ_TIMEOUT_MS): Pro
   return memoryDex;
 }
 
+export { CRYPTO_PARTIAL_REFRESH_AFTER_MS, CRYPTO_ROW_DELAYED_AFTER_MS, mergeStaleCryptoList, cryptoRowDelayed } from "@/lib/crypto-row-delay";
+import { CRYPTO_PARTIAL_REFRESH_AFTER_MS, countMergeableRows, mergeStaleCryptoList } from "@/lib/crypto-row-delay";
+
 /** A refreshed list must keep at least this share of the saved list's rows to replace it. */
 export const CRYPTO_REPLACE_MIN_SHARE = 0.9;
 /** After this age a shorter verified list may replace the saved one (matches the amber band). */
@@ -943,6 +1007,12 @@ export const PRIMARY_CRYPTO_SOURCE = "coingecko";
  * once the stored primary list is older than this (10 minutes).
  */
 export const FALLBACK_REPLACES_PRIMARY_AFTER_MS = 10 * 60 * 1000;
+
+/** b41 H-1: the exact guard reason for /status: which check, source, row counts and saved age. */
+function guardDetail(check: string, existing: CryptoSnapshot, incoming: CoinMarket[], ageMs: number): string {
+  const age = Number.isFinite(ageMs) ? `${Math.max(0, Math.round(ageMs / 1000))}s` : "unknown";
+  return `check=${check} source=${primarySnapshotSource(incoming) ?? "unknown"} rows=${incoming.length}/${existing.coins.length} mergeable=${countMergeableRows(existing, incoming)} savedAge=${age}`;
+}
 
 export async function persistCryptoSnapshot(coins: CoinMarket[], at = new Date().toISOString()): Promise<void> {
   const tagged = coins
@@ -959,7 +1029,18 @@ export async function persistCryptoSnapshot(coins: CoinMarket[], at = new Date()
     const existingVerified = snapshotWorthSaving(existing.coins);
     const incomingVerified = snapshotWorthSaving(tagged);
     if (!incomingVerified) {
-      recordCryptoAttempt(false, new Error("unavailable: list not verified"));
+      // b38 H-1 (Chief ruling 1): once the saved list is over 10 minutes old, a shorter or unverified
+      // list (e.g. Yahoo's 11 majors) refreshes the coins it matches; every other row keeps its own
+      // true quotedAt, so no old price ever carries a fresh time. Rows over 15 min show "delayed".
+      const staleAge = Date.parse(at) - Date.parse(existing.at || "");
+      const merged = Number.isFinite(staleAge) && staleAge > CRYPTO_PARTIAL_REFRESH_AFTER_MS ? mergeStaleCryptoList(existing, tagged, at) : null;
+      if (!merged) {
+        recordCryptoAttempt(false, new Error("unavailable: list not verified"), Date.now(), guardDetail("unverified", existing, tagged, staleAge));
+        return;
+      }
+      const work = persistCryptoDurable(merged, at, existing.version ?? 0);
+      pendingSnapshotWrite = work;
+      await keepAlive(work);
       return;
     }
     // b24 G-05: a verified refresh that is only a few coins shorter (coins drop out of the top
@@ -969,7 +1050,16 @@ export async function persistCryptoSnapshot(coins: CoinMarket[], at = new Date()
     const existingAge = Date.parse(at) - Date.parse(existing.at || "");
     const existingAmber = !Number.isFinite(existingAge) || existingAge > CRYPTO_REPLACE_ANY_AFTER_MS;
     if (existingVerified && !existingAmber && tagged.length < Math.floor(existing.coins.length * CRYPTO_REPLACE_MIN_SHARE)) {
-      recordCryptoAttempt(false, new Error("unavailable: shorter list kept the previous one"));
+      // b41 H-1 (TT: snapshot stuck 15m16s): a verified but shorter list used to wait for the 15-minute
+      // amber band. After 10 minutes its rows that pass the per-row checks merge into the saved list.
+      const merged = Number.isFinite(existingAge) && existingAge > CRYPTO_PARTIAL_REFRESH_AFTER_MS ? mergeStaleCryptoList(existing, tagged, at) : null;
+      if (!merged) {
+        recordCryptoAttempt(false, new Error("unavailable: shorter list kept the previous one"), Date.now(), guardDetail("shorter", existing, tagged, existingAge));
+        return;
+      }
+      const work = persistCryptoDurable(merged, at, existing.version ?? 0);
+      pendingSnapshotWrite = work;
+      await keepAlive(work);
       return;
     }
     // b29 H-1: compare-and-set on as-of. An older list never replaces a newer one.
@@ -983,7 +1073,7 @@ export async function persistCryptoSnapshot(coins: CoinMarket[], at = new Date()
     const incomingPrimary = primarySnapshotSource(tagged);
     const primaryFresh = Number.isFinite(existingAge) && existingAge <= FALLBACK_REPLACES_PRIMARY_AFTER_MS;
     if (existingVerified && primaryFresh && existingPrimary && incomingPrimary && existingPrimary !== incomingPrimary && existingPrimary === PRIMARY_CRYPTO_SOURCE) {
-      recordCryptoAttempt(false, new Error(`unavailable: ${incomingPrimary} list kept the fresher ${existingPrimary} list`));
+      recordCryptoAttempt(false, new Error(`unavailable: ${incomingPrimary} list kept the fresher ${existingPrimary} list`), Date.now(), guardDetail("fallback-vs-fresh-primary", existing, tagged, existingAge));
       return;
     }
   }
@@ -1035,6 +1125,9 @@ async function commitUnderLease(tagged: CoinMarket[], at: string): Promise<void>
     memoryCrypto = parsed;
     memoryCryptoCheckedAt = Date.now();
   }
+  // b45 H-1 (c): the writer also refreshes the colo copy, so a cookie client whose floor came from this
+  // write finds it in the colo even when another isolate's store read still lags (TT b42: −41 s / −43 s).
+  await keepAlive(edgeSnapshotPut(parsed).catch(() => undefined));
   // b24 G-05: one write point, so every path that refreshes the list fills /status.
   recordCryptoAttempt(true);
 }

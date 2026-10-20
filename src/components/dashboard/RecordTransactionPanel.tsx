@@ -1,5 +1,6 @@
 "use client";
 
+import { noteWrite, WRITE_TIMEOUT_CODE, WRITE_TIMEOUT_MESSAGE, WRITE_TIMEOUT_MS, clearCancelledWriteKey, clearPendingWrite, isCancelledWriteKey, isDefiniteRefusal, journalPendingWrite, newWriteKey, withWriteTimeout } from "@/lib/write-journal";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,7 +43,6 @@ import { markDialogSearchGuard, noteDialogSearchQuery } from "@/lib/dialog-guard
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
-import { noteWrite } from "@/lib/write-journal";
 import { getActiveAccountUserId } from "@/lib/account-identity";
 
 type BookHolding = {
@@ -127,6 +127,7 @@ export function RecordTransactionPanel({
   onQueryChange,
   onDone,
   onRequestClose,
+  onSavingChange,
 }: {
   open: boolean;
   initialMode: RecordKind;
@@ -138,6 +139,8 @@ export function RecordTransactionPanel({
   onQueryChange?: (query: string) => void;
   onDone: (ledger: unknown) => void;
   onRequestClose: () => void;
+  /** b40 G-10: tells the dialog a confirmed write is in flight, so X and Escape can't close it. */
+  onSavingChange?: (saving: boolean) => void;
 }) {
   const today = useMemo(() => todayISO(), [open]);
   const { rates, live: fxLive } = useFxRates();
@@ -167,6 +170,20 @@ export function RecordTransactionPanel({
   const [problems, setProblems] = useState<string[]>([]);
   const [hint, setHint] = useState("");
   const [saving, setSaving] = useState(false);
+  // b39 G-10: warn before leaving while a confirmed write is in flight (TT reloaded 0.4-4.3 s after Confirm).
+  useEffect(() => {
+    onSavingChange?.(saving);
+  }, [saving, onSavingChange]);
+  useEffect(() => {
+    if (!saving) return;
+    const warn = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+      return "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [saving]);
   const [checkingCash, setCheckingCash] = useState(false);
   const [cashNote, setCashNote] = useState("");
   const [saveError, setSaveError] = useState("");
@@ -682,6 +699,11 @@ export function RecordTransactionPanel({
           delete payload.amount;
         }
       }
+      // b37 G-10: every write is an explicit confirm with this Review's idempotency key, so a 401 is
+      // retried once with the same key after the session check, and the server dedupes any repeat.
+      payload.confirm = true;
+      if (!reviewKey.current) reviewKey.current = newWriteKey();
+      payload.idempotency_key = reviewKey.current;
       // Goal b19 CR-6: a new holding past the plan cap is refused before anything
       // paints. The server's dry run runs the same cap check and writes nothing,
       // so the cap message shows in this dialog instead of a flash-and-rollback.
@@ -719,6 +741,8 @@ export function RecordTransactionPanel({
         const row = {
           _id: `optimistic-${postedAt}`,
           _optimistic: true,
+          // b40 G-10: the key rides on the optimistic row, so a delete before the server answers can cancel it.
+          notes: `idem=${String(payload.idempotency_key)}`,
           type: kind,
           ticker: typeof payload.ticker === "string" ? payload.ticker : undefined,
           asset_type: payload.asset_type,
@@ -732,45 +756,16 @@ export function RecordTransactionPanel({
         };
         onDone({ cashBalance: preview.cashAfterNzd, lastTransaction: row, transactions: [row], ledgerPartial: true, optimistic: true });
       }
-      const pending = api.post("/api/transactions", payload);
-      if (optimistic) {
-        // b31 G-10: the paint is already on screen. If the server has not answered within
-        // CONFIRM_HOLD_MS, close the dialog and finish in the background: success reconciles
-        // from the saved row; a refusal rolls the paint back with the reason in a toast.
-        const early = await Promise.race([pending.then(() => "answered" as const), sleepMs(CONFIRM_HOLD_MS).then(() => "slow" as const)]);
-        if (early === "slow") {
-          onRequestClose();
-          // Not a success: a loading toast until the server answers.
-          const toastId = toast.loading("Saving…");
-          void pending
-            .then((late) => {
-              const savedId = acknowledgedId(late);
-              if (savedId) {
-                if (showQty) bumpHoldingsGeneration();
-                noteWrite(getActiveAccountUserId(), { createdId: savedId, cashAfter: (late.data as { cashBalance?: number } | undefined)?.cashBalance ?? null });
-                toast.success("Transaction recorded", { id: toastId });
-                onDone(late.data);
-              } else {
-                onDone({ cashBalance: cashBeforeOptimistic, lastTransaction: null, transactions: [], ledgerPartial: true, optimisticRollback: true });
-                toast.error(
-                  !late.ok && late.error === "account-mismatch"
-                    ? SESSION_SWITCHED_ERROR
-                    : !late.ok && typeof late.error === "string"
-                      ? `Not recorded: ${late.error}`
-                      : `Not recorded. ${NOT_ACKNOWLEDGED}`,
-                  { id: toastId }
-                );
-              }
-            })
-            .catch(() => {
-              onDone({ cashBalance: cashBeforeOptimistic, lastTransaction: null, transactions: [], ledgerPartial: true, optimisticRollback: true });
-              toast.error("Not recorded: the connection dropped. Nothing was saved.", { id: toastId });
-            });
-          return;
-        }
-      }
+      // b37 G-10 (P1): journal the write before sending it. If the page reloads or the tab closes
+      // mid-request (TT's lost deposit was a POST the browser dropped: edge 499, no origin response), the
+      // next dashboard load replays it with the same key and the server writes it at most once.
+      const journalUser = getActiveAccountUserId();
+      if (journalUser) journalPendingWrite({ key: String(payload.idempotency_key), userId: journalUser, method: "POST", payload, at: postedAt });
+      // The dialog stays open ("Saving…") until the server answers with the saved row's id. No early close
+      // and no background finish: success is shown only after that, and a failure keeps the form filled.
+      const pending = withWriteTimeout(api.post("/api/transactions", payload), WRITE_TIMEOUT_MS);
       const res = await pending;
-      console.log(`[write] ${kind} ${typeof payload.ticker === "string" ? payload.ticker : ""} status=${res.status ?? "?"} ok=${res.ok} id=${String((res.data as { lastTransaction?: { _id?: string } } | undefined)?.lastTransaction?._id ?? "")}`);
+      console.log(`[write] ${kind} ${typeof payload.ticker === "string" ? payload.ticker : ""} status=${res.status ?? "?"} ok=${res.ok} id=${String((("data" in res ? res.data : undefined) as { lastTransaction?: { _id?: string } } | undefined)?.lastTransaction?._id ?? "")}`);
       const savedId = acknowledgedId(res);
       if (optimistic && !savedId) {
         // Roll back, then fall through: the dialog (still open) shows the refusal reason.
@@ -789,6 +784,13 @@ export function RecordTransactionPanel({
         failSave("This dividend looks like one already recorded. Tick “Save anyway” to keep both.");
         return;
       }
+      if (!res.ok && isDefiniteRefusal(res.status)) clearPendingWrite(String(payload.idempotency_key));
+      if (!res.ok && res.status == null && res.error === WRITE_TIMEOUT_CODE) {
+        // Not a refusal: the answer didn't arrive in time. Keep the form and the journal entry; pressing
+        // Confirm again (or reloading) retries with the same key, so it can't be booked twice.
+        failSave(WRITE_TIMEOUT_MESSAGE);
+        return;
+      }
       if (!res.ok) {
         failSave(writeError(res.error, "Could not record that transaction."));
         return;
@@ -798,6 +800,23 @@ export function RecordTransactionPanel({
         return;
       }
       if (showQty) bumpHoldingsGeneration();
+      clearPendingWrite(String(payload.idempotency_key));
+      // b40 G-10 (TT b39 P1): the member deleted the row while it was saving. Delete it on arrival.
+      if (isCancelledWriteKey(String(payload.idempotency_key))) {
+        const key = String(payload.idempotency_key);
+        const del = await api.delete(`/api/transactions?id=${encodeURIComponent(savedId)}&idem=${encodeURIComponent(key)}`);
+        if (del.ok || del.status === 404) {
+          clearCancelledWriteKey(key);
+          reviewKey.current = "";
+          noteWrite(getActiveAccountUserId(), { deletedId: savedId });
+          toast.success("Saved, then removed as you asked");
+          onDone({ cashBalance: undefined, lastTransaction: null, transactions: [], ledgerPartial: true, optimisticRollback: true, removedAfterSave: savedId });
+          onRequestClose();
+          return;
+        }
+        toast.error("It was saved, but the removal you asked for didn't go through. Delete it again from the list.");
+      }
+      reviewKey.current = "";
       noteWrite(getActiveAccountUserId(), { createdId: savedId, cashAfter: (res.data as { cashBalance?: number } | undefined)?.cashBalance ?? null });
       toast.success("Transaction recorded");
       console.log(`[confirm] toast=${Date.now() - postedAt} follow-ups=after-toast`);
@@ -1027,10 +1046,22 @@ export function RecordTransactionPanel({
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="record-date">Date</Label>
-              <div className="relative">
+              {/* b46 P3: on keyboard focus the native field shows, so the focused part (day, month or year) is visible.
+                  b45 G-14 P3: Chrome's calendar button inside the hidden date input was an invisible extra tab
+                  stop. It is hidden (CSS) and a click opens the picker instead; the input itself stays the one
+                  keyboard stop (a tabindex of -1 on it would leave the date unreachable), with a visible ring. */}
+              <div className="relative rounded-md focus-within:ring-2 focus-within:ring-ring">
                 <div className="flex h-9 items-center rounded-md border border-input px-3 text-sm">{formatDisplayDate(date)}</div>
                 <input
                   id="record-date"
+                  lang="en-NZ"
+                  onClick={(e) => {
+                    try {
+                      (e.currentTarget as HTMLInputElement & { showPicker?: () => void }).showPicker?.();
+                    } catch {
+                      /* showPicker needs a user gesture; the native behaviour still applies */
+                    }
+                  }}
                   type="date"
                   max={today}
                   value={date}
@@ -1044,7 +1075,7 @@ export function RecordTransactionPanel({
                     setQuoteChain("");
                     setFxDirty(false);
                   }}
-                  className="absolute inset-0 cursor-pointer opacity-0"
+                  className="af-date-overlay absolute inset-0 cursor-pointer rounded-md bg-background px-3 text-sm opacity-0 focus-visible:opacity-100 focus-visible:outline-none"
                   aria-label={`Date ${formatDisplayDate(date)}`}
                 />
               </div>

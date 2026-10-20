@@ -1,3 +1,4 @@
+import { moneyCell } from "@/lib/currency";
 import { csvEscape } from "@/lib/csv-cell";
 import type { FifPaper } from "@/lib/fif-working-paper";
 import { inNzTaxYear } from "@/lib/nz-tax-year";
@@ -9,7 +10,7 @@ import type { TaxLedgerRow } from "@/lib/taxable-income";
  * b29 H-9 (research addendum §6): extra CSVs for the tax-pack ZIP, from the same rows as the PDF.
  * Every row carries the source ledger row id so an accountant can trace it.
  */
-const money = (v: number | null | undefined) => (v == null || !Number.isFinite(v) ? "" : (Math.round(v * 100) / 100).toFixed(2));
+const money = (v: number | null | undefined) => (v == null || !Number.isFinite(v) ? "" : moneyCell(v)); // b51 G-12: the one rule
 const line = (cells: unknown[]) => cells.map((c) => csvEscape(c == null ? "" : String(c))).join(",");
 const day = (row: TaxLedgerRow) => String((row as { executed_at?: string }).executed_at || (row as { createdAt?: string }).createdAt || "").slice(0, 10);
 const id = (row: TaxLedgerRow) => String((row as { _id?: string; id?: string })._id || (row as { id?: string }).id || "");

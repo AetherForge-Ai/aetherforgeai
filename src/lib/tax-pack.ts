@@ -1,3 +1,4 @@
+import { moneyCell } from "@/lib/currency";
 import { csvEscape } from "@/lib/csv-cell";
 /**
  * Indicative tax pack exports.
@@ -55,7 +56,7 @@ export interface CompletenessItem {
 
 function money(value: number | null | undefined): string {
   if (value == null || !Number.isFinite(value)) return "";
-  return roundMoney(value).toFixed(2);
+  return moneyCell(value); // b51 G-12: the one rule
 }
 
 export function cryptoDisposals(report: RealisedReport): CryptoDisposal[] {

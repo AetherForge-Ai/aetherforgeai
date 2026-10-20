@@ -16,7 +16,7 @@ export const metadata = publicPageMetadata("/settings", {
 });
 
 export default async function SettingsPage() {
-  const user = await getCurrentUser();
+  const user = await getCurrentUser({ fresh: true });
   if (!user) redirect("/login?redirect=/settings");
 
   let initialFx: { rates: FxRatesToNZD; asOf: string } | null = null;

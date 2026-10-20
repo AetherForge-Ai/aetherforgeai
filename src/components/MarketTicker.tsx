@@ -1,5 +1,6 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { tickerLiveLabel } from "@/lib/ticker-feed";
@@ -67,6 +68,10 @@ function TickerCell({
   const flat = hasChange && Number(q.change.toFixed(2)) === 0;
   const up = hasChange && !flat && q.change > 0;
   const asOf = formatAsOf(q.quotedAt);
+  // b38 H-1: a crypto price whose own quote is over 15 min old says "delayed" on the tape. Equity
+  // rows already carry the exchange delay wording, so they are not marked twice.
+  const quotedMs = q.quotedAt ? Date.parse(q.quotedAt) : NaN;
+  const rowDelayed = !/delayed/i.test(delay) && Number.isFinite(quotedMs) && Date.now() - quotedMs > TAPE_ROW_DELAYED_MS;
   // Goal b10 G-05: per-price badge. Amber after one missed refresh, red after two.
   const badge = priceBadge({
     source,
@@ -104,10 +109,14 @@ function TickerCell({
         <span aria-hidden="true">{!hasChange || flat ? "·" : up ? "▲" : "▼"}</span>
         {q.change == null ? "—" : formatSignedPercent(q.change)}
         {asOf ? <span className="ml-1 font-medium normal-case">as of {asOf}</span> : null}
+        {rowDelayed ? <span className="ml-1 rounded bg-amber-500/20 px-1 font-semibold text-amber-300" data-tape-delayed>delayed</span> : null}
       </span>
     </span>
   );
 }
+
+/** b38 H-1: per-row delayed marker threshold (Chief ruling: 15 min). */
+const TAPE_ROW_DELAYED_MS = 15 * 60 * 1000;
 
 function TickerRow({
   quotes,
@@ -318,6 +327,9 @@ export function MarketTicker({ className, compact = false, initial = null, initi
   });
   const [asOf, setAsOf] = useState<string | null>(initial?.asOf ?? null);
   const [loaded, setLoaded] = useState(hasTape(initial));
+  // b38 (Chief ruling 2): the server has no snapshot at all yet (503): a friendly loading line.
+  const [pricesWarming, setPricesWarming] = useState(false);
+  const onMarketsPage = (usePathname() || "").startsWith("/markets");
   const [failedRefreshes, setFailedRefreshes] = useState(0);
   const [feedForce, setFeedForce] = useState<FeedForce | null>(null);
   const [showNzd, setShowNzd] = useState(false);
@@ -355,10 +367,17 @@ export function MarketTicker({ className, compact = false, initial = null, initi
         setAsOf(res.data!.asOf ?? null);
         setFeedForce(res.data!.testFeedForce ?? null);
         setFailedRefreshes(0);
+        setPricesWarming(false);
       } else {
+        const warming = !res.ok && res.status === 503;
+        setPricesWarming(warming);
         setFailedRefreshes((count) => count + 1);
-        console.error("[ticker] Feed fetch failed:", res.ok ? "no rows" : res.error);
-        retry = setTimeout(loadFeed, 15_000);
+        // b40: an aborted or timed-out poll (navigation, the tab sleeping, a slow edge) is routine and retried;
+        // log it quietly instead of as a console error. The visible state already says "Retrying shortly".
+        const reason = res.ok ? "no rows" : String(res.error ?? "");
+        if (/abort|timeout|timed out|network/i.test(reason) || res.status === 503) console.info("[ticker] Feed poll retrying:", reason || res.status);
+        else console.warn("[ticker] Feed fetch failed:", reason);
+        retry = setTimeout(loadFeed, warming ? 5_000 : 15_000);
       }
       setLoaded(true);
     };
@@ -404,7 +423,13 @@ export function MarketTicker({ className, compact = false, initial = null, initi
   // H-4/M-1: no short placeholder. The same rows render while loading so the
   // page below does not move when prices arrive (CLS).
   const anyRows = nzx.length + asx.length + crypto.length > 0;
-  const emptyText = loaded ? (anyRows ? undefined : "Prices are delayed. Retrying shortly.") : "Loading prices…";
+  const emptyText = loaded
+    ? anyRows
+      ? undefined
+      : pricesWarming
+        ? "Prices loading… back in a few seconds."
+        : "Prices are delayed. Retrying shortly."
+    : "Loading prices…";
   if (compact) {
     const blend = [...nzx.slice(0, 6), ...asx.slice(0, 5), ...crypto.slice(0, 5)];
     return (
@@ -425,10 +450,10 @@ export function MarketTicker({ className, compact = false, initial = null, initi
           }}
           emptyText={emptyText}
         />
-        {loaded && feedBadge.tone !== "green" ? (
-          <p className="bg-zinc-950 px-3 py-1 text-[0.65rem] text-muted-foreground">{feedBadge.why}</p>
-        ) : null}
-        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 bg-zinc-950 px-3 py-1 text-[0.6rem] text-muted-foreground">
+        {/* b40 CLS (/tax 0.14): the footer reserves two lines on narrow screens and carries the feed note
+            inline, so text arriving after load ("Prices last updated …", the feed note) can't push the page down. */}
+        <div className="flex min-h-[2.75rem] flex-wrap items-center justify-center gap-x-3 gap-y-1 bg-zinc-950 px-3 py-1 text-[0.6rem] text-muted-foreground sm:min-h-[1.75rem]">
+          {loaded && feedBadge.tone !== "green" ? <span className="text-[0.6rem]">{feedBadge.why}</span> : null}
           <button
             type="button"
             className="rounded border border-emerald-500/30 px-2 py-0.5 font-semibold text-emerald-200 disabled:opacity-50"
@@ -439,7 +464,8 @@ export function MarketTicker({ className, compact = false, initial = null, initi
             {display === "NZD" ? "Showing NZ$" : "Show NZ$"}
           </button>
           <span>{fxReady ? fxRateLine(fx.rates) : "Loading today's NZ$ exchange rate…"}</span>
-          <span data-prices-last-updated>{pricesUpdatedAt ? savedSnapshotLabel(pricesUpdatedAt.toISOString()) : "Prices last updated: loading…"}</span>
+          {/* b38 M-2: /markets shows its own single "Prices last updated" line; the tape does not repeat it. */}
+          {onMarketsPage ? null : <span data-prices-last-updated>{pricesUpdatedAt ? savedSnapshotLabel(pricesUpdatedAt.toISOString()) : "Prices last updated: loading…"}</span>}
         </div>
       </div>
     );

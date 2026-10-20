@@ -55,6 +55,7 @@ import {
 import { isTransactionDialogOpen } from "@/lib/transaction-sticky";
 import { getTxDialogSnapshot, subscribeTxDialog } from "@/lib/transaction-dialog-store";
 import { Loader2, Lock, Play, FileDown, Mail, FileText, Sparkles, Clock, Zap, ArrowRight, ChevronDown, Eye } from "lucide-react";
+import { reconcileCashOnBook, reconcileReportCash } from "@/lib/report-cash";
 import { neutraliseRatingWording, neutraliseReportStrings, stripReportMarkdown } from "@/lib/report-copy";
 import { reportRunStatus } from "@/lib/dashboard-surface";
 import { listedReportBody, plainReportPdf } from "@/lib/report-body";
@@ -96,6 +97,9 @@ interface BotQuota {
   reportsUsed?: number;
   reportsLimit?: number;
 }
+
+/** b38 H-4: after this long without a count the "quota did not load" fallback shows. */
+export const QUOTA_FALLBACK_MS = 3_000;
 
 interface FreeQuota {
   used: number;
@@ -160,7 +164,10 @@ export function ReportCenter({
   onDesk,
   seed = null,
   onFreeQuota,
+  cashNzd = null,
 }: {
+  /** b43 P2: the dashboard's ledger cash balance; a report's "Cash on book" shows this figure. */
+  cashNzd?: number | null;
   /** Reports the Free monthly quota to the dashboard plan-usage card (no extra fetch). */
   onFreeQuota?: (quota: { used: number; limit: number } | null) => void;
   botAccess: BotAccess;
@@ -186,6 +193,8 @@ export function ReportCenter({
   const [running, setRunning] = React.useState<BotKind | null>(null);
   const [compileSeconds, setCompileSeconds] = React.useState(0);
   const [report, setReport] = React.useState<ApexReport | null>(null);
+  // b43 P2: when the shown report ran (history row time, or now for a fresh run).
+  const [reportRunAt, setReportRunAt] = React.useState<string | null>(null);
   const [textOnly, setTextOnly] = React.useState<{ title: string; body: string } | null>(null);
   const [lastPdfUrl, setLastPdfUrl] = React.useState<string | null>(null);
   const [lastAiEnhanced, setLastAiEnhanced] = React.useState(false);
@@ -572,6 +581,7 @@ export function ReportCenter({
     runLock.current = false;
     const grounded = reconcileStoredReport(res.data.report, bookFor(kind));
     setReport(grounded);
+    setReportRunAt(new Date().toISOString());
     setReportEmailed(res.data.emailed === true && !reportReadsAsNotCurrent(grounded.executiveSummary || ""));
     setTextOnly(null);
     setLastPdfUrl(res.data.pdfUrl);
@@ -634,6 +644,29 @@ export function ReportCenter({
 
   const stoxControl = controlFor("stock", "Stox");
   const koinsControl = controlFor("crypto", "Koins");
+  // b38 H-4: the count arrives within 1 s from the light quota route (one indexed count, per-user
+  // cache), in parallel with the full report list. After 3 s with no figure, the fallback text shows.
+  const [quotaSlow, setQuotaSlow] = React.useState(false);
+  React.useEffect(() => {
+    if (preview) return;
+    let live = true;
+    const slow = window.setTimeout(() => live && setQuotaSlow(true), QUOTA_FALLBACK_MS);
+    void api
+      .get<{ used: number | null; limit: number | null; remaining?: number }>("/api/reports/quota", { signal: AbortSignal.timeout(QUOTA_FALLBACK_MS) })
+      .then((res) => {
+        if (!live || !res.ok || !res.data) return;
+        const d = res.data as { used: number | null; limit: number | null; remaining?: number };
+        if (d.limit == null || d.used == null) return;
+        const limit = d.limit;
+        const used = d.used;
+        setFreeQuota((cur) => cur ?? { used, limit, remaining: d.remaining ?? Math.max(0, limit - used), monthKey: "" });
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+      window.clearTimeout(slow);
+    };
+  }, [preview]);
   const sharedRemaining = freeQuota?.remaining ?? (serverQuota?.stock?.reportsLimit != null && serverQuota.stock.reportsUsed != null
     ? Math.max(0, serverQuota.stock.reportsLimit - serverQuota.stock.reportsUsed)
     : null);
@@ -735,9 +768,9 @@ export function ReportCenter({
               {cadence.unit === "month" && (sharedLimit == null || sharedRemaining == null) && !preview ? (
                 // b6 H-4: a loading line, never the default allowance, until the real count arrives.
                 <span className="text-muted-foreground" aria-live="polite">
-                  {historyError || historyLoaded ? (
+                  {historyError || historyLoaded || quotaSlow ? (
                     <>
-                      Your report count did not load.{" "}
+                      Your report quota did not load.{" "}
                       <button type="button" className="underline" onClick={() => { setHistoryError(""); setHistoryLoaded(false); void loadHistory().catch(() => {}); }}>
                         Try again
                       </button>
@@ -1018,7 +1051,7 @@ export function ReportCenter({
                   </div>
                   <p className="text-xs text-muted-foreground">{fmtDate(r.generatedAt)}</p>
                   <p className="mt-1 line-clamp-2 max-w-xl text-xs leading-relaxed text-foreground/80">
-                    {r.listedBody}
+                    {reconcileCashOnBook(r.listedBody, cashNzd, r.generatedAt)}
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
@@ -1040,6 +1073,7 @@ export function ReportCenter({
                         setReportEmailed(reportPayloadWasEmailed(r.payload) && !notCurrent);
                         // View path: stored JSON is sanitized before ApexReport renders it again.
                         setReport(neutraliseReportStrings(viewed));
+                        setReportRunAt(r.generatedAt || null);
                         setOpen(true);
                       } else {
                         setReport(null);
@@ -1048,6 +1082,7 @@ export function ReportCenter({
                           title: r.title,
                           body: r.listedBody,
                         });
+                        setReportRunAt(r.generatedAt || null);
                         setOpen(true);
                       }
                     }}
@@ -1115,11 +1150,18 @@ export function ReportCenter({
           {report?.isDemo ? (
             <p className="text-sm text-muted-foreground">Illustrative demo — not real market data.</p>
           ) : report ? (
-            <ApexReportView report={report} />
+            <>
+              {reportRunAt ? (
+                <p className="text-xs text-muted-foreground" data-report-run-at>
+                  Report run {fmtDate(reportRunAt)}. Cash on book shows your current ledger balance.
+                </p>
+              ) : null}
+              <ApexReportView report={reconcileReportCash(report, cashNzd, reportRunAt)} />
+            </>
           ) : textOnly ? (
             <article className="min-w-0 max-w-full space-y-3 break-words text-sm leading-relaxed">
               <h3 className="font-display text-lg font-bold text-foreground">{textOnly.title}</h3>
-              <p className="whitespace-pre-wrap text-foreground/90">{stripReportMarkdown(textOnly.body)}</p>
+              <p className="whitespace-pre-wrap text-foreground/90">{stripReportMarkdown(reconcileCashOnBook(textOnly.body, cashNzd, reportRunAt))}</p>
             </article>
           ) : null}
         </DialogContent>

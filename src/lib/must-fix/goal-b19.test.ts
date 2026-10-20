@@ -16,7 +16,7 @@ describe("goal b19", () => {
   it("M-1: ticker and toaster load lazily with a height-holding placeholder", () => {
     expect(read("src/app/page.tsx")).toMatch(/LazyMarketTicker/);
     expect(read("src/app/layout.tsx")).toMatch(/LazyToaster/);
-    expect(read("src/components/LazyMarketTicker.tsx")).toMatch(/min-h-\[213px\]/);
+    expect(read("src/components/LazyMarketTicker.tsx")).toMatch(/min-h-\[231px\]/);
   });
 
   it("CR-6: new holding runs the server dry run before anything paints", () => {
@@ -79,7 +79,7 @@ describe("goal b19", () => {
     const samples: Array<[string, { type: string; ticker: string; quantity: number; price: number; date: string; currency: string | null }]> = [
       ["You bought 25 shares of FPH.NZ at NZ$28.50 on 13 Oct 2026.", { type: "Buy", ticker: "FPH.NZ", quantity: 25, price: 28.5, date: "2026-10-13", currency: "NZD" }],
       ["Sold 10 AAPL @ US$190.25 on 2026-10-02", { type: "Sell", ticker: "AAPL", quantity: 10, price: 190.25, date: "2026-10-02", currency: "USD" }],
-      ["Buy 100 AIR.NZ at $0.62\nTrade date: 01/10/2026", { type: "Buy", ticker: "AIR.NZ", quantity: 100, price: 0.62, date: "2026-10-01", currency: null }],
+      ["Buy 100 AIR.NZ at $0.62\nTrade date: 01/10/2026", { type: "Buy", ticker: "AIR.NZ", quantity: 100, price: 0.62, date: "2026-10-01", currency: "NZD" }], // b41 G-24: a bare $ on an NZX ticker is NZD
       ["Contract note 778812\nWe sold 40 units of SPK.NZ at 2.88 NZD\nDate 7 Oct 2026\nBrokerage: $15.00", { type: "Sell", ticker: "SPK.NZ", quantity: 40, price: 2.88, date: "2026-10-07", currency: "NZD" }],
       ["Purchased 5 x MSFT at USD 410.10 on 3 Sep 2026", { type: "Buy", ticker: "MSFT", quantity: 5, price: 410.1, date: "2026-09-03", currency: "USD" }],
       ["Order filled: bought 1,000 KMD.NZ at NZ$0.71 (12 Aug 2026)", { type: "Buy", ticker: "KMD.NZ", quantity: 1000, price: 0.71, date: "2026-08-12", currency: "NZD" }],

@@ -11,7 +11,7 @@ export const metadata = publicPageMetadata("/profile", {
 
 // Profile management lives in settings. Signed-out visits go to login.
 export default async function ProfileRedirectPage() {
-  const user = await getCurrentUser();
+  const user = await getCurrentUser({ fresh: true });
   if (!user) redirect("/login?redirect=/settings");
   redirect("/settings");
 }

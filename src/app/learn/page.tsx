@@ -12,7 +12,7 @@ export default function LearnPage() {
     <PublicGuide
       kicker="AetherForge AI · Learn"
       title="NZ investing guides"
-      lede="Short guides on NZ tax and saving rules. Every fact links to the page it came from and the date we checked it. General information only, not tax or financial advice."
+      lede="Short guides on NZ tax and saving rules. Every fact links to the page it came from and the date we checked it. General information only. Indicative, not tax advice."
       links={[
         ...GUIDES.map((g) => ({ href: `/learn/${g.slug}`, title: g.title, body: g.description })),
         ...COMPARISONS.map((c) => ({ href: `/compare/${c.slug}`, title: `AetherForge AI vs ${c.name}`, body: c.description })),

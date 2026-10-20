@@ -14,7 +14,7 @@ describe("M-1 page speed", () => {
     expect(layout).toMatch(/display:\s*"swap"/); // b28 review: fonts must render on a first visit
     expect(layout).not.toMatch(/grift-black\.otf/);
     const sora = layout.slice(layout.indexOf("sora-latin.woff2"), layout.indexOf("manrope-latin.woff2"));
-    expect(sora).toMatch(/preload:\s*false/);
+    expect(sora).toMatch(/preload:\s*true/); // b45 P3: heading face preloaded to stop the cold-load swap shift
   });
 
   it("serves Grift as woff2 with font-display swap", () => {

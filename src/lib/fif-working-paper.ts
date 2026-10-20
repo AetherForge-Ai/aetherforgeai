@@ -1,3 +1,4 @@
+import { moneyCell } from "@/lib/currency";
 /**
  * Indicative FIF working paper.
  * Cost is taken from the ledger. Opening and closing market values are entered
@@ -475,7 +476,7 @@ export function stripFifMarketNotes(notes?: string | null): string {
 }
 
 function money(value: number): string {
-  return roundMoney(value).toFixed(2);
+  return moneyCell(value); // b51 G-12: the one rule
 }
 
 /** Market values for one tax year, keyed by the holding ticker. Notes never invent a ticker. */

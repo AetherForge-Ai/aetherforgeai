@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { HOLDINGS_IMPORT_DRAFT_KEY } from "@/lib/holdings-csv";
 import { BrokerImportPanel } from "@/components/import/BrokerImportPanel";
+import { PasteTradesBox } from "@/components/import/PasteTradesBox";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
@@ -24,7 +25,10 @@ export function HoldingsCsvImport({
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
+  // b41 G-24: set only for pasted text, so a chosen file still goes through detection/mapping.
+  const [pasteMapping, setPasteMapping] = useState<Record<string, string> | undefined>(undefined);
   const [fileName, setFileName] = useState("");
+  const [panelKey, setPanelKey] = useState(0);
   const router = useRouter();
 
   async function onFile(file: File) {
@@ -40,6 +44,7 @@ export function HoldingsCsvImport({
         }
       }
       setText(body);
+      setPasteMapping(undefined);
       setFileName(file.name);
       setOpen(true);
     } catch (err) {
@@ -88,8 +93,18 @@ export function HoldingsCsvImport({
             {busy ? <Loader2 className="mr-1.5 size-3.5 animate-spin" /> : <Upload className="mr-1.5 size-3.5" />}
             Choose file
           </Button>
+          {/* b40 G-24: a visible paste box; its CSV opens the same review panel as a file. */}
+          <PasteTradesBox
+            idPrefix={`dash-paste-${assetType}`}
+            onCsv={(csv, name, columns) => {
+              setText(csv);
+              setFileName(name);
+              setPasteMapping({ ...columns });
+              setPanelKey((k) => k + 1);
+            }}
+          />
           {open && text ? (
-            <BrokerImportPanel embedded initialText={text} initialFileName={fileName} onImported={onImported} />
+            <BrokerImportPanel key={panelKey} embedded initialText={text} initialFileName={fileName} initialMapping={pasteMapping} onImported={onImported} />
           ) : null}
           <Button
             type="button"

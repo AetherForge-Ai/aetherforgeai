@@ -3,8 +3,8 @@
 import { importFileProblem } from "@/lib/import-limits";
 import { useEffect, useRef, useState } from "react";
 import { importOversells } from "@/lib/import-oversell";
-import { nzToday, withDate } from "@/lib/paste-date";
-import { PASTE_IMPORT_AI_ENABLED, parsePastedTrades, pastedRowsToCsv, type PastedRow } from "@/lib/paste-import";
+import { datelessCsvRows, withRowDates } from "@/lib/paste-date";
+import { PASTE_COLUMN_MAP, PASTE_IMPORT_AI_ENABLED, parsePastedTrades, pastedRowsToCsv, type PastedRow } from "@/lib/paste-import";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api";
@@ -56,7 +56,10 @@ export function BrokerImportPanel({
   initialFileName,
   embedded,
   onImported,
+  initialMapping,
 }: {
+  /** b41 G-24: the pasted CSV's own column map, so the mapper is skipped. */
+  initialMapping?: Record<string, string>;
   initialText?: string;
   initialFileName?: string;
   embedded?: boolean;
@@ -70,7 +73,9 @@ export function BrokerImportPanel({
   // editable date (default today, NZ), never dropped as "No trades found".
   const [pastedRows, setPastedRows] = useState<PastedRow[]>([]);
   const [missingDate, setMissingDate] = useState("");
-  const [mapping, setMapping] = useState<Record<string, string>>({});
+  // b38 G-24: each dateless row can take its own date (falls back to the shared one).
+  const [rowDates, setRowDates] = useState<Record<number, string>>({});
+  const [mapping, setMapping] = useState<Record<string, string>>(() => ({ ...(initialMapping ?? {}) }));
   const [preview, setPreview] = useState<Preview | null>(null);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
@@ -141,6 +146,14 @@ export function BrokerImportPanel({
       return;
     }
     const body = await file.text();
+    // b38 G-24: a file of trades with no date column (or raw dateless lines) goes to the
+    // per-row date prompt instead of being rejected whole or silently ignored.
+    const firstLine = body.split(/\r?\n/, 1)[0] || "";
+    const dateless = datelessCsvRows(body) ?? (firstLine.includes(",") ? null : parsePastedTrades(body).rows.filter((r) => !r.date));
+    if (dateless && dateless.length) {
+      adoptPasted(dateless, [], file.name);
+      return;
+    }
     setText(body);
     setFileName(file.name);
     setPreview(null);
@@ -152,30 +165,45 @@ export function BrokerImportPanel({
 
   // Goal b19 G-24: pasted email or contract-note text becomes CSV for the same
   // review screen below. Nothing is saved until the member confirms there.
+  const pastedDatesMissing = pastedRows.filter((r, i) => !r.date && !(rowDates[i] || missingDate)).length;
+
   function readPasted() {
     const { rows, unread } = parsePastedTrades(pasted);
     if (!rows.length) {
       setPasteNote("No trades found in that text. Paste lines like “Bought 25 FPH.NZ at NZ$28.50 on 13 Oct 2026”.");
       return;
     }
+    adoptPasted(rows, unread, "Pasted text");
+  }
+
+  function adoptPasted(rows: PastedRow[], unread: string[], name: string) {
     const dateless = rows.filter((r) => !r.date).length;
-    const fill = missingDate || nzToday();
-    if (dateless && !missingDate) setMissingDate(fill);
+    // b41 G-24: a missing date stays blank and must be set; never today's date by default.
+    const fill = missingDate;
+    setRowDates({});
     setPastedRows(rows);
-    setText(pastedRowsToCsv(withDate(rows, fill)));
-    setFileName("Pasted text");
+    setMapping({ ...PASTE_COLUMN_MAP });
+    setText(pastedRowsToCsv(withRowDates(rows, {}, fill)));
+    setFileName(name);
     setPreview(null);
     setMessage("");
     setImportError("");
     setConsent(false);
     setAcknowledgeSkipped(false);
-    setPasteNote(`${rows.length} trade${rows.length === 1 ? "" : "s"} read from the text${unread.length ? `; ${unread.length} part${unread.length === 1 ? "" : "s"} could not be read` : ""}. Review them below before anything is saved.${dateless ? ` Date missing on ${dateless} trade${dateless === 1 ? "" : "s"}: set it below.` : ""}`);
+    setPasteNote(`${rows.length} trade${rows.length === 1 ? "" : "s"} read${name === "Pasted text" ? " from the text" : ` from ${name}`}${unread.length ? `; ${unread.length} part${unread.length === 1 ? "" : "s"} could not be read` : ""}. Review them below before anything is saved.${dateless ? ` Date missing on ${dateless} trade${dateless === 1 ? "" : "s"}: set each date below.` : ""}`);
+  }
+
+  function changeRowDate(index: number, value: string) {
+    const next = { ...rowDates, [index]: value };
+    setRowDates(next);
+    setText(pastedRowsToCsv(withRowDates(pastedRows, next, missingDate)));
+    setPreview(null);
   }
 
   function changeMissingDate(value: string) {
     setMissingDate(value);
     if (pastedRows.some((r) => !r.date)) {
-      setText(pastedRowsToCsv(withDate(pastedRows, value)));
+      setText(pastedRowsToCsv(withRowDates(pastedRows, rowDates, value)));
       setPreview(null);
     }
   }
@@ -369,7 +397,9 @@ export function BrokerImportPanel({
             }}
           />
           {fileName ? <p className="text-xs text-muted-foreground">{fileName}</p> : null}
-          <details className="mt-3 rounded-md border p-3" data-paste-import>
+          {/* b40 G-24: embedded in the dashboard dialog, the dialog's own visible PasteTradesBox is used. */}
+          {embedded ? null : (
+          <details open className="mt-3 rounded-md border p-3" data-paste-import>
             <summary className="cursor-pointer text-sm font-semibold">Or paste email or contract-note text</summary>
             <textarea
               aria-label="Pasted trade text"
@@ -381,10 +411,33 @@ export function BrokerImportPanel({
             <button type="button" onClick={readPasted} className="mt-2 h-9 rounded-md border px-3 text-sm font-semibold">Read trades from text</button>
             {pasteNote ? <p className="mt-2 text-sm" role="status">{pasteNote}</p> : null}
             {pastedRows.some((r) => !r.date) ? (
-              <label className="mt-2 flex items-center gap-2 text-sm" data-paste-date-missing>
-                <span className="font-medium text-rose-700">Date missing</span>
-                <input type="date" className="rounded border px-2 py-1" value={missingDate} onChange={(e) => changeMissingDate(e.target.value)} aria-label="Trade date for pasted lines with no date" />
-              </label>
+              <div className="mt-2 space-y-1 text-sm" data-paste-date-missing>
+                <label className="flex items-center gap-2">
+                  <span className="font-medium text-rose-700">Date missing</span>
+                  <input type="date" className="rounded border px-2 py-1" value={missingDate} onChange={(e) => changeMissingDate(e.target.value)} aria-label="Trade date for all rows with no date" />
+                  <span className="text-xs text-muted-foreground">(all rows below unless set per row)</span>
+                </label>
+                <ul className="space-y-1" data-paste-row-dates>
+                  {pastedRows.map((r, i) =>
+                    r.date ? null : (
+                      <li key={i} className="flex flex-wrap items-center gap-2">
+                        <span>
+                          {r.type} {r.quantity} {r.ticker} @ {r.price}
+                        </span>
+                        <input
+                          type="date"
+                          className="rounded border px-2 py-1"
+                          required
+                          aria-required="true"
+                          value={rowDates[i] || missingDate}
+                          onChange={(e) => changeRowDate(i, e.target.value)}
+                          aria-label={`Trade date for ${r.type} ${r.quantity} ${r.ticker}`}
+                        />
+                      </li>
+                    )
+                  )}
+                </ul>
+              </div>
             ) : null}
             <p className="mt-2 text-xs text-muted-foreground">
               {PASTE_IMPORT_AI_ENABLED
@@ -392,6 +445,7 @@ export function BrokerImportPanel({
                 : "AI reading is off: only pasted text is read, in the app, by fixed rules. PDFs and screenshots are not read."}
             </p>
           </details>
+          )}
         </div>
         <label className="flex items-start gap-2 text-sm" htmlFor="import-fund">
           <input
@@ -411,7 +465,12 @@ export function BrokerImportPanel({
             <span className="mt-1 block text-muted-foreground">{FUNDING_DISCLOSURE}</span>
           </span>
         </label>
-        <Button type="submit" disabled={busy || !text.trim()}>
+        {pastedDatesMissing ? (
+          <p className="text-sm font-medium text-rose-700" role="alert" data-paste-dates-required>
+            Set the date on {pastedDatesMissing} row{pastedDatesMissing === 1 ? "" : "s"} before review.
+          </p>
+        ) : null}
+        <Button type="submit" disabled={busy || !text.trim() || pastedDatesMissing > 0}>
           {busy ? "Reading…" : "Review file"}
         </Button>
       </form>

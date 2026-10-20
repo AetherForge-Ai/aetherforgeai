@@ -22,7 +22,8 @@ export function breadcrumbJsonLd(items: readonly { name: string; path: string }[
       position: index + 1,
       name: item.name,
       // Goal b11 G-15: Rich Results needs an absolute URL for each crumb.
-      item: absoluteUrl(item.path),
+      // b38 G-15: the item itself carries the name too (validators showed "Unnamed item").
+      item: { "@type": "WebPage", "@id": absoluteUrl(item.path), name: item.name },
     })),
   };
 }
@@ -36,6 +37,19 @@ export function faqJsonLd() {
       name: faq.q,
       acceptedAnswer: { "@type": "Answer", text: faq.a },
     })),
+  };
+}
+
+/**
+ * b38 G-15: FAQPage for /help, built only from the Q&A the page actually shows (help entries whose
+ * title is a question). No rating or review markup anywhere.
+ */
+export function helpFaqJsonLd(articles: readonly { title: string; body: string }[]) {
+  const qa = articles.filter((a) => a.title.trim().endsWith("?") && a.body.trim());
+  return {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: qa.map((a) => ({ "@type": "Question", name: a.title, acceptedAnswer: { "@type": "Answer", text: a.body } })),
   };
 }
 

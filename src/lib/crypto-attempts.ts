@@ -7,10 +7,13 @@ export interface CryptoAttempt {
   at: string;
   ok: boolean;
   code: string;
+  /** b41 H-1: for a guard refusal, which check refused it (check, source, row counts, saved age). */
+  detail?: string;
 }
 
 let lastAttempt: CryptoAttempt | null = null;
 let lastSuccess: string | null = null;
+let guardStreak = 0;
 // Goal b22 G-05: the shared write is kept so the request can wait for it; a bare
 // `void` write died with the isolate and /status never saw an attempt.
 let pendingPersist: Promise<void> = Promise.resolve();
@@ -40,7 +43,12 @@ export function attemptIsGuard(code: string): boolean {
 }
 
 /** b35 H-1: plain /status wording for an attempt code. */
-export function attemptLabel(attempt: Pick<CryptoAttempt, "ok" | "code">): string {
+export function attemptLabel(attempt: Pick<CryptoAttempt, "ok" | "code"> & { detail?: string }): string {
+  const base = attemptBaseLabel(attempt);
+  return attempt.detail ? `${base} [${attempt.detail}]` : base;
+}
+
+function attemptBaseLabel(attempt: Pick<CryptoAttempt, "ok" | "code">): string {
   if (attempt.ok) return "succeeded";
   if (attempt.code === "lost-race") return "skipped: another server saved a newer list first (list still served)";
   if (attempt.code === "guarded") return "kept the saved list: the new one was shorter or unverified (list still served)";
@@ -50,11 +58,15 @@ export function attemptLabel(attempt: Pick<CryptoAttempt, "ok" | "code">): strin
   return `failed (${attempt.code})`;
 }
 
-export function recordCryptoAttempt(ok: boolean, err?: unknown, now = Date.now()): CryptoAttempt {
+export function recordCryptoAttempt(ok: boolean, err?: unknown, now = Date.now(), detail?: string): CryptoAttempt {
   const at = new Date(now).toISOString();
-  lastAttempt = { at, ok, code: ok ? "ok" : attemptCode(err) };
+  const code = ok ? "ok" : attemptCode(err);
+  // b41 H-1: count consecutive guard refusals (this server), so /status shows how many in a row.
+  guardStreak = !ok && attemptIsGuard(code) ? guardStreak + 1 : 0;
+  const full = detail && !ok ? `${detail}${guardStreak ? ` refusedInARow=${guardStreak}` : ""}` : undefined;
+  lastAttempt = { at, ok, code, ...(full ? { detail: full.slice(0, 220) } : {}) };
   if (ok) lastSuccess = at;
-  console.log(`[crypto-attempt] ${lastAttempt.at} ${lastAttempt.ok ? "ok" : "failed"} ${lastAttempt.code}`);
+  console.log(`[crypto-attempt] ${lastAttempt.at} ${lastAttempt.ok ? "ok" : "failed"} ${lastAttempt.code}${lastAttempt.detail ? ` ${lastAttempt.detail}` : ""}`);
   const value = { last: lastAttempt, lastSuccess };
   pendingPersist = Promise.all([persistSharedAttempt(value), persistDurableAttempt(value)]).then(() => undefined);
   return lastAttempt;

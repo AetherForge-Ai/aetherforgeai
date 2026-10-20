@@ -3,6 +3,8 @@ export const MARKET_INDEX_PAGE = 50;
 export const PUBLIC_SEED_ROWS = 25;
 
 export interface PublicPriceRow {
+  /** b38 H-1: this row's own quote is over 15 minutes old; the table shows "delayed". */
+  delayed?: boolean;
   symbol: string;
   name: string;
   price: string;
@@ -22,6 +24,9 @@ export interface PublicPriceRow {
   source?: string;
   /** Includes the words "as of" for this row. */
   asOf?: string;
+  /** b46 H-1 (b): this row's own quote time (crypto and DEX), so "delayed" is re-evaluated when the
+   * response is built and again when the browser renders, never frozen at cache time. */
+  quotedAt?: string | null;
   /** Native chain or platform for a coin. */
   blockchain?: string;
   /** Server-rendered moves. An em dash means the feed did not send that figure. */

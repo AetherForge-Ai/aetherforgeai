@@ -6,7 +6,7 @@ import { totalumSdk } from "@/lib/totalum";
 import { assistantUsedThisMonth } from "@/lib/assistant-quota.server";
 import { buildPortfolioContext, ANALYST_SYSTEM_PROMPT } from "@/lib/ai-context";
 import { createGrokChatCompletion, type GrokMessage } from "@/lib/grok";
-import { ASSISTANT_SHARE_PICK_REPLY, isSharePickRequest, withGuideDisclaimer } from "@/lib/guide-safety";
+import { ASSISTANT_SHARE_PICK_REPLY, isSharePickRequest, withAssistantDisclaimer, withGuideDisclaimer } from "@/lib/guide-safety";
 import { assistantCompletionMessages } from "@/lib/ai-request-payload";
 import type { Stock } from "@/lib/portfolio";
 
@@ -133,11 +133,14 @@ export async function POST(req: Request) {
     else console.log(`[api/chat] Generating Grok reply for user ${user._id}`);
     const reply = refused
       ? withGuideDisclaimer(ASSISTANT_SHARE_PICK_REPLY)
-      : await createGrokChatCompletion({
-          messages,
-          maxTokens: 1000,
-          temperature: 0.7,
-        });
+      : // b45 G-23-TAXLABEL: model replies end with the AI line, plus the tax label when NZ tax is discussed.
+        withAssistantDisclaimer(
+          await createGrokChatCompletion({
+            messages,
+            maxTokens: 1000,
+            temperature: 0.7,
+          })
+        );
 
     // Persist the assistant reply
     const saved = await totalumSdk.crud.createRecord("chat_message", {

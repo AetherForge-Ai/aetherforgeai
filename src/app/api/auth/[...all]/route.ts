@@ -10,6 +10,7 @@ ensureDurableRateLimit();
 
 const handler = toNextJsHandler(auth);
 
+
 /**
  * b27 H-4 (session drops): better-auth's get-session clears the session cookie whenever its
  * store read fails or the session touch errors, so a slow Totalum read signed members out.

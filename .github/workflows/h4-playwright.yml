@@ -1,0 +1,61 @@
+# b38 H-4 (GOAL-LOCK #11): "Playwright passes 3 runs", in CI against production.
+# Credentials come only from repository secrets (an allow-listed fixture account). Nothing is written:
+# the spec only loads /dashboard/transactions?fixture=500 and reads timings.
+# Needs secrets H4_EMAIL and H4_PASSWORD (set by Lukas/Chief; not created by the build).
+name: h4-playwright
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "41 */6 * * *"
+permissions:
+  contents: read
+jobs:
+  # b50 P3: secrets cannot be read in a job-level `if`, so a tiny preflight job reports whether they
+  # are set. Without them a scheduled run shows the h4 job as SKIPPED (not green, not a failure — the
+  # Chief wanted the schedule quiet); a manual run fails here so it is noticed.
+  secrets-check:
+    runs-on: ubuntu-latest
+    if: ${{ github.ref == 'refs/heads/main' }}
+    outputs:
+      ok: ${{ steps.check.outputs.ok }}
+    steps:
+      - id: check
+        env:
+          H4_EMAIL: ${{ secrets.H4_EMAIL }}
+          H4_PASSWORD: ${{ secrets.H4_PASSWORD }}
+        run: |
+          if [ -n "$H4_EMAIL" ] && [ -n "$H4_PASSWORD" ]; then echo "ok=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          echo "ok=false" >> "$GITHUB_OUTPUT"
+          echo "::notice title=h4-playwright skipped::H4_EMAIL / H4_PASSWORD secrets are not set; the h4 job is skipped."
+          if [ "${{ github.event_name }}" != "schedule" ]; then echo "::error::H4 secrets are not set"; exit 1; fi
+  h4:
+    needs: secrets-check
+    if: ${{ needs.secrets-check.outputs.ok == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npx playwright install --with-deps chromium
+      - name: Playwright H-4 (3 runs)
+        env:
+          BASE: https://aetherforgeai.co.nz
+          H4_EMAIL: ${{ secrets.H4_EMAIL }}
+          H4_PASSWORD: ${{ secrets.H4_PASSWORD }}
+        run: |
+          set -o pipefail
+          mkdir -p h4-out
+          npx playwright test -c qa/playwright 2>&1 | tee h4-out/console.log
+      # b46: the log is uploaded like signout-race; the spec prints timings only, never the credentials.
+      - name: Upload log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: h4-playwright-${{ github.run_id }}
+          path: h4-out/
+          if-no-files-found: warn
+          retention-days: 14

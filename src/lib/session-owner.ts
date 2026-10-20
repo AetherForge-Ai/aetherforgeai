@@ -43,6 +43,10 @@ export const SESSION_TOKEN_COOKIE_NAMES = [
 export const SESSION_AUX_COOKIE_NAMES = [
   "better-auth.dont_remember",
   "__Secure-better-auth.dont_remember",
+  // b41 P1: the signed last-good session (store-down fallback) goes with the token on sign-out.
+  "af_ls",
+  // b43: the b42 sign-out marker is retired; any copy left in a browser is expired with the rest.
+  "af_so",
 ] as const;
 
 export const AUTH_COOKIE_NAMES = [

@@ -34,7 +34,7 @@ export async function KoinsSnapshotPrices() {
       <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
         USD prices from the shared crypto snapshot
         {asOf && asOf !== "—" ? `, as at ${asOf}` : ""}. These rows are not a member book and they are not a
-        recommendation. Crypto projections stay paused.
+        recommendation.
       </p>
       {coins.length === 0 ? (
         <p className="mt-4 text-sm text-muted-foreground">No crypto price is on the shared snapshot.</p>

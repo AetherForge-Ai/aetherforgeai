@@ -1,3 +1,5 @@
+import { cryptoRowDelayed } from "@/lib/crypto-row-delay";
+import { reevaluateRowDelay } from "@/lib/row-delay-label";
 import "server-only";
 
 import { coinDepthComplete, isDuplicateOrTokenisedCoin, isJunkCoin } from "@/lib/coin-junk";
@@ -111,6 +113,60 @@ async function loadEquityTab(board: StockBoard): Promise<PublicPriceTab> {
   };
 }
 
+type CryptoTabCoin = Awaited<ReturnType<typeof loadTop400Markets>>["coins"][number];
+/** b37 H-1: one mapping for the live list and the stored snapshot. */
+function cryptoRowsFromCoins(coins: CryptoTabCoin[], quotedAt: string): PublicPriceRow[] {
+  return coins
+    .filter((coin) => !isJunkCoin(coin.id, coin.name, coin.symbol))
+    // Goal b12 G-17: no tokenised stocks or wrapped/bridged/staked duplicates, and
+    // only coins whose page can show cap, volume, supply and 1h change.
+    .filter((coin) => !isDuplicateOrTokenisedCoin(coin.id) && coinDepthComplete(coin))
+    .slice(0, DOCUMENT_ROWS).map((coin) => ({
+    symbol: coin.symbol,
+    name: coin.name,
+    price: formatUnitPrice(coin.price, "USD"),
+    change: formatSignedPercent(coin.change24h),
+    href: `/markets/crypto/${encodeURIComponent(coin.id)}`,
+    usd: coin.price,
+    changePct: coin.change24h,
+    quoteId: coin.id,
+    source: shownSource(coin.source, "coingecko"),
+    // b38 H-1: each row's own time; over 15 min it is marked delayed.
+    asOf: cryptoRowDelayed(coin.quotedAt || quotedAt) ? `${asOfLabel(coin.quotedAt || quotedAt)} · delayed` : asOfLabel(coin.quotedAt || quotedAt),
+    delayed: cryptoRowDelayed(coin.quotedAt || quotedAt),
+    quotedAt: coin.quotedAt || quotedAt || null,
+    blockchain: coin.blockchain || "",
+    change1h: coin.change1h == null ? "—" : formatSignedPercent(coin.change1h),
+    change7d: (() => {
+      const week = resolveSevenDayChange(coin.change7d, coin.sparkline7d);
+      return week == null ? "—" : formatSignedPercent(week);
+    })(),
+    supply: fmtCompactNum(coin.circulatingSupply),
+  }));
+}
+
+/**
+ * b37 H-1: /markets crypto tab had 0 rows on 4/127 loads (cold isolate, list read over budget).
+ * The stored snapshot (the one /api/ticker serves) fills the tab instead of an empty table.
+ */
+async function cryptoTabFromSnapshot(): Promise<PublicPriceTab | null> {
+  try {
+    const { readCryptoSnapshot } = await import("@/lib/crypto-snapshot");
+    const { edgeSnapshotGet } = await import("@/lib/ticker-serve");
+    // b40 H-1 (a): the colo's edge copy (the one /api/ticker keeps) first, then the durable read.
+    type Snap = NonNullable<Awaited<ReturnType<typeof readCryptoSnapshot>>>;
+    const edge = await within(edgeSnapshotGet<Snap>(300), null, 400);
+    const snap = edge?.coins?.length ? edge : await within(readCryptoSnapshot(1_500), null, 1_800);
+    if (!snap?.coins.length) return null;
+    const coins = snap.coins.filter((coin) => coin.price > 0).slice(0, COIN_PAGE) as CryptoTabCoin[];
+    const rows = cryptoRowsFromCoins(coins, snap.at);
+    if (!rows.length) return null;
+    return { id: "CRYPTO", title: "Crypto", asOf: pricesAsAtLabel(snap.at) || asOfLabel(snap.at), rows };
+  } catch {
+    return null;
+  }
+}
+
 let lastCryptoAsAt = "";
 
 async function loadCryptoTab(): Promise<PublicPriceTab> {
@@ -147,30 +203,7 @@ async function loadCryptoTab(): Promise<PublicPriceTab> {
         source: coin.source || "coingecko",
       }))
     );
-    const rows = coins
-      .filter((coin) => !isJunkCoin(coin.id, coin.name, coin.symbol))
-      // Goal b12 G-17: no tokenised stocks or wrapped/bridged/staked duplicates, and
-      // only coins whose page can show cap, volume, supply and 1h change.
-      .filter((coin) => !isDuplicateOrTokenisedCoin(coin.id) && coinDepthComplete(coin))
-      .slice(0, DOCUMENT_ROWS).map((coin) => ({
-      symbol: coin.symbol,
-      name: coin.name,
-      price: formatUnitPrice(coin.price, "USD"),
-      change: formatSignedPercent(coin.change24h),
-      href: `/markets/crypto/${encodeURIComponent(coin.id)}`,
-      usd: coin.price,
-      changePct: coin.change24h,
-      quoteId: coin.id,
-      source: shownSource(coin.source, "coingecko"),
-      asOf: asOfLabel(coin.quotedAt || quotedAt),
-      blockchain: coin.blockchain || "",
-      change1h: coin.change1h == null ? "—" : formatSignedPercent(coin.change1h),
-      change7d: (() => {
-        const week = resolveSevenDayChange(coin.change7d, coin.sparkline7d);
-        return week == null ? "—" : formatSignedPercent(week);
-      })(),
-      supply: fmtCompactNum(coin.circulatingSupply),
-    }));
+    const rows = cryptoRowsFromCoins(coins, quotedAt);
     const tab = {
       id: "CRYPTO",
       title: "Crypto",
@@ -225,7 +258,12 @@ async function loadDexTab(): Promise<PublicPriceTab> {
       usd: row.price as number,
       quoteId: row.detailId as string,
       source: shownSource(feed, "") || "Public DEX data",
-      asOf: asOfLabel(quotedAt),
+      // b40 H-1 (b): DEX rows carry their own time; over 15 min they are marked delayed, like crypto.
+      asOf: cryptoRowDelayed((row as { quotedAt?: string | null }).quotedAt || quotedAt)
+        ? `${asOfLabel((row as { quotedAt?: string | null }).quotedAt || quotedAt)} · delayed`
+        : asOfLabel((row as { quotedAt?: string | null }).quotedAt || quotedAt),
+      delayed: cryptoRowDelayed((row as { quotedAt?: string | null }).quotedAt || quotedAt),
+      quotedAt: (row as { quotedAt?: string | null }).quotedAt || quotedAt || null,
       blockchain: row.network || "",
       dex: row.dex || "",
     }));
@@ -284,7 +322,8 @@ async function buildIndex(): Promise<PublicMarketIndex> {
         asOf: "time not given by the data provider",
         rows: [] as PublicPriceRow[],
       }))
-      .then((tab) => choosePublicPriceTab(tab, recallPublicTab("CRYPTO"))),
+      .then((tab) => choosePublicPriceTab(tab, recallPublicTab("CRYPTO")))
+      .then(async (tab) => (tab.rows.length ? tab : (await cryptoTabFromSnapshot()) ?? tab)),
     within(loadDexTab(), { id: "DEX", title: "DEX", asOf: "time not given by the data provider", rows: [] }, DEX_BUDGET_MS)
       .catch(() => ({
         id: "DEX",
@@ -322,8 +361,11 @@ function emptyIndex(): PublicMarketIndex {
 }
 
 /** Keep a richer snapshot. A short timeout must not wipe a page that already had rows. */
-function remember(value: PublicMarketIndex) {
+function remember(fresh: PublicMarketIndex) {
   const now = Date.now();
+  // b37 H-1: a rebuild never empties one tab that had rows (the crypto tab went to 0 rows while the
+  // equity tabs grew, so the total-count check accepted it).
+  const value = mergeIndexTabs(fresh, memo?.value ?? null);
   const keepExisting =
     value.priceRowCount <= 0 || (memo != null && value.priceRowCount < memo.value.priceRowCount);
   if (keepExisting) {
@@ -334,12 +376,15 @@ function remember(value: PublicMarketIndex) {
   nextRefreshAt = now + (stockTabsNeedQuotes(value) ? QUOTE_RETRY_MS : INDEX_TTL_MS);
 }
 
+export { mergeIndexTabs } from "@/lib/ticker-serve";
+import { mergeIndexTabs } from "@/lib/ticker-serve";
+
 function startBuild(): Promise<PublicMarketIndex> {
   if (!inflight) {
     inflight = buildIndex()
       .then((value) => {
         remember(value);
-        return value;
+        return mergeIndexTabs(value, memo?.value ?? null);
       })
       .finally(() => {
         inflight = null;
@@ -355,13 +400,27 @@ function startBuild(): Promise<PublicMarketIndex> {
  * A refresh that keeps the old snapshot waits REFRESH_BACKOFF_MS before another try.
  * A cold read waits for the tab budget (EQUITY_BUDGET_MS). Empty tabs say the price is not in this response.
  */
+/**
+ * b40 H-1 (a): /markets?tab=crypto must never be an empty 200. If the index (memo or a timed-out
+ * build) has no crypto rows, fill the tab from the stored snapshot before rendering.
+ */
+export async function ensureCryptoTab(index: PublicMarketIndex): Promise<PublicMarketIndex> {
+  const at = index.tabs.findIndex((tab) => tab.id === "CRYPTO");
+  if (at !== -1 && index.tabs[at].rows.length) return index;
+  const filled = await cryptoTabFromSnapshot();
+  if (!filled) return index;
+  const tabs = at === -1 ? [...index.tabs, filled] : index.tabs.map((tab, i) => (i === at ? filled : tab));
+  return reevaluateRowDelay({ tabs, priceRowCount: tabs.reduce((sum, tab) => sum + tab.rows.length, 0) });
+}
+
 export async function loadPublicMarketIndex(): Promise<PublicMarketIndex> {
+  // b46 H-1 (b): "delayed" is re-evaluated against now on every response, not frozen in the memo.
   if (memo && memo.value.priceRowCount > 0) {
     if (Date.now() >= nextRefreshAt) void startBuild();
-    return memo.value;
+    return reevaluateRowDelay(memo.value);
   }
   const value = await startBuild();
-  return value.priceRowCount > 0 ? value : emptyIndex();
+  return value.priceRowCount > 0 ? reevaluateRowDelay(value) : emptyIndex();
 }
 
 const quoteMemo = new Map<string, { at: number; value: Promise<string | null> }>();

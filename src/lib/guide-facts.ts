@@ -19,12 +19,42 @@ export const FIF_INTENT_RE =
 export const FIF_JOINT_NO = "No, a jointly held portfolio does not get a doubled NZ$100,000 threshold.";
 const JOINT_ASK_RE = /joint|partner|spouse|couple|double|100,?000|100k|together|both of us|trust|company/;
 
+/** b38 CR-2 (P1): Chief's exact core wording; extra facts follow it. */
+export const FIF_CORE_RULE =
+  "The NZ$50,000 threshold applies per person, based on total cost at any time in the year; joint holdings are split between the owners, so 2 equal owners can together hold up to NZ$100,000 in cost with no other FIF holdings; it's not a doubled threshold for the portfolio.";
 export const FIF_STATIC_ANSWER =
-  "The FIF de minimis threshold is NZ$50,000 per natural person: each owner's share of the joint cost, plus their separate FIF holdings, counts toward their own NZ$50,000. It is the total cost of those FIF interests (purchase price including fees) at any time in the income year (1 April to 31 March). New Zealand shares and most ASX-listed shares (Australian-resident, on the approved list) are excluded and add nothing to that cost. Only two equal owners with no other FIF holdings could hold up to NZ$100,000 together and each stay within their own NZ$50,000. Trusts and companies don't get the NZ$50,000 exemption. Indicative, not tax advice";
+  `${FIF_CORE_RULE} Cost means purchase price including fees, at any time in the income year (1 April to 31 March). New Zealand shares and most ASX-listed shares (Australian-resident, on the approved list) are excluded and add nothing to that cost. Trusts and companies don't get the NZ$50,000 exemption. Indicative, not tax advice`;
+
+const fmtNz = (n: number) => `NZ$${Math.round(n).toLocaleString("en-NZ")}`;
+
+/** b38 CR-2: the first NZ$ amount in the question ("NZ$80,000", "$80k", "80 000"), or null. */
+export function questionAmountNzd(q: string): number | null {
+  const m = q.match(/(?:nz)?\$?\s?(\d{1,3}(?:[ ,]\d{3})+|\d+(?:\.\d+)?)\s?(k|thousand)?\b/i);
+  if (!m) return null;
+  const n = Number(m[1].replace(/[ ,]/g, "")) * (m[2] ? 1000 : 1);
+  return n >= 1000 && n <= 100_000_000 ? n : null;
+}
+
+/**
+ * b38 CR-2 (TT b37): "a couple with ~NZ$80,000 at cost" is answered directly first: each of 2 equal
+ * owners holds half the cost, measured against their own NZ$50,000.
+ */
+export function jointAmountLine(q: string): string | null {
+  if (!/couple|partner|spouse|joint|both of us|together|2 of us|two of us/.test(q)) return null;
+  const total = questionAmountNzd(q.replace(/50,?000|50k|100,?000|100k/g, " "));
+  if (total == null) return null;
+  const each = total / 2;
+  const under = each <= FIF_THRESHOLD_NZD;
+  return `If you own it in equal shares, each of you holds ${fmtNz(each)} of the ${fmtNz(total)} cost, which is ${
+    under ? "under" : "over"
+  } the per-person ${fmtNz(FIF_THRESHOLD_NZD)} threshold${under ? " (as long as neither of you holds other FIF interests that take your own total over it)" : ", so the FIF rules apply to each of you"}.`;
+}
 
 export function fifStaticReply(userMessage: string): string | null {
   const q = String(userMessage || "").toLowerCase();
   if (!FIF_INTENT_RE.test(q)) return null;
+  const direct = JOINT_ASK_RE.test(q) ? jointAmountLine(q) : null;
+  if (direct) return `${direct} ${FIF_STATIC_ANSWER}.`;
   return JOINT_ASK_RE.test(q) ? `${FIF_JOINT_NO} ${FIF_STATIC_ANSWER}.` : `${FIF_STATIC_ANSWER}.`;
 }
 
@@ -64,7 +94,7 @@ export function guideFactsBlock(): string {
     "- Prices are delayed public data, not a direct NZX or ASX feed.",
     "### Overseas shares (FIF) — Indicative, not tax advice",
     `- The FIF de minimis test: if the total cost of your FIF interests is more than NZ$50,000 at any time in the income year (1 April to 31 March), the FIF rules apply. It is the cost of what you hold at that moment, not the sum of everything held at some point in the year.`,
-    `- The limit is ${nz(FIF_THRESHOLD_NZD)} per natural person, based on that person's share of the cost: each owner's share of a joint holding, plus their separate FIF holdings, counts toward their own ${nz(FIF_THRESHOLD_NZD)}. It never doubles for a joint portfolio as a whole. Only two equal owners with no other FIF holdings could hold ${nz(FIF_JOINT_THRESHOLD_NZD_FACT)} together and each stay within their own limit. Trusts and companies don't get the exemption. Never say the limit "doubles" and never answer "yes" to "is my threshold NZ$100,000?".`,
+    `- Use this wording: "${FIF_CORE_RULE}" Trusts and companies don't get the exemption. Never say the limit "doubles" and never answer "yes" to "is my threshold NZ$100,000?". End with "Indicative, not tax advice."`,
     "- End any FIF answer with \"Indicative, not tax advice\"; the member should confirm with IRD or a tax adviser.",
     "### Outside platforms",
     "- Never recommend, rank or link to a broker, exchange or retailer, and give no referral links or user counts.",

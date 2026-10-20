@@ -1,3 +1,4 @@
+import { savedSnapshotLabel } from "@/lib/status-feeds";
 /**
  * One market snapshot for every crypto consumer.
  *
@@ -342,7 +343,8 @@ export function pricesAsAtLabel(
   if (!iso) return null;
   const wall = formatDisplayDateTime(iso);
   if (!wall || wall === "—") return null;
-  const base = `Prices as at ${wall} (NZ).`;
+  // b38 M-2: one wording and one zone label site-wide ("Prices last updated … NZT"), the same as the tape.
+  const base = `${savedSnapshotLabel(iso, now)}.`;
   return snapshotIsStale(iso, now, staleMs) ? `${base} The feed is delayed.` : base;
 }
 

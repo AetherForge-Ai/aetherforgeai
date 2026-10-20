@@ -586,6 +586,90 @@ function currencyOf(raw: string, ticker: string): ImportCurrency | null {
  * `fundBuys` is off unless it is exactly true. A buy that would make paper cash negative is then skipped and listed.
  * An error plan writes nothing: no trades and no funding deposit.
  */
+/**
+ * b51 H-10 (TT b31: CommSec/Jarden/Swyftx/Easy Crypto/Hatch files in the documented export layouts
+ * gave an empty preview or "not recognised"). BROKER-CSV-COLUMNS.md: Hatch and Swyftx headers are
+ * verified (Hatch Help Centre; Cryptact Swyftx spec); CommSec Confirmations, Jarden and Easy Crypto are
+ * the documented-but-unverified layouts. Each known export layout is rewritten into the column layout
+ * this parser already reads, row by row, before planning. Values are copied, never invented: a column
+ * the export does not carry stays blank (an FX rate is then looked up as for any other file).
+ */
+type LayoutRow = Record<string, string>;
+const csvCell = (v: string) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
+function aucklandDay(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso.slice(0, 10);
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Pacific/Auckland", year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+}
+function mul(a: string, b: string): string {
+  const x = parseNumber(a);
+  const y = parseNumber(b);
+  return x != null && y != null ? String(Math.round(x * y * 1e8) / 1e8) : "";
+}
+const KNOWN_LAYOUTS: Array<{
+  name: string;
+  match: (h: string[]) => boolean;
+  header: string[];
+  row: (r: LayoutRow) => string[] | null;
+}> = [
+  {
+    name: "hatch-help-centre",
+    match: (h) => h.includes("date (nz)") && h.includes("side") && h.includes("price (usd)"),
+    header: ["Trade Date", "Action", "Symbol", "Quantity", "Price", "Commission", "Currency", "FX Rate", "Value"],
+    row: (r) => [r["date (nz)"], r["side"], r["symbol"], r["quantity"], r["price (usd)"], r["brokerage fees (usd)"] ?? "", "USD", r["fx rate"] ?? "", mul(r["quantity"], r["price (usd)"])],
+  },
+  {
+    name: "swyftx-transaction-report",
+    match: (h) => h.includes("event") && h.includes("asset") && h.includes("amount") && h.includes("rate") && h.includes("transaction id"),
+    header: ["Date", "Event", "Asset", "Quantity", "Price", "Fee", "Currency", "Transaction ID"],
+    row: (r) => [r["date"], r["event"], r["asset"], r["amount"], r["rate"], r["fee amount"] ?? "", r["currency"] ?? "", r["transaction id"] ?? ""],
+  },
+  {
+    name: "commsec-confirmations",
+    match: (h) => h.includes("confirmation number") && h.includes("average price ($)") && h.includes("security"),
+    header: ["Trade Date", "Settlement Date", "Reference", "Security", "Buy/Sell", "Units", "Average Price", "Brokerage", "Currency", "FX Rate"],
+    row: (r) => [r["trade date"], r["settlement date"] ?? "", r["confirmation number"] ?? "", withMarketSuffix(r["security"], "ASX"), r["buy/sell"], r["units"], r["average price ($)"], r["brokerage (inc gst.)"] ?? "", "AUD", ""],
+  },
+  {
+    name: "jarden-transactions",
+    match: (h) => h.includes("transaction date") && h.includes("confirmation number") && h.includes("code") && h.includes("type"),
+    header: ["Date", "Code", "Exchange", "Transaction", "Units", "Price", "Brokerage", "Currency", "Confirmation Number"],
+    row: (r) => [r["transaction date"], r["code"], r["exchange"] ?? "", r["type"], r["quantity"], r["price"], r["brokerage"] ?? "", r["currency"] ?? "", r["confirmation number"] ?? ""],
+  },
+  {
+    name: "easycrypto-orders",
+    match: (h) => h.includes("from currency") && h.includes("to currency") && h.includes("side"),
+    header: ["Date", "Type", "Symbol", "Quantity", "Price", "Fee", "Currency", "Easy Crypto Order ID"],
+    row: (r) => {
+      // Only completed orders are trades; a pending or cancelled order is not imported.
+      if (r["status"] && !/^complete/i.test(r["status"])) return null;
+      const buy = /^buy/i.test(r["side"] || "");
+      const coin = buy ? r["to currency"] : r["from currency"];
+      const qty = buy ? r["to amount"] : r["from amount"];
+      const ccy = buy ? r["from currency"] : r["to currency"];
+      return [aucklandDay(r["created"]), r["side"], coin, qty, r["rate"], r["fee"] ?? "", ccy, r["order id"] ?? ""];
+    },
+  },
+];
+/** The rewritten lines and the layout name, or the lines unchanged. */
+export function rewriteKnownLayout(lines: string[]): { lines: string[]; layout: string | null } {
+  const at = locateHeader(lines);
+  if (at < 0) return { lines, layout: null };
+  const head = splitCsvLine(lines[at]).map(normHeader);
+  const layout = KNOWN_LAYOUTS.find((l) => l.match(head));
+  if (!layout) return { lines, layout: null };
+  const out = [layout.header.join(",")];
+  for (const line of lines.slice(at + 1)) {
+    const cells = splitCsvLine(line);
+    if (cells.every((c) => !c.trim())) continue;
+    const r: LayoutRow = {};
+    head.forEach((h, i) => (r[h] = (cells[i] ?? "").trim()));
+    const row = layout.row(r);
+    if (row) out.push(row.map((v) => csvCell(v ?? "")).join(","));
+  }
+  return { lines: [...lines.slice(0, at), ...out], layout: layout.name };
+}
+
 export function planBrokerImport(
   text: string,
   options?: {
@@ -600,7 +684,7 @@ export function planBrokerImport(
     tickerFixes?: Record<string, string>;
   }
 ): ImportPlan {
-  const lines = linesOf(text || "");
+  const lines = rewriteKnownLayout(linesOf(text || "")).lines;
   if (!lines.length) return emptyPlan("The file is empty. Nothing was written.", [], true);
 
   const headerAt = locateHeader(lines);

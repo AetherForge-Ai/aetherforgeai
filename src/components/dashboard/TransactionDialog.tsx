@@ -28,6 +28,16 @@ type Sellable = Stock & { metalSourceId?: string };
  * The one Record a transaction dialog. Search stays inside the panel, and the
  * close guards keep a ticker lookup from dismissing it.
  */
+/**
+ * b44 G-14: offsetParent is null for position:fixed/sticky controls (the panel footer), so those were
+ * dropped from the trap and Tab escaped the dialog after the date segments. Use layout boxes instead.
+ */
+function isTabbableVisible(el: HTMLElement): boolean {
+  if (el.getClientRects().length === 0) return false;
+  const style = window.getComputedStyle(el);
+  return style.visibility !== "hidden" && style.display !== "none";
+}
+
 export function TransactionDialog({
   open,
   onOpenChange,
@@ -51,6 +61,9 @@ export function TransactionDialog({
 }) {
   const searchQueryRef = useRef("");
   const closeReasonRef = useRef<DialogCloseReason>("unknown");
+  // b40 G-10: while a confirmed write is in flight the dialog can't be closed by X or Escape; only the
+  // panel's own close after the saved row id returns (explicit) closes it.
+  const savingRef = useRef(false);
   // b31 G-10: remember the control that opened the panel, and return focus to it on close.
   const returnFocusRef = useRef<HTMLElement | null>(null);
   useEffect(() => {
@@ -91,7 +104,7 @@ export function TransactionDialog({
         panel.querySelectorAll<HTMLElement>(
           'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
         )
-      ).filter((el) => el.offsetParent !== null);
+      ).filter(isTabbableVisible);
       if (!items.length) {
         panel.focus();
         return;
@@ -116,7 +129,7 @@ export function TransactionDialog({
       root.querySelectorAll<HTMLElement>(
         'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
       )
-    ).filter((el) => el.offsetParent !== null || el === document.activeElement);
+    ).filter((el) => isTabbableVisible(el) || el === document.activeElement);
     if (!items.length) return;
     const first = items[0];
     const last = items[items.length - 1];
@@ -138,6 +151,7 @@ export function TransactionDialog({
   function handleDialogOpenChange(next: boolean) {
     const reason = closeReasonRef.current;
     closeReasonRef.current = "unknown";
+    if (!next && savingRef.current && reason !== "explicit") return;
     guardDialogOpenChange(next, onOpenChange, {
       reason,
       queryLength: searchQueryRef.current.trim().length,
@@ -167,6 +181,10 @@ export function TransactionDialog({
         }}
         onEscapeKeyDown={(e) => {
           closeReasonRef.current = "escape";
+          if (savingRef.current) {
+            e.preventDefault();
+            return;
+          }
           keepDialogOpenWhilePopoverOpen(e);
         }}
       >
@@ -194,9 +212,16 @@ export function TransactionDialog({
             }}
             onDone={(ledger) => {
               onDone(ledger);
-              requestExplicitClose();
+              // b39 G-10: the optimistic paint (and its rollback) must not close the dialog. It stays
+              // open and disabled until the server returns the saved row id; the panel then calls
+              // onRequestClose itself.
+              const l = ledger as { optimistic?: boolean; optimisticRollback?: boolean } | null | undefined;
+              if (!l?.optimistic && !l?.optimisticRollback) requestExplicitClose();
             }}
             onRequestClose={requestExplicitClose}
+            onSavingChange={(saving) => {
+              savingRef.current = saving;
+            }}
           />
         </div>
       </DialogContent>

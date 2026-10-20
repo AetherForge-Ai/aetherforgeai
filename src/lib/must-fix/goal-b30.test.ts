@@ -192,7 +192,7 @@ describe("G-10 durable book version", () => {
     const { parseBookVersion } = await import("@/lib/book-version.server");
     expect(parseBookVersion('{"v":3,"at":5}')).toEqual({ v: 3, at: 5 });
     expect(parseBookVersion("junk")).toEqual({ v: 0, at: 0 });
-    expect(read("src/lib/book-cache.server.ts")).toContain("readBookVersion(userId)");
+    expect(read("src/lib/book-cache.server.ts")).toContain("readBookVersionKnown(userId)");
     expect(read("src/lib/transactions.ts")).toContain('import "@/lib/book-version.server"');
     const { hiddenSnapshotTicker } = await import("@/lib/crypto-snapshot");
     expect(hiddenSnapshotTicker("AF-BV")).toBe(true);

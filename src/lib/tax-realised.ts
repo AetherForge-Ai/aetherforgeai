@@ -1,3 +1,4 @@
+import { moneyCell } from "@/lib/currency";
 import { csvEscape } from "@/lib/csv-cell";
 /**
  * Realised profit and loss for one 1 April–31 March year.
@@ -440,7 +441,7 @@ export const REALISED_CSV_COLUMNS = [
 
 function cellMoney(value: number | null): string {
   if (value == null) return "";
-  return roundMoney(value).toFixed(2);
+  return moneyCell(value); // b51 G-12: the one rule
 }
 
 export function realisedCsv(report: RealisedReport, formatDate: (value: string) => string): string {

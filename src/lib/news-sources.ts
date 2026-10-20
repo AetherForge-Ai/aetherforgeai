@@ -48,6 +48,10 @@ export const NEWS_FEEDS = [
   { source: "Yahoo Finance", what: "ASX and US headline feeds and searches, which can include articles by the third-party publishers listed below", delay: "shown up to 15 minutes after Yahoo publishes" },
   { source: "BBC Business", what: "global business RSS headlines (filtered to NZ/AU-relevant items)", delay: "shown up to 15 minutes after BBC publishes" },
   { source: "Twelve Data", what: "US company press releases", delay: "shown up to 15 minutes after Twelve Data lists them" },
+  // b44 H-15: crypto news feeds read by src/lib/market-news.ts loadCryptoStories.
+  { source: "CryptoCompare", what: "crypto news headlines", delay: "shown up to 15 minutes after CryptoCompare lists them" },
+  { source: "CoinDesk", what: "crypto news RSS headlines", delay: "shown up to 15 minutes after CoinDesk publishes" },
+  { source: "Cointelegraph", what: "crypto news RSS headlines", delay: "shown up to 15 minutes after Cointelegraph publishes" },
 ] as const;
 
 /** Publisher names a card can carry (deduplicated, as printed on /trust). */

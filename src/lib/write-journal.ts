@@ -109,10 +109,235 @@ export function correctFromJournal(userId: string | null | undefined, snapshot: 
   if (!userId) return snapshot;
   const out = applyJournal(snapshot, readJournal(userId, s, now), now);
   save(userId, out.journal, s);
-  return out.snapshot;
+  // b38 G-10: a delete the server has not answered yet stays hidden across a reload.
+  const pending = new Set(pendingDeleteIds(userId, s));
+  if (!pending.size || !out.snapshot.ledger?.some((row) => pending.has(row.id))) return out.snapshot;
+  return { ...out.snapshot, ledger: out.snapshot.ledger.filter((row) => !pending.has(row.id)) };
 }
 
 /** Ids the journal says were deleted in the window (seeds the in-tab reconcile after a reload). */
 export function journalDeletedMap(userId: string | null | undefined, s: StorageLike | null = store()): Map<string, number> {
-  return new Map(Object.entries(readJournal(userId, s).deleted));
+  const out = new Map(Object.entries(readJournal(userId, s).deleted));
+  for (const w of listPendingWrites(userId, s)) if (w.method === "DELETE" && w.deleteId && !out.has(w.deleteId)) out.set(w.deleteId, w.at);
+  return out;
+}
+
+/* -------------------------------------------------------------------------- */
+/* b37 G-10 (P1): pending writes. A confirmed write is journalled *before* it is sent and cleared */
+/* only when the server answers (saved id, or a definite refusal). A reload or closed tab mid-     */
+/* request no longer loses it: the next dashboard load replays it with the same idempotency key,  */
+/* and the server writes it at most once (route: findIdempotentRow).                              */
+/* -------------------------------------------------------------------------- */
+
+export interface PendingWrite {
+  key: string;
+  userId: string;
+  /** b38 G-10: a DELETE carries the ledger row id in deleteId (payload unused). */
+  method: "POST" | "DELETE";
+  payload: Record<string, unknown>;
+  deleteId?: string;
+  /** b39 G-10: for a DELETE, the idempotency key of the write that created the row. */
+  idem?: string;
+  at: number;
+}
+
+const PENDING_KEY = "af:pending-writes";
+/** A pending write older than this is dropped unsent (and surfaced), never replayed blind. */
+export const PENDING_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+/** Leave a just-sent write alone: its own request may still be answering in this tab. */
+export const PENDING_MIN_AGE_MS = 3_000;
+export const WRITE_TIMEOUT_MS = 15_000;
+export const WRITE_TIMEOUT_CODE = "write-timeout";
+export const WRITE_TIMEOUT_MESSAGE =
+  "The server hasn't confirmed this yet, so it isn't shown as saved. Your entry is kept: press Confirm to try again (it can't be recorded twice).";
+
+export function newWriteKey(): string {
+  try {
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") return `w-${crypto.randomUUID()}`;
+  } catch {
+    /* fall through */
+  }
+  return `w-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+}
+
+function readPending(s: StorageLike | null): PendingWrite[] {
+  if (!s) return [];
+  try {
+    const raw = s.getItem(PENDING_KEY);
+    const list = raw ? (JSON.parse(raw) as PendingWrite[]) : [];
+    return Array.isArray(list) ? list.filter((w) => w && typeof w.key === "string" && typeof w.userId === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function savePending(list: PendingWrite[], s: StorageLike | null) {
+  if (!s) return;
+  try {
+    if (list.length) s.setItem(PENDING_KEY, JSON.stringify(list));
+    else s.removeItem(PENDING_KEY);
+  } catch {
+    /* blocked storage: the open dialog still holds the entry */
+  }
+}
+
+export function journalPendingWrite(w: PendingWrite, s: StorageLike | null = store()): void {
+  const list = readPending(s).filter((x) => x.key !== w.key);
+  list.push(w);
+  savePending(list, s);
+}
+
+export function clearPendingWrite(writeKey: string, s: StorageLike | null = store()): void {
+  savePending(readPending(s).filter((x) => x.key !== writeKey), s);
+}
+
+export function listPendingWrites(userId: string | null | undefined, s: StorageLike | null = store()): PendingWrite[] {
+  if (!userId) return [];
+  return readPending(s).filter((w) => w.userId === userId);
+}
+
+/** 4xx other than 401/408/429 is the server saying no: the write must not be replayed. */
+/** b38 G-10: ledger row ids with a DELETE journalled but not yet answered. */
+export function pendingDeleteIds(userId: string | null | undefined, s: StorageLike | null = store()): string[] {
+  return listPendingWrites(userId, s).flatMap((w) => (w.method === "DELETE" && w.deleteId ? [w.deleteId] : []));
+}
+
+export function isDefiniteRefusal(status: number | undefined): boolean {
+  if (status == null) return false;
+  return status >= 400 && status < 500 && status !== 401 && status !== 408 && status !== 429;
+}
+
+export function withWriteTimeout<T extends { ok: boolean }>(work: Promise<T>, ms = WRITE_TIMEOUT_MS): Promise<T | { ok: false; error: string; status?: undefined }> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  return Promise.race([
+    work,
+    new Promise<{ ok: false; error: string }>((resolve) => {
+      timer = setTimeout(() => resolve({ ok: false, error: WRITE_TIMEOUT_CODE }), ms);
+    }),
+  ]).finally(() => timer && clearTimeout(timer));
+}
+
+export interface ReplayOutcome {
+  saved: string[];
+  refused: Array<{ key: string; error: string }>;
+  kept: number;
+  expired: number;
+}
+
+type ApiResult = { ok: boolean; status?: number; error?: unknown; data?: unknown };
+type Poster = (payload: Record<string, unknown>) => Promise<ApiResult>;
+type Deleter = (id: string, idem?: string) => Promise<ApiResult>;
+
+/**
+ * Replay this user's pending writes (same payload, same key). Saved → cleared and noted as created;
+ * a definite refusal → cleared and returned so the page can say so; anything else stays for next time.
+ */
+export async function replayPendingWrites(
+  userId: string | null | undefined,
+  post: Poster,
+  s: StorageLike | null = store(),
+  now = Date.now(),
+  del?: Deleter
+): Promise<ReplayOutcome> {
+  const out: ReplayOutcome = { saved: [], refused: [], kept: 0, expired: 0 };
+  // b39 G-10: a POST whose row was later deleted (a pending or answered DELETE names its key) is
+  // cancelled, never re-sent. The server also tombstones deleted keys (410), which clears it too.
+  const cancelled = new Set(listPendingWrites(userId, s).flatMap((w) => (w.method === "DELETE" && w.idem ? [w.idem] : [])));
+  for (const w of listPendingWrites(userId, s)) {
+    if (w.method !== "DELETE" && (cancelled.has(w.key) || isCancelledWriteKey(w.key, s))) {
+      clearPendingWrite(w.key, s);
+      out.expired += 1;
+      continue;
+    }
+    if (now - w.at > PENDING_MAX_AGE_MS) {
+      clearPendingWrite(w.key, s);
+      out.expired += 1;
+      continue;
+    }
+    if (now - w.at < PENDING_MIN_AGE_MS) {
+      out.kept += 1;
+      continue;
+    }
+    if (w.method === "DELETE") {
+      if (!w.deleteId || !del) {
+        out.kept += 1;
+        continue;
+      }
+      let dres: ApiResult;
+      try {
+        dres = await del(w.deleteId, w.idem);
+      } catch {
+        out.kept += 1;
+        continue;
+      }
+      // DELETE is idempotent on the server (alreadyRemoved), so a replay is always safe.
+      if (dres.ok || dres.status === 404) {
+        clearPendingWrite(w.key, s);
+        noteWrite(userId, { deletedId: w.deleteId }, s, now);
+        out.saved.push(w.deleteId);
+      } else if (isDefiniteRefusal(dres.status)) {
+        clearPendingWrite(w.key, s);
+        out.refused.push({ key: w.key, error: typeof dres.error === "string" ? dres.error : "refused" });
+      } else {
+        out.kept += 1;
+      }
+      continue;
+    }
+    let res: ApiResult;
+    try {
+      res = await post({ ...w.payload, idempotency_key: w.key, confirm: true });
+    } catch {
+      out.kept += 1;
+      continue;
+    }
+    const id = (res.data as { lastTransaction?: { _id?: unknown } } | undefined)?.lastTransaction?._id;
+    if (res.ok && typeof id === "string" && id) {
+      clearPendingWrite(w.key, s);
+      noteWrite(userId, { createdId: id, cashAfter: (res.data as { cashBalance?: number } | undefined)?.cashBalance ?? null }, s, now);
+      out.saved.push(id);
+    } else if (!res.ok && isDefiniteRefusal(res.status)) {
+      clearPendingWrite(w.key, s);
+      out.refused.push({ key: w.key, error: typeof res.error === "string" ? res.error : "refused" });
+    } else {
+      out.kept += 1;
+    }
+  }
+  return out;
+}
+
+/* b40 G-10 (TT b39 P1 delete-during-pending): an optimistic row has no server id. A delete on it never
+   sends DELETE (the server would find nothing); it cancels the write's key in this tab instead, and when
+   the POST answers with the saved id, the row is deleted on arrival. */
+export const OPTIMISTIC_ID_PREFIX = "optimistic-";
+export function isOptimisticId(id: string | null | undefined): boolean {
+  return String(id || "").startsWith(OPTIMISTIC_ID_PREFIX);
+}
+const CANCELLED_KEY = "af:cancelled-writes";
+export function cancelWriteKey(writeKey: string, s: StorageLike | null = store()): void {
+  if (!writeKey || !s) return;
+  try {
+    const list = JSON.parse(s.getItem(CANCELLED_KEY) || "[]") as string[];
+    if (!list.includes(writeKey)) list.push(writeKey);
+    s.setItem(CANCELLED_KEY, JSON.stringify(list.slice(-50)));
+  } catch {
+    /* blocked storage */
+  }
+}
+export function isCancelledWriteKey(writeKey: string, s: StorageLike | null = store()): boolean {
+  if (!writeKey || !s) return false;
+  try {
+    return (JSON.parse(s.getItem(CANCELLED_KEY) || "[]") as string[]).includes(writeKey);
+  } catch {
+    return false;
+  }
+}
+export function clearCancelledWriteKey(writeKey: string, s: StorageLike | null = store()): void {
+  if (!s) return;
+  try {
+    const list = (JSON.parse(s.getItem(CANCELLED_KEY) || "[]") as string[]).filter((k) => k !== writeKey);
+    if (list.length) s.setItem(CANCELLED_KEY, JSON.stringify(list));
+    else s.removeItem(CANCELLED_KEY);
+  } catch {
+    /* blocked storage */
+  }
 }

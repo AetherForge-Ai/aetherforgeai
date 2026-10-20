@@ -1,5 +1,6 @@
 "use client";
 
+import { PasteTradesBox } from "@/components/import/PasteTradesBox";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -158,6 +159,21 @@ export function ImportClient() {
         onChange={(event) => void onFile(event.target.files?.[0])}
       />
       {fileName ? <p className="mt-2 text-sm text-muted-foreground">{fileName}</p> : null}
+
+      {/* b40 G-24: the paste flow is visible here too; the CSV it builds goes to the same preview. */}
+      <PasteTradesBox
+        idPrefix="import-paste"
+        onCsv={(csv, name, columns) => {
+          // b41 G-24: the pasted CSV carries its own column map, so the mapper is skipped.
+          const columnMap = { ...columns };
+          setText(csv);
+          setFileName(name);
+          setSaved(false);
+          setPreview(null);
+          setMapping(columnMap);
+          void send("preview", csv, columnMap);
+        }}
+      />
 
       {preview?.needsMapping ? (
         <fieldset className="mt-6 space-y-3" data-testid="column-map">

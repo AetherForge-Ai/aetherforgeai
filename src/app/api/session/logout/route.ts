@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
-import { forgetCachedSessionToken } from "@/lib/session";
+import { forgetCachedSessionToken, revokeTokenEverywhere } from "@/lib/session";
 import { cookieValue, verifySignedSessionToken } from "@/lib/session-token";
 import { applyExpiredAuthCookies, expireAuthCookies } from "@/lib/session-cookies";
+import { keepAlive } from "@/lib/keep-alive.server";
 
 export const dynamic = "force-dynamic";
 
@@ -12,13 +13,27 @@ export const dynamic = "force-dynamic";
  * name. A shared browser otherwise keeps session_data from one paper book
  * beside the next account's token.
  */
-export async function POST() {
+export async function POST(req: Request) {
   const headerList = await headers();
+  // b43 P1: a plain HTML form POST (works before hydration) gets a 303 to /logout?done=1.
+  const isForm = /application\/x-www-form-urlencoded|multipart\/form-data/i.test(req.headers.get("content-type") || "");
   // b29 H-4: this isolate must not keep serving the signed-out token from its session cache.
   try {
     const ctx = await auth.$context;
     const raw = cookieValue(headerList.get("cookie"), ctx.authCookies.sessionToken.name);
-    if (raw) forgetCachedSessionToken(await verifySignedSessionToken(raw, ctx.secret));
+    if (raw) {
+      const token = await verifySignedSessionToken(raw, ctx.secret);
+      if (token) {
+        forgetCachedSessionToken(token);
+        // b41/b42 P1: marker for every isolate, then the Totalum session row is deleted, before the
+        // response (which expires every auth cookie, af_ls included) is sent.
+        // b43 P1 (TT prod 8/9): on Workers a request whose client navigated away is cancelled unless
+        // its work is held by waitUntil, so the revoke runs under keepAlive and is awaited too.
+        const work = revokeTokenEverywhere(ctx, token);
+        await keepAlive(work);
+        await work;
+      }
+    }
   } catch {
     // best effort
   }
@@ -33,10 +48,10 @@ export async function POST() {
     console.error("[api/session/logout] signOut failed:", err);
   }
 
-  const response = NextResponse.json(
-    { ok: true },
-    { headers: { "Cache-Control": "private, no-store" } },
-  );
+  const response = isForm
+    ? NextResponse.redirect(new URL("/logout?done=1", req.url), 303)
+    : NextResponse.json({ ok: true }, { headers: { "Cache-Control": "private, no-store" } });
+  response.headers.set("Cache-Control", "private, no-store");
   if (upstream) {
     for (const cookie of upstream.headers.getSetCookie()) {
       response.headers.append("Set-Cookie", cookie);

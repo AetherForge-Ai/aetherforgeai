@@ -54,7 +54,7 @@ const KOINS = KOINS_PARAS.join(" ");
 
 const SMITTY_PARAS = [
   SMITTY_ROLE_LINE,
-  "Smitty sits next to the three AI bots. Smitty is not a fourth AI bot and does not write a research report.",
+  "Smitty sits next to the three AI bots and is not one of them.",
   "Gold and silver spot prices come from gold-api.com. They are shown in NZ$ when the daily foreign-exchange rate is available. Smitty does not place a trade.",
   "Free includes read-only Smitty spot prices. Paid plans can record metal holdings in the paper book. Those holdings are ounces you type. Smitty does not move metal.",
   "What the page shows. For gold and silver, Smitty shows the latest spot price per troy ounce, the time of that price, and the source. When the day's exchange rate is available, the price is also shown in NZ$. If you have recorded metal on your paper book, a Held row shows the ounces you entered, so you can see your quantity next to the spot price. If the exchange rate is missing, the NZ$ figure is left blank with a reason rather than estimated.",

@@ -166,7 +166,8 @@ export function PortfolioCoach() {
               className={cn(
                 // Below sm the chip sits under in-flow cards (z-30 vs z-40) so it
                 // cannot cover pricing-card copy. sm+ keeps it above the page.
-                "pg-chat-in af-assistant-chip fixed bottom-24 left-3 z-30 flex items-center rounded-full border border-amber-400/45",
+                // b38 M-6: below sm the chip is a slim right-edge tab too (at 360 px the left chip covered "Weight").
+                "pg-chat-in af-assistant-chip fixed bottom-24 right-0 z-30 flex items-center rounded-l-full rounded-r-none border border-r-0 border-amber-400/45",
                 "bg-[#06261a]/95 p-1.5 text-left shadow-[0_0_0_1px_rgba(245,158,11,0.28),0_16px_40px_rgba(0,0,0,0.5)]",
                 "backdrop-blur-md transition hover:border-amber-300/60 hover:bg-[#0a3d2a]",
                 // b6 M-6: below 2xl the chip is a slim edge tab in the page gutter so it never
@@ -181,7 +182,7 @@ export function PortfolioCoach() {
                 <img
                   src={BOT_HEADMASTER_AVATAR}
                   alt=""
-                  className="size-10 rounded-full border border-amber-400/40 object-cover sm:size-8 2xl:size-10"
+                  className="size-8 rounded-full border border-amber-400/40 object-cover 2xl:size-10"
                 />
                 <span className="absolute -bottom-0.5 -right-0.5 grid size-4 place-items-center rounded-full bg-amber-400 text-amber-950 shadow">
                   <MessageSquareText className="size-2.5" />

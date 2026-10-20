@@ -1,4 +1,5 @@
 import { LAST_GOOD_SESSION_COOKIE, cookieValueOf, verifyLastGoodSession } from "@/lib/last-good-session";
+import { isSessionTokenRevoked, markSessionTokenRevoked } from "@/lib/session-revocation";
 import "server-only";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
@@ -136,13 +137,30 @@ function sessionDeadline<T>(work: Promise<T>, what: string): Promise<T> {
   ]).finally(() => timer && clearTimeout(timer));
 }
 
+/** b42 P1: revoke a token in every place it could still count: marker, isolate cache, store row. */
+export async function revokeTokenEverywhere(ctx: Awaited<typeof auth.$context>, token: string): Promise<void> {
+  sessionCache.delete(`token:${token}`);
+  await markSessionTokenRevoked(token);
+  try {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    await Promise.race([
+      Promise.resolve(ctx.internalAdapter.deleteSession(token)),
+      new Promise((r) => {
+        timer = setTimeout(r, 2_000);
+      }),
+    ]).finally(() => timer && clearTimeout(timer));
+  } catch {
+    /* the marker still rejects it; the row expires */
+  }
+}
+
 /**
  * Token-only session lookup. Does not call better-auth get-session.
  * That endpoint writes Set-Cookie: it deletes the token when the row looks
  * missing or a session touch fails, which is how UI Refresh signed the user out
  * after a successful Confirm. A miss here is just "no user" — the cookie stays.
  */
-async function readTokenSession(cookieHeader: string | null): Promise<TokenSession | null> {
+async function readTokenSession(cookieHeader: string | null, opts: { fresh?: boolean } = {}): Promise<TokenSession | null> {
   const ctx = await auth.$context;
   const raw = cookieValue(cookieHeader, ctx.authCookies.sessionToken.name);
   if (!raw) {
@@ -155,13 +173,20 @@ async function readTokenSession(cookieHeader: string | null): Promise<TokenSessi
     return null;
   }
   const key = `token:${token}`;
+  // b41 P1: a signed-out token is rejected even if this isolate's session cache still holds it.
+  if (await isSessionTokenRevoked(token)) {
+    sessionCache.delete(key);
+    recordSessionDecision({ cookie: true, signature: true, source: "none", storeMs: null, outcome: "signed-out" });
+    return null;
+  }
   const cached = sessionCache.get(key);
   const now = Date.now();
-  if (cached && now - cached.at < SESSION_CACHE_FRESH_MS && sessionExpiresInFuture(cached.row.session.expiresAt)) {
+  // b42 P1: account pages pass fresh: true and always read the store (never the isolate cache).
+  if (!opts.fresh && cached && now - cached.at < SESSION_CACHE_FRESH_MS && sessionExpiresInFuture(cached.row.session.expiresAt)) {
     recordSessionDecision({ cookie: true, signature: true, source: "cache", storeMs: 0, outcome: "user" });
     return cached.row;
   }
-  const existing = inflightSessions.get(key);
+  const existing = opts.fresh ? undefined : inflightSessions.get(key);
   if (existing) return existing;
   const started = Date.now();
   const storeRead = sessionDeadline(
@@ -183,7 +208,7 @@ async function readTokenSession(cookieHeader: string | null): Promise<TokenSessi
       return row;
     }, (err: unknown) => {
       const storeMs = Date.now() - started;
-      const last = sessionCache.get(key);
+      const last = opts.fresh ? undefined : sessionCache.get(key);
       if (last && Date.now() - last.at < SESSION_CACHE_STALE_MS && sessionExpiresInFuture(last.row.session.expiresAt)) {
         recordSessionDecision({ cookie: true, signature: true, source: "stale-cache", storeMs, outcome: "user" });
         return last.row;
@@ -220,9 +245,11 @@ async function readTokenSession(cookieHeader: string | null): Promise<TokenSessi
 export async function getCurrentUser(_opts?: {
   refreshSession?: boolean;
   disableCookieCache?: boolean;
+  /** b42 P1: account pages: a fresh store check, never the isolate session cache. */
+  fresh?: boolean;
 }): Promise<AppUser | null> {
   try {
-    return await loadCurrentUser();
+    return await loadCurrentUser({ fresh: Boolean(_opts?.fresh) });
   } catch (err) {
     console.error("[session] getCurrentUser error:", err instanceof SessionStoreUnavailable ? err.reason : err);
     return null;
@@ -243,10 +270,10 @@ export async function getSessionState(): Promise<{ user: AppUser | null; unavail
   }
 }
 
-async function loadCurrentUser(): Promise<AppUser | null> {
+async function loadCurrentUser(opts: { fresh?: boolean } = {}): Promise<AppUser | null> {
   {
     const headerList = await headers();
-    const session = await readTokenSession(headerList.get("cookie"));
+    const session = await readTokenSession(headerList.get("cookie"), opts);
     if (!session?.user?.id) return null;
 
     const userId = session.user.id;
@@ -396,6 +423,8 @@ export async function lastGoodSessionCookieFor(cookieHeader: string | null, user
   const raw = cookieValue(cookieHeader, ctx.authCookies.sessionToken.name);
   const token = raw ? await verifySignedSessionToken(raw, ctx.secret) : null;
   if (!token) return null;
+  // b42 P1: never (re)issue af_ls for a session being signed out or already revoked.
+  if (await isSessionTokenRevoked(token, 300)) return null;
   const { signLastGoodSession } = await import("@/lib/last-good-session");
   return signLastGoodSession(ctx.secret, token, user);
 }
