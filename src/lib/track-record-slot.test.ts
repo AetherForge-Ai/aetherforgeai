@@ -24,7 +24,7 @@ describe("b53 track-record slot idempotency", () => {
   });
   it("cron-fallback has two hourly minutes and workflow_dispatch", () => {
     const y = readFileSync(".github/workflows/cron-fallback.yml", "utf8");
-    expect(y).toContain('cron: "7,37 * * * *"');
+    expect(y).toContain('cron: "10,40,55 * * * *"');
     expect(y).toContain("workflow_dispatch:");
   });
 });
