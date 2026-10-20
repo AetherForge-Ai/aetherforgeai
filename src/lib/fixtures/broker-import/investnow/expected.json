@@ -1,0 +1,19 @@
+{
+  "_label": "EXAMPLE DATA - synthetic InvestNow General Ledger Report; real-layout unverified",
+  "mapping": {
+    "date": "Transaction Date",
+    "ticker": "Fund / Security Code",
+    "side": "Description",
+    "quantity": "Units",
+    "price": "Unit Price",
+    "fee": "Fees",
+    "currency": "Currency",
+    "fx": "FX Rate (NZD per unit)"
+  },
+  "openingCashNzd": 10000,
+  "rows": 4,
+  "holdings": { "FNZ.NZ": 60, "AAPL": 10, "USF.NZ": 50 },
+  "buyCostNzd": 4130.0,
+  "cashNzdAfter": 6130.0,
+  "badRows": 3
+}

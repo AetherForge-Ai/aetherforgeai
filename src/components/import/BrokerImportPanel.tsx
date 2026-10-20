@@ -1,5 +1,6 @@
 "use client";
 
+import { workbookToCsv } from "@/lib/import/xlsx";
 import { importFileProblem } from "@/lib/import-limits";
 import { useEffect, useRef, useState } from "react";
 import { importOversells } from "@/lib/import-oversell";
@@ -77,6 +78,8 @@ export function BrokerImportPanel({
   const [rowDates, setRowDates] = useState<Record<number, string>>({});
   const [mapping, setMapping] = useState<Record<string, string>>(() => ({ ...(initialMapping ?? {}) }));
   const [preview, setPreview] = useState<Preview | null>(null);
+  // BS-02: brokers with no fixed header (InvestNow) are picked here and always use the column map.
+  const [brokerPick, setBrokerPick] = useState<"" | "investnow">("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [consent, setConsent] = useState(false);
@@ -145,7 +148,9 @@ export function BrokerImportPanel({
       setFileKey((k) => k + 1);
       return;
     }
-    const body = await file.text();
+    // BS-02: an .xlsx (e.g. InvestNow General Ledger Report) is turned into CSV text in the browser,
+    // values only, then goes through the same preview and column map as a CSV.
+    const body = /\.xlsx$/i.test(file.name) ? await workbookToCsv(await file.arrayBuffer()) : await file.text();
     // b38 G-24: a file of trades with no date column (or raw dateless lines) goes to the
     // per-row date prompt instead of being rejected whole or silently ignored.
     const firstLine = body.split(/\r?\n/, 1)[0] || "";
@@ -247,6 +252,7 @@ export function BrokerImportPanel({
         acknowledgeSkipped: nextAck,
         fundBuys: nextFund,
         mapping: Object.values(mapping).some(Boolean) ? mapping : undefined,
+        broker: brokerPick || undefined,
         tickerFixes: Object.keys(fixes).length ? fixes : undefined,
       });
       if (res.aborted) {
@@ -389,7 +395,7 @@ export function BrokerImportPanel({
             id="import-file"
             key={fileKey}
             type="file"
-            accept=".csv,text/csv,text/plain"
+            accept=".csv,.xlsx,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             className="block w-full text-sm"
             onChange={(event) => {
               const file = event.target.files?.[0];
@@ -397,6 +403,26 @@ export function BrokerImportPanel({
             }}
           />
           {fileName ? <p className="text-xs text-muted-foreground">{fileName}</p> : null}
+          <label className="mt-2 flex items-center gap-2 text-sm" htmlFor="import-broker">
+            <span>Broker</span>
+            <select
+              id="import-broker"
+              className="rounded-md border bg-background px-2 py-1 text-sm"
+              value={brokerPick}
+              onChange={(event) => {
+                setBrokerPick(event.target.value === "investnow" ? "investnow" : "");
+                setPreview(null);
+              }}
+            >
+              <option value="">Detect from the file</option>
+              <option value="investnow">InvestNow (.xlsx General Ledger Report or CSV saved from it)</option>
+            </select>
+          </label>
+          {brokerPick === "investnow" ? (
+            <p className="text-xs text-muted-foreground" data-investnow-note>
+              InvestNow layout is not yet checked against a real export. Match the columns on the next step and check every row.
+            </p>
+          ) : null}
           {/* b40 G-24: embedded in the dashboard dialog, the dialog's own visible PasteTradesBox is used. */}
           {embedded ? null : (
           <details open className="mt-3 rounded-md border p-3" data-paste-import>
