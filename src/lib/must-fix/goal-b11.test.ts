@@ -1,6 +1,6 @@
 /**
  * Goal loop batch b11 (GOAL-LOCK G-10 G-11 G-14 G-15 G-17).
- * pull-check:v3-goal-b52-2026-10-20
+ * pull-check:v3-goal-b53-2026-10-21
  */
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
@@ -12,8 +12,8 @@ const read = (p: string) => readFileSync(p, "utf8");
 
 describe("b11 pins", () => {
   it("build version", () => {
-    expect(read("public/build-version.txt").trim()).toBe("v3-goal-b52-2026-10-20");
-    expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-goal-b52-2026-10-20");
+    expect(read("public/build-version.txt").trim()).toBe("v3-goal-b53-2026-10-21");
+    expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-goal-b53-2026-10-21");
   });
 });
 
