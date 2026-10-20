@@ -19,7 +19,7 @@ export const G22_SOURCES: readonly G22Source[] = [
   { id: "K1-K3", what: "Default rate 3.5% from 1 Apr 2026; 4% from 1 Apr 2028", url: "https://www.ird.govt.nz/kiwisaver-changes", dated: "no page date; accessed 19 Oct 2026" },
   { id: "K5", what: "Compulsory employer contribution at least 3.5%", url: "https://www.ird.govt.nz/kiwisaver/kiwisaver-employers/contributions-and-deductions/employer-contributions-to-kiwisaver-and-complying-funds", dated: "no page date; accessed 19 Oct 2026" },
   { id: "K6-K7", what: "ESCT brackets; ESCT on the whole-dollar part per pay", url: "https://www.ird.govt.nz/-/media/project/ir/home/documents/digital-service-providers/software-providers/payroll-calculations-business-rules-specifications/payroll-calculations-and-business-rules-specification.pdf", dated: "Payroll spec 2027, 24 Mar 2026" },
-  { id: "K8", what: "Government contribution 25c per $1, max $260.72", url: "https://www.ird.govt.nz/kiwisaver/kiwisaver-individuals/growing-my-kiwisaver-account/getting-the-kiwisaver-government-contribution", dated: "no page date; accessed 19 Oct 2026" },
+  { id: "K8", what: "Government contribution 25c per $1, max $260.72; none when annual income is over $180,000 (from 1 Jul 2025)", url: "https://www.ird.govt.nz/kiwisaver/kiwisaver-individuals/growing-my-kiwisaver-account/getting-the-kiwisaver-government-contribution", dated: "no page date; accessed 19 Oct 2026" },
   { id: "NZS", what: "NZ Super rates at 1 April 2026 (couple, each: $984.28 gross, $854.08 net at M, fortnightly)", url: "https://www.workandincome.govt.nz/products/benefit-rates/benefit-rates-april-2026.html", dated: "updated 13 Jul 2026" },
 ];
 
@@ -74,8 +74,15 @@ export function esctRate(thresholdCents: Cents): Rate {
 export const GOVT_CONTRIBUTION_MAX: Cents = BigInt(26_072);
 const QUARTER = rate(1, 4);
 
-/** K8: 25c per $1 of the member's own contributions, capped at $260.72. */
-export function governmentContribution(ownContributions: Cents): Cents {
+/** From 1 July 2025 there is no government contribution when annual income is over $180,000 (IRD). */
+export const GOVT_CONTRIBUTION_INCOME_LIMIT: Cents = BigInt(18_000_000);
+
+/**
+ * K8: 25c per $1 of the member's own contributions, capped at $260.72. None when annual income is over
+ * $180,000 (from 1 July 2025; exactly $180,000 still qualifies). Income unknown = not tested.
+ */
+export function governmentContribution(ownContributions: Cents, annualIncome?: Cents): Cents {
+  if (annualIncome !== undefined && annualIncome > GOVT_CONTRIBUTION_INCOME_LIMIT) return BigInt(0);
   const g = applyRate(ownContributions, QUARTER);
   return g < GOVT_CONTRIBUTION_MAX ? g : GOVT_CONTRIBUTION_MAX;
 }
@@ -114,7 +121,7 @@ export function contributionsForYear(input: PayYearInput): PayYearResult {
   const employerNetPerPay = employerGrossPerPay - esctPerPay;
   const employee = employeePerPay * n;
   const employerNet = employerNetPerPay * n;
-  const government = governmentContribution(employee);
+  const government = governmentContribution(employee, input.salary);
   return {
     perPay,
     employeePerPay,
@@ -154,7 +161,7 @@ export function projectBalance(input: ProjectionInput): Cents {
     const er = esctRate(threshold);
     const employerNet = applyRate(e, { n: er.d - er.n, d: er.d });
     const growth = applyRate(bal, input.netReturn);
-    bal = bal + growth + e + employerNet + governmentContribution(e);
+    bal = bal + growth + e + employerNet + governmentContribution(e, input.salary);
   }
   return bal;
 }

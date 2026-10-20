@@ -48,3 +48,19 @@ describe("G-22 (GOAL-LOCK #57) KiwiSaver and NZ Super, Research's exact targets"
     expect(p).not.toMatch(/totalumSdk|api\.post/);
   });
 });
+
+describe("G-22: government contribution income limit (from 1 July 2025)", () => {
+  it("$179,999 gets it; $180,000 gets it (not over); $180,001 gets none", () => {
+    const own = k.cents("1042.86");
+    expect(nzd(k.governmentContribution(own, k.cents("179999")))).toBe("$260.72");
+    expect(nzd(k.governmentContribution(own, k.cents("180000")))).toBe("$260.72");
+    expect(nzd(k.governmentContribution(own, k.cents("180001")))).toBe("$0.00");
+  });
+  it("contributionsForYear applies the limit from salary", () => {
+    const base = { paysPerYear: 12, employeeRate: k.rate(35, 1000), employerRate: k.rate(35, 1000) };
+    const over = k.contributionsForYear({ ...base, salary: k.cents("180001"), esctThreshold: k.cents("186301.04") });
+    expect(over.government).toBe(BigInt(0));
+    const at = k.contributionsForYear({ ...base, salary: k.cents("180000"), esctThreshold: k.cents("186300") });
+    expect(nzd(at.government)).toBe("$260.72");
+  });
+});
