@@ -33,6 +33,6 @@ describe("b51 G-12: FIF rounding to the cent", () => {
       expect(s, f).not.toMatch(/Math\.round\(v \* 100\) \/ 100/);
       expect(s, f).toMatch(/moneyCell\(/);
     }
-    expect(execSync("git grep -n 'roundMoney(value).toFixed(2)' -- src/lib ':!src/lib/currency.ts' || true").toString().trim()).toBe("");
+    expect(execSync("git grep -n 'roundMoney(value).toFixed(2)' -- src/lib ':!src/lib/currency.ts' ':!*.test.ts' || true").toString().trim()).toBe("");
   });
 });
