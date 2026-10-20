@@ -12,6 +12,7 @@ import { fifoLotCostNzd, formatNzd, roundMoney } from "@/lib/currency";
 import { dividendViewFromRow } from "@/lib/dividend-ledger";
 import { buyLotDay } from "@/lib/lot-day";
 import { inNzTaxYear, nzTaxYearLabel } from "@/lib/nz-tax-year";
+import { quickSaleAdjustment, type QuickSaleEvent } from "@/lib/nz-tax-calc";
 import type { TaxLedgerRow } from "@/lib/taxable-income";
 
 export const FIF_COST_THRESHOLD_NZD = 50000;
@@ -74,7 +75,7 @@ export const FIF_ASSUMPTIONS = [
   "Amounts are rounded to the nearest cent, with half a cent rounded up. A cash figure in your ledger that differs by a cent does not change the result.",
   "The FIF threshold test uses the highest total cost of attributing lots open at any point in the income year, including lots still open on 1 April. It is cost, not market value.",
   "A cost exactly at the threshold is reported as at the limit. The public exemptions page says the de minimis exemption is for attributing interests that cost less than NZ$50,000. The Tax Technical article on section CQ 5 says FIF income arises when the total cost at any time in the income year is more than NZ$50,000. Inland Revenue's two sources word this edge case differently, so if your cost is exactly NZ$50,000.00, check with your tax adviser before relying on the exemption.",
-  "Fair dividend rate shown here is 5% of the opening market value you entered. TDS 26/01 describes the formula as (0.05 × opening value) + quick sale adjustment. This paper does not calculate a quick sale adjustment.",
+  "Fair dividend rate is 5% of the opening market value you entered plus the quick sale adjustment (IR461, April 2026, \"Quick sale adjustment for the FDR method\"): the lesser of 5% × peak holding differential × average cost of the year's purchases and the actual gain on shares bought and sold in the year. It is 0 unless shares were both bought and sold in the year, and is shown as its own line.",
   "Comparative value is (closing market value + gains) − (opening market value + costs), the formula TDS 23/13 quotes from section EX 51. Gains are dividend gross in NZ$ plus sale proceeds in NZ$ during the year. Costs are the NZ$ cost of shares bought during the year. Fees are not added. A dividend without a stored gross is not included.",
   "Opening and closing market values are figures you enter for the position. A live price is not used as the 1 April or 31 March value.",
   "Both methods are shown. Inland Revenue says you must use the same method for every attributing interest under 10% where both methods are available. This paper does not choose a method.",
@@ -98,8 +99,12 @@ export interface FifPosition {
   costNzd: number | null;
   openingNzd: number | null;
   closingNzd: number | null;
-  /** 5% of opening market value. Null when opening was not entered. */
+  /** FDR income: 5% of opening market value plus the quick sale adjustment. Null when opening was not entered. */
   fdrNzd: number | null;
+  /** G-31: 5% of opening market value alone (the FDR line before the quick sale adjustment). */
+  fdrBaseNzd?: number | null;
+  /** G-31: IR461 quick sale adjustment (0 unless shares were both bought and sold in the year). Null when a rate was missing. */
+  quickSaleNzd?: number | null;
   /** Null when opening or closing was not entered, or a sale had no rate. */
   cvNzd: number | null;
   gainsNzd: number;
@@ -184,6 +189,11 @@ interface Working {
   cvBlocked: boolean;
   omittedDividendCash: boolean;
   exemptDividendsNzd?: number;
+  /** G-31 quick sale inputs (IR461). */
+  qty: number;
+  openingQty: number | null;
+  qsEvents: QuickSaleEvent[];
+  qsBlocked: boolean;
 }
 
 function emptyWorking(): Working {
@@ -195,6 +205,10 @@ function emptyWorking(): Working {
     costsInYearNzd: 0,
     cvBlocked: false,
     omittedDividendCash: false,
+    qty: 0,
+    openingQty: null,
+    qsEvents: [],
+    qsBlocked: false,
   };
 }
 
@@ -285,13 +299,20 @@ function positionFrom(
   const closingNzd = market?.closingNzd ?? null;
   const costNzd = working.unknown ? null : working.yearEndCost;
   const costsInYearNzd = roundMoney(working.costsInYearNzd);
+  // G-31 (Chief, 20 Oct 2026): IR461 quick sale adjustment, shown as its own line inside FDR.
+  const fdrBaseNzd = className === "attributable" ? fdrIncome(openingNzd) : null;
+  const quickSaleNzd =
+    className !== "attributable" ? null : working.qsBlocked ? null : quickSaleAdjustment(working.openingQty ?? working.qty, working.qsEvents).quickSaleAdjustmentNzd;
+  const fdrNzd = fdrBaseNzd == null ? null : quickSaleNzd == null ? (working.qsEvents.length ? null : fdrBaseNzd) : roundMoney(fdrBaseNzd + quickSaleNzd);
   return {
     ticker,
     className,
     costNzd,
     openingNzd,
     closingNzd,
-    fdrNzd: className === "attributable" ? fdrIncome(openingNzd) : null,
+    fdrNzd,
+    fdrBaseNzd,
+    quickSaleNzd,
     cvNzd:
       className === "attributable" && !working.cvBlocked
         ? comparativeValue({
@@ -356,6 +377,7 @@ export function buildFifPaper(input: {
     currentDay = event.day < start ? start : event.day;
     if (!seenOpening && event.day >= start) {
       seenOpening = true;
+      for (const b of books.values()) b.working.openingQty = b.working.qty;
       notePeak();
     }
     if (event.day > `${input.endingYear}-03-31`) break;
@@ -366,6 +388,7 @@ export function buildFifPaper(input: {
     let book = books.get(ticker);
     if (!book) {
       book = { className, assetType: String(row.asset_type || ""), working: emptyWorking() };
+      if (seenOpening) book.working.openingQty = 0;
       books.set(ticker, book);
     }
     const qty = Number(row.quantity) || 0;
@@ -375,12 +398,23 @@ export function buildFifPaper(input: {
     if (row.type === "sell") {
       if (!(qty > 0)) continue;
       removeQty(book.working, qty, fx, price, inYear);
+      book.working.qty -= qty;
+      if (inYear) {
+        if (fx == null) book.working.qsBlocked = true;
+        else book.working.qsEvents.push({ kind: "sell", shares: qty, amountNzd: roundMoney(nzdCost(qty, price, fx)) });
+      }
     } else if (qty > 0 && price > 0) {
-      if (fx == null) book.working.unknown = true;
-      else {
+      book.working.qty += qty;
+      if (fx == null) {
+        book.working.unknown = true;
+        if (inYear) book.working.qsBlocked = true;
+      } else {
         const cost = nzdCost(qty, price, fx, row.cash_nzd);
         addLot(book.working, qty, cost);
-        if (inYear) book.working.costsInYearNzd += cost;
+        if (inYear) {
+          book.working.costsInYearNzd += cost;
+          if (row.type !== "opening_balance") book.working.qsEvents.push({ kind: "buy", shares: qty, amountNzd: cost });
+        }
       }
     }
     if (inYear || event.day >= start) notePeak();

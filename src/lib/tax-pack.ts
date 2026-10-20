@@ -117,6 +117,10 @@ export function fifCsv(paper: FifPaper): string {
         .map(csvEscape)
         .join(",")
     );
+    // G-31: the IR461 quick sale adjustment as its own line inside the FDR figure above.
+    if (row.quickSaleNzd) {
+      lines.push([row.ticker, "quick-sale adjustment (IR461, in FDR)", "", "", "", money(row.quickSaleNzd), "", TAX_INDICATIVE_LABEL].map(csvEscape).join(","));
+    }
   }
   // Goal b10 G-12: the total row is the sum of the rounded rows above.
   const totals = fifTotals(paper.attributing);
@@ -284,6 +288,7 @@ export function fifPaperLines(paper: FifPaper, rows: readonly { ticker?: string 
     // b26 H-9: two short lines so nothing is cut at the right margin.
     return [
       `${row.ticker}: opening NZD ${money(row.openingNzd) || "not entered"}, closing NZD ${money(row.closingNzd) || "not entered"}, FDR NZD ${money(row.fdrNzd) || "-"}, CV NZD ${money(row.cvNzd) || "-"}`,
+      ...(row.quickSaleNzd ? [`  ${row.ticker} FDR = 5% of opening NZD ${money(row.fdrBaseNzd)} + quick sale adjustment NZD ${money(row.quickSaleNzd)} (IR461, April 2026)`] : []),
       `  ${row.ticker} FX NZD per unit ${rateText}`,
     ];
   }).flat();

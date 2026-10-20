@@ -6,21 +6,8 @@ import { roundMoney } from "@/lib/currency";
 
 const c = (v: number) => Math.round(roundMoney(v) * 100);
 
-/** Peak holding differential = lesser of (greatest − opening) and (greatest − closing) holding. */
-export function peakHoldingDifferential(input: { opening: number; greatest: number; closing: number }): number {
-  return Math.max(0, Math.min(input.greatest - input.opening, input.greatest - input.closing));
-}
-
-/** Quick sale adjustment = lesser of the peak holding amount (5% × differential × average cost) and the actual gain. */
-export function quickSaleAdjustment(input: { peakDifferential: number; averageCostNzd: number; actualGainNzd: number }): number {
-  const peak = c(0.05 * input.peakDifferential * input.averageCostNzd);
-  return Math.max(0, Math.min(peak, c(input.actualGainNzd))) / 100;
-}
-
-/** FDR = 5% × opening market value + quick sale adjustment. */
-export function fdrWithQuickSale(openingNzd: number, quickSaleNzd = 0): number {
-  return (c(openingNzd * 0.05) + c(quickSaleNzd)) / 100;
-}
+// Quick sale adjustment and FDR: see nz-tax-calc.ts (quickSaleAdjustment, fdrForHolding), used by the FIF paper.
+export { quickSaleAdjustment, fdrForHolding } from "@/lib/nz-tax-calc";
 
 export type FifMethod = "FDR" | "CV";
 

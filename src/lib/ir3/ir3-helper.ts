@@ -54,6 +54,12 @@ export interface Ir3Helper {
 
 const cents = (v: number) => Math.round(roundMoney(v) * 100);
 
+/** G-31: the IR461 quick sale adjustment inside FDR, named on the IR1261 FIF line. */
+function qsNote(fif: FifPaper): string {
+  const qs = fif.attributing.reduce((s, p) => s + cents(p.quickSaleNzd ?? 0), 0);
+  return qs ? `FDR includes a quick sale adjustment of NZD ${moneyCell(qs / 100)} (IR461, April 2026). ` : "";
+}
+
 export function buildIr3Helper(input: { income: TaxableIncomeReport; fif: FifPaper }): Ir3Helper {
   const { income, fif } = input;
   const boxes = IR3_BOXES[income.endingYear] ?? null;
@@ -107,7 +113,7 @@ export function buildIr3Helper(input: { income: TaxableIncomeReport; fif: FifPap
         grossNzd: pick.incomeNzd,
         creditNzd: creditCents / 100,
         source: pick.method === "CV" ? "FIF working paper: Total Comparative value NZD (floored at 0)" : "FIF working paper: Total FDR NZD",
-        note: `Method ${pick.method} for the whole portfolio (lower of FDR ${moneyCell(t.fdrNzd ?? 0)} and CV${t.cvNzd == null ? " not calculated" : ` ${moneyCell(t.cvNzd)}`}; CV cannot go below 0). Dividends from these shares are not added again. Attach a per-FIF breakdown.`,
+        note: `${qsNote(fif)}Method ${pick.method} for the whole portfolio (lower of FDR ${moneyCell(t.fdrNzd ?? 0)} and CV${t.cvNzd == null ? " not calculated" : ` ${moneyCell(t.cvNzd)}`}; CV cannot go below 0). Dividends from these shares are not added again. Attach a per-FIF breakdown.`,
       });
       if (creditUnknown) notes.push("Some foreign tax on FIF dividends is from a country with no checked tax treaty rate, so no credit is claimed for it.");
     }

@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { buildFifPaper, fifTotals, type FifPaper } from "@/lib/fif-working-paper";
+import { fifCsv, fifPaperLines } from "@/lib/tax-pack";
 import { dividendNotesPrefix } from "@/lib/dividend-ledger";
 import { taxableIncome, type TaxLedgerRow } from "@/lib/taxable-income";
 import { buildIr3Helper, ir3HelperCsv, ir3PaperLines, IR3_LABEL } from "./ir3-helper";
-import { foreignTaxCredit, individualFifIncome, peakHoldingDifferential, quickSaleAdjustment, fdrWithQuickSale } from "./ir461";
+import { fdrForHolding, foreignTaxCredit, individualFifIncome, quickSaleAdjustment } from "./ir461";
 
 const div = (ticker: string, when: string, g: number, w: number, i = 0, currency: "NZD" | "USD" | "AUD" = "USD"): TaxLedgerRow =>
   ({
@@ -16,12 +17,15 @@ const div = (ticker: string, when: string, g: number, w: number, i = 0, currency
   }) as unknown as TaxLedgerRow;
 
 describe("G-31 IR461 (April 2026) worked examples", () => {
-  it("(a) quick sale: 5% x 2,000 x $22 = $2,200; FIF income $10,000 + $2,200 = $12,200", () => {
-    expect(quickSaleAdjustment({ peakDifferential: 2000, averageCostNzd: 22, actualGainNzd: 5000 })).toBe(2200);
-    expect(fdrWithQuickSale(200000, 2200)).toBe(12200);
-    // adjustment is the lesser of peak-holding amount and the actual gain
-    expect(quickSaleAdjustment({ peakDifferential: 2000, averageCostNzd: 22, actualGainNzd: 1500.5 })).toBe(1500.5);
-    expect(peakHoldingDifferential({ opening: 1000, greatest: 3000, closing: 1000 })).toBe(2000);
+  it("(a) IR461 Company A quick sale: 5% x 2,000 x $22 = $2,200; FIF income $10,000 + $2,200 = $12,200", () => {
+    const qsa = quickSaleAdjustment(10_000, [
+      { kind: "buy", shares: 5_000, amountNzd: 110_000 },
+      { kind: "sell", shares: 4_000, amountNzd: 100_000 },
+      { kind: "buy", shares: 2_000, amountNzd: 44_000 },
+    ]);
+    expect(qsa.peakHoldingDifferential).toBe(2_000);
+    expect(qsa.quickSaleAdjustmentNzd).toBe(2_200);
+    expect(fdrForHolding({ openingNzd: 200_000, quickSaleNzd: qsa.quickSaleAdjustmentNzd })).toBe(12_200);
   });
   it("(b) Bill Murphy: FDR $15,000 vs CV below zero -> CV 0 is used (no FIF loss)", () => {
     expect(individualFifIncome(15000, -4000)).toEqual({ method: "CV", incomeNzd: 0 });
@@ -111,5 +115,32 @@ describe("G-31 blank when the FIF paper cannot be calculated", () => {
     const fif = buildFifPaper({ rows: overBook, markets: [], endingYear: 2026 }) as FifPaper;
     const h = buildIr3Helper({ income: taxableIncome(overBook, 2026), fif });
     expect(h.totals[0].valueNzd).toBeNull();
+  });
+});
+
+describe("G-31 quick sale wired into the FIF paper and IR3 17B", () => {
+  const usd = (type: "buy" | "sell", executed_at: string, quantity: number, price: number): TaxLedgerRow =>
+    ({ type, ticker: "AAPL", asset_type: "stock", executed_at, quantity, price, currency: "USD", fx_rate: 2 }) as TaxLedgerRow;
+  // Company A in a ledger: 10,000 held at 1 Apr; buy 5,000 at $11 (x2 = $110,000); sell 4,000 at $12.50 ($100,000); buy 2,000 at $11 ($44,000).
+  const book = [usd("buy", "2024-06-01", 10_000, 10), usd("buy", "2025-10-01", 5_000, 11), usd("sell", "2025-12-01", 4_000, 12.5), usd("buy", "2025-12-23", 2_000, 11)];
+  const markets = [{ ticker: "AAPL", openingNzd: 200_000, closingNzd: 400_000 }];
+  it("FDR = $10,000 + $2,200 quick sale = $12,200, shown as its own line, IR3 17B uses it", () => {
+    const fif = buildFifPaper({ rows: book, markets, endingYear: 2026 });
+    const p = fif.attributing[0];
+    expect(p.fdrBaseNzd).toBe(10_000);
+    expect(p.quickSaleNzd).toBe(2_200);
+    expect(p.fdrNzd).toBe(12_200);
+    const h = buildIr3Helper({ income: taxableIncome(book, 2026), fif });
+    expect(h.lines.find((l) => l.incomeType === "FIF income")!.grossNzd).toBe(12_200);
+    expect(fifPaperLines(fif).join("\n")).toMatch(/quick sale adjustment NZD 2200\.00 \(IR461/);
+    expect(fifCsv(fif)).toMatch(/quick-sale adjustment \(IR461, in FDR\),,,,2200\.00/);
+  });
+  it("no quick sale (buys only): totals unchanged, no quick-sale line", () => {
+    const only = [usd("buy", "2024-06-01", 10_000, 10), usd("buy", "2025-10-01", 5_000, 11)];
+    const fif = buildFifPaper({ rows: only, markets, endingYear: 2026 });
+    expect(fif.attributing[0].quickSaleNzd).toBe(0);
+    expect(fif.attributing[0].fdrNzd).toBe(10_000);
+    expect(fifCsv(fif)).not.toMatch(/quick-sale/);
+    expect(fifPaperLines(fif).join("\n")).not.toMatch(/quick sale adjustment NZD/);
   });
 });
