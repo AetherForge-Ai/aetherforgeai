@@ -5,9 +5,9 @@ import { describe, expect, it } from "vitest";
 
 const read = (p: string) => readFileSync(p, "utf8");
 
-describe("b51 L-IRD: Inland Revenue links", () => {
+describe("b51 TAX-IRD-LINK-01 (G-13): Inland Revenue link", () => {
   it("the dead foreign-tax-credits page is gone; /tax links IRD's Overseas income page (200 on 20 Oct 2026)", () => {
-    const all = execSync("git grep -l 'foreign-income/foreign-tax-credits' -- src || true").toString().trim();
+    const all = execSync("git grep -l 'foreign-income/foreign-tax-credits' -- src ':!src/lib/must-fix/goal-b51.test.ts' || true").toString().trim();
     expect(all).toBe("");
     expect(read("src/components/tax/TaxPageContent.tsx")).toContain(
       "https://www.ird.govt.nz/income-tax/income-tax-for-individuals/types-of-individual-income/overseas-income"
