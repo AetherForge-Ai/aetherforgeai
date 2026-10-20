@@ -52,7 +52,8 @@ describe("BS-02 InvestNow EXAMPLE DATA (real-layout unverified)", () => {
     it(`${label}: needs the column map until columns are matched (headers are not guessed)`, async () => {
       const plan = planBrokerImport(await load(), { broker: "investnow", openingCashNzd: expected.openingCashNzd });
       expect(plan.detection.broker).toBe("investnow");
-      expect(plan.detection.label).toMatch(/real layout unverified/);
+      expect(plan.detection.label).toContain("Beta, layout not yet verified against a real export");
+      expect(plan.detection.label).not.toMatch(/\bverified\b(?! against)/i);
       expect(importWrites(plan)).toBe(false);
     });
 
@@ -109,5 +110,14 @@ describe("BS-02 InvestNow EXAMPLE DATA (real-layout unverified)", () => {
     for (const f of ["src/lib/broker-import.ts", "src/app/api/import/route.ts", "src/lib/import/xlsx.ts", "src/components/import/BrokerImportPanel.tsx", "src/lib/import-limits.ts"]) {
       expect(readFileSync(f, "utf8")).not.toContain("Math.random");
     }
+  });
+});
+
+describe("BS-02 label (BS-02-VERIFY open)", () => {
+  it("picker and import page show the Beta label and never claim verified", () => {
+    const ui = readFileSync("src/components/import/BrokerImportPanel.tsx", "utf8");
+    expect(ui).toContain("InvestNow (Beta, layout not yet verified against a real export)</option>");
+    expect(ui.match(/Beta, layout not yet verified against a real export/g)?.length).toBe(2);
+    expect(ui).not.toMatch(/InvestNow[^<\n]*\(verified|layout is verified/i);
   });
 });

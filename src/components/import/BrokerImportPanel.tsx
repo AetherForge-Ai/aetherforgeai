@@ -415,12 +415,12 @@ export function BrokerImportPanel({
               }}
             >
               <option value="">Detect from the file</option>
-              <option value="investnow">InvestNow (.xlsx General Ledger Report or CSV saved from it)</option>
+              <option value="investnow">InvestNow (Beta, layout not yet verified against a real export)</option>
             </select>
           </label>
           {brokerPick === "investnow" ? (
             <p className="text-xs text-muted-foreground" data-investnow-note>
-              InvestNow layout is not yet checked against a real export. Match the columns on the next step and check every row.
+              {/* BS-02; follow-up BS-02-VERIFY */}Beta, layout not yet verified against a real export. InvestNow .xlsx General Ledger Report or a CSV saved from it. Match the columns on the next step and check every row.
             </p>
           ) : null}
           {/* b40 G-24: embedded in the dashboard dialog, the dialog's own visible PasteTradesBox is used. */}
