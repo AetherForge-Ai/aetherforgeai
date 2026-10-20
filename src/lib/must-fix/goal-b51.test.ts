@@ -1,4 +1,4 @@
-// pull-check:v3-goal-b51a-2026-10-20
+// pull-check:v3-goal-b52-2026-10-20
 import { readFileSync } from "node:fs";
 import { execSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
@@ -47,6 +47,6 @@ describe("b51 BS-01: cron watchdog", () => {
 
 describe("b51 build marker", () => {
   it("pins the build", () => {
-    expect(read("public/build-version.txt")).toContain("v3-goal-b51a-2026-10-20");
+    expect(read("public/build-version.txt")).toContain("v3-goal-b52-2026-10-20");
   });
 });
