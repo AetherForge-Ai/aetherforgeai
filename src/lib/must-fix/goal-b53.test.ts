@@ -8,7 +8,7 @@ const read = (p: string) => readFileSync(p, "utf8");
 describe("b53 ship pins (BS-01, G-20, BS-02, BS-02-VERIFY)", () => {
   it("cron-fallback runs twice an hour and can be dispatched", () => {
     const y = read(".github/workflows/cron-fallback.yml");
-    expect(y).toContain('cron: "7,37 * * * *"');
+    expect(y).toContain('cron: "10,40,55 * * * *"');
     expect(y).toContain("workflow_dispatch:");
   });
   it("a duplicate track-record slot run is a no-op", () => {
