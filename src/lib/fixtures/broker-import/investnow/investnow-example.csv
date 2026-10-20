@@ -2,7 +2,7 @@ InvestNow - General Ledger Report - EXAMPLE DATA (synthetic; real-layout unverif
 Period: 01 Apr 2025 to 31 Mar 2026,,,,,,,,
 ,,,,,,,,
 Transaction Date,Fund / Security Code,Description,Units,Unit Price,Fees,Currency,FX Rate (NZD per unit),Amount (NZD)
-2025-05-02,FNZ.NZ,Buy,100,6.25,0,NZD,1,-625
+2025-05-02,FPH.NZ,Buy,100,6.25,0,NZD,1,-625
 2025-06-10,AAPL,Buy,10,200,0,USD,1.7,-3400
-2025-08-15,FNZ.NZ,Sell,40,6.5,0,NZD,1,260
-2025-09-01,USF.NZ,Buy,50,2.1,0,NZD,1,-105
+2025-08-15,FPH.NZ,Sell,40,6.5,0,NZD,1,260
+2025-09-01,AIR.NZ,Buy,50,2.1,0,NZD,1,-105

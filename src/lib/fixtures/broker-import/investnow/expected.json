@@ -12,7 +12,7 @@
   },
   "openingCashNzd": 10000,
   "rows": 4,
-  "holdings": { "FNZ.NZ": 60, "AAPL": 10, "USF.NZ": 50 },
+  "holdings": { "FPH.NZ": 60, "AAPL": 10, "AIR.NZ": 50 },
   "buyCostNzd": 4130.0,
   "cashNzdAfter": 6130.0,
   "badRows": 3
