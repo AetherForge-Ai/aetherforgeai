@@ -168,7 +168,7 @@ const BROKER_LABEL: Record<ImportBroker, string> = {
   binance: "Binance",
   easycrypto: "Easy Crypto",
   aetherforge: "AetherForge",
-  investnow: "InvestNow (column map; real layout unverified)",
+  investnow: "InvestNow (Beta, layout not yet verified against a real export)", // BS-02; follow-up BS-02-VERIFY,
   generic: "Generic",
 };
 
