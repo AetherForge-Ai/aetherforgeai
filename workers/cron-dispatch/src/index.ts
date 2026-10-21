@@ -21,7 +21,7 @@ const REPO_DEFAULT = "AetherForge-Ai/aetherforgeai";
 export async function run(cron: string, now: number, env: Env, f: typeof fetch = fetch): Promise<string[]> {
   const repo = env.GH_REPO || REPO_DEFAULT;
   if (repo !== REPO_DEFAULT) throw new Error("repo not allowed");
-  const api = async (path: string, init: RequestInit = {}) => {
+  const api = async (path: string, init: RequestInit = {}): Promise<any> => {
     const r = await f(`https://api.github.com/repos/${repo}${path}`, {
       ...init,
       headers: {

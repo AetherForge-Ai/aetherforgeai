@@ -92,14 +92,17 @@ describe("run (mocked GitHub)", () => {
     const runs = [{ id: 1, event: "schedule", status: "completed", created_at: "2026-10-22T16:08:00Z" }];
     const { f, calls } = mk(runs, { 1: [{ name: "broker-sync", conclusion: "success", completed_at: "2026-10-22T16:30:00Z" }] });
     const out = await run("55 * * * *", T("2026-10-22T16:55:00Z"), env, f);
-    expect(calls.some((c) => c.method === "POST")).toBe(false);
-    expect(out[0]).toMatch(/on time/);
+    const posts = calls.filter((c) => c.method === "POST").map((c) => JSON.parse(c.body!).inputs.job);
+    expect(posts).not.toContain("broker-sync");
+    expect(out[0]).toMatch(/broker-sync.*on time/);
+    // the 12:23Z track-record slot has no success, so the catch-up does dispatch that one
+    expect(posts).toEqual(["track-record"]);
   });
   it("respects the 2-dispatch cap", async () => {
     const runs = [1, 2].map((id) => ({ id, event: "workflow_dispatch", status: "completed", created_at: "2026-10-22T16:10:00Z" }));
     const { f, calls } = mk(runs, {});
     await run("55 * * * *", T("2026-10-22T16:55:00Z"), env, f);
-    expect(calls.some((c) => c.method === "POST")).toBe(false);
+    expect(calls.some((c) => c.method === "POST")).toBe(false); // both slots have 2 dispatches since
   });
   it("refuses any other repo", async () => {
     const { f } = mk([], {});
