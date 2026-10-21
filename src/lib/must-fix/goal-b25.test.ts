@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 const read = (p: string) => readFileSync(p, "utf8");
 
 describe("goal b25", () => {
-  it("pins the build", () => expect(read("public/build-version.txt").trim()).toMatch(/^v3-(?:goal|restore)-b\d+[a-z]?-2026-10-\d\d$/));
+  it("pins the build", () => expect(read("public/build-version.txt").trim()).toMatch(/^v3-goal-b\d+[a-z]?-2026-10-\d\d$/));
   it("CR-2: guide uses the sliding window and a configurable model", () => {
     expect(read("src/app/api/personal-guide/route.ts")).toContain("takeSlidingRateLimit(");
     const grok = read("src/lib/grok.ts");

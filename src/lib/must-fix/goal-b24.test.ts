@@ -7,16 +7,16 @@ const lock = JSON.parse(readFileSync("package-lock.json", "utf8"));
 const all = { ...pkg.dependencies, ...pkg.devDependencies } as Record<string, string>;
 
 describe("goal b24 hotfix: exact deploy toolchain pins", () => {
-  it("pins the build", () => expect(readFileSync("public/build-version.txt", "utf8").trim()).toMatch(/^v3-(?:goal|restore)-b\d+[a-z]?-2026-10-\d\d$/));
+  it("pins the build", () => expect(readFileSync("public/build-version.txt", "utf8").trim()).toMatch(/^v3-goal-b\d+[a-z]?-2026-10-\d\d$/));
   it("next, opennext and wrangler are exact (no ^ or ~) and match the lockfile", () => {
-    for (const [name, want] of [["next", "15.5.28"], ["eslint-config-next", "15.5.28"], ["@opennextjs/cloudflare", "1.20.12"], ["wrangler", "4.151.0"]]) {
+    for (const [name, want] of [["next", "16.4.2"], ["eslint-config-next", "16.4.2"], ["@opennextjs/cloudflare", "1.20.12"], ["wrangler", "4.151.0"]]) {
       expect(all[name]).toBe(want);
       expect(lock.packages[`node_modules/${name}`].version).toBe(want);
     }
   });
   it("opennext's next peer range is satisfied by the pinned next", () => {
     const peer = lock.packages["node_modules/@opennextjs/cloudflare"].peerDependencies?.next ?? "";
-    expect(peer).toContain(">=15.5.28 <16");
+    expect(peer).toContain(">=16.4.1");
   });
 });
 

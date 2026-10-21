@@ -27,14 +27,37 @@ jobs:
         run: |
           (npx opennextjs-cloudflare preview --port 8787 > preview.log 2>&1 &)
           for i in $(seq 1 90); do curl -s -o /dev/null http://127.0.0.1:8787/ && break; sleep 2; done
-      - name: Curl routes
+      - name: Curl routes (expected codes)
         run: |
           FAIL=0
-          for p in / /markets /login /api/ticker; do
-            code=$(curl -s -o body.txt -w '%{http_code} %{time_starttransfer}' "http://127.0.0.1:8787$p")
-            echo "$p -> $code $(head -c 120 body.txt | tr '\n' ' ')" | tee -a "$GITHUB_STEP_SUMMARY"
-            c=${code%% *}; if [ "$c" -ge 500 ] && ! grep -q "\"ok\":false" body.txt || grep -q "Server failed to respond" body.txt; then FAIL=1; fi
-          done
+          check() { # path, allowed codes regex
+            code=$(curl -s -o body.txt -w '%{http_code}' "http://127.0.0.1:8787$1")
+            loc=$(curl -s -o /dev/null -w '%{redirect_url}' "http://127.0.0.1:8787$1")
+            echo "$1 -> $code $loc $(head -c 100 body.txt | tr '\n' ' ')" | tee -a "$GITHUB_STEP_SUMMARY"
+            if ! echo "$code" | grep -Eq "^($2)$" || grep -q "Server failed to respond" body.txt; then FAIL=1; echo "  ^ expected $2"; fi
+          }
+          check / 200
+          check /markets 200
+          check /login 200
+          check /pricing 200
+          check /dashboard '307|302'   # signed out -> /login
+          check /kiwisaver 404         # no such page: KiwiSaver lives in the signed-in Goals tab
+          check /api/ticker '200|503'  # 503 = app JSON when CI has no price data
           exit $FAIL
+      - name: /markets p95 TTFB < 2 s over 40 signed-out requests
+        run: |
+          : > t.txt
+          for i in $(seq 1 40); do curl -s -o /dev/null -w '%{http_code} %{time_starttransfer}\n' http://127.0.0.1:8787/markets >> t.txt; done
+          awk '{print $2}' t.txt | sort -n > s.txt
+          P95=$(sed -n '38p' s.txt); MAX=$(tail -1 s.txt); FIRST=$(head -1 t.txt | awk '{print $2}'); BAD=$(awk '$1!=200' t.txt | wc -l)
+          echo "/markets worker: first=${FIRST}s p95=${P95}s max=${MAX}s non200=${BAD}" | tee -a "$GITHUB_STEP_SUMMARY"
+          awk -v p="$P95" 'BEGIN{exit !(p < 2.0)}' && test "$BAD" -eq 0
+      - name: Save built Worker (artifact)
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: opennext-worker
+          path: .open-next
+          retention-days: 7
       - if: always()
         run: tail -80 preview.log
