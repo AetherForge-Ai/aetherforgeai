@@ -1,14 +1,13 @@
 // pull-check:v3-goal-b54-2026-10-21
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { COLD_BUDGET_MS } from "@/lib/public-market-index";
 
 const read = (p: string) => readFileSync(p, "utf8");
 
 describe("b54 REG-1: signed-out /markets first byte", () => {
   it("a cold build is bounded and falls back to the saved listings", () => {
-    expect(COLD_BUDGET_MS).toBeLessThanOrEqual(1_000);
     const src = read("src/lib/public-market-index.ts");
+    expect(src).toMatch(/export const COLD_BUDGET_MS = 1_000;/);
     expect(src).toMatch(/within<PublicMarketIndex \| null>\(build, null, COLD_BUDGET_MS\)/);
     expect(src).toMatch(/return coldSavedIndex\(\)/);
   });
