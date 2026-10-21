@@ -3,6 +3,27 @@ import { formatDisplayDateTime } from "@/lib/currency";
 /** A provider timestamp older than this is shown as unavailable. Not an uptime claim. */
 export const STATUS_STALE_MS = 7 * 24 * 60 * 60 * 1000;
 
+/** NZ daylight time runs from the last Sunday in September to the first Sunday in April. */
+export function nzZoneAbbr(date: Date): "NZDT" | "NZST" {
+  const offset = new Intl.DateTimeFormat("en-NZ", { timeZone: "Pacific/Auckland", timeZoneName: "longOffset" })
+    .formatToParts(date)
+    .find((part) => part.type === "timeZoneName")?.value;
+  return offset === "GMT+13:00" ? "NZDT" : "NZST";
+}
+
+/** M-2: a /status time in NZ time with the zone, e.g. "22 Oct 2026, 9:18 am NZDT". */
+export function formatStatusTime(input?: string | Date | null): string {
+  const base = formatDisplayDateTime(input);
+  if (base === "—" || input == null || input === "") return "—";
+  return `${base} ${nzZoneAbbr(input instanceof Date ? input : new Date(input))}`;
+}
+
+/** M-2 P2: the equity row from a saved quote time, in the same format as the other rows. */
+export function statusSavedLabel(at: string, now = Date.now()): string {
+  void now;
+  return `${formatStatusTime(at)} · saved quote time`;
+}
+
 export interface StatusFeedRow {
   label: string;
   tone: "ok" | "amber" | "red";
@@ -38,7 +59,7 @@ export function shapeStatusFeed(input: {
   const parsed = input.at ? Date.parse(input.at) : NaN;
   const age = Number.isFinite(parsed) ? now - parsed : null;
   const usable = age != null && age >= -60_000 && age <= STATUS_STALE_MS;
-  const stamp = usable ? formatDisplayDateTime(input.at) : "";
+  const stamp = usable ? formatStatusTime(input.at) : "";
 
   if (input.failed && usable && age! <= input.redMs) {
     const why = (input.failedText || "last refresh failed").replace(/^—\s*/, "");
@@ -74,9 +95,9 @@ export function shapeStatusFeed(input: {
 /** Status-page sentence. A healthy feed still says "Last OK". A stale or failed feed does not. */
 export function statusFeedBody(feed: StatusFeedRow): string {
   if (feed.text.startsWith("—") || feed.text === "unavailable") return feed.text;
-  if (feed.label === "Crypto list last attempt") return `Last attempt ${feed.text} (NZ time)`;
-  if (feed.tone === "ok") return `Last OK ${feed.text} (NZ time)`;
-  return `Last print ${feed.text} (NZ time)`;
+  if (feed.label === "Crypto list last attempt") return `Last attempt ${feed.text}`;
+  if (feed.tone === "ok" || feed.text.endsWith("· saved quote time")) return `Last OK ${feed.text}`;
+  return `Last print ${feed.text}`;
 }
 
 /**

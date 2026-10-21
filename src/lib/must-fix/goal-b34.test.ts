@@ -71,7 +71,7 @@ describe("b34 M-2 (Chief ruling): saved snapshot time, labelled honestly", () =>
   it("the equity row never says 'unavailable' while a saved time exists", () => {
     const s = readFileSync("src/lib/status-feeds.server.ts", "utf8");
     expect(s).toMatch(/latestSavedEquityAt\(\)/);
-    expect(s).toMatch(/savedSnapshotLabel\(at, now\)/);
+    expect(s).toMatch(/statusSavedLabel\(at, now\)/); // M-2: same NZDT format as the other rows
   });
 });
 

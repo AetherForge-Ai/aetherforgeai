@@ -25,7 +25,7 @@ describe("b51 M-2: /status fallbacks start together", () => {
   });
   it("equities: a late tape (same request) supplies the quote time before 'no saved quote time yet'", () => {
     expect(s).toMatch(/const tapeLate = loadPublicTickerBounded\(STATUS_TAPE_LATE_MS\);/);
-    expect(s).toMatch(/remember\("equity", await lateTape\(\)\)/);
+    expect(s).toMatch(/latestSavedEquityAt\(\) \?\? \(await lateTape\(\)\)/);
   });
 });
 

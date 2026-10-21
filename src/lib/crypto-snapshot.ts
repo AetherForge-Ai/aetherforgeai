@@ -1202,7 +1202,7 @@ export async function persistDexSnapshot(
 
 export function hiddenSnapshotTicker(ticker: string | null | undefined): boolean {
   const key = (ticker || "").trim().toUpperCase();
-  return key === "AF-FIFT" || key === "AF-BV" || key === CRYPTO_SNAPSHOT_TICKER || key === DEX_SNAPSHOT_TICKER || key === CRYPTO_ATTEMPT_TICKER || key === CRYPTO_LEASE_TICKER || /^AF-CGS-\d+$/.test(key) || /^AF-DXS-\d+$/.test(key);
+  return key === "AF-FIFT" || key === "AF-BV" || key === "AF-SLO" || key === CRYPTO_SNAPSHOT_TICKER || key === DEX_SNAPSHOT_TICKER || key === CRYPTO_ATTEMPT_TICKER || key === CRYPTO_LEASE_TICKER || /^AF-CGS-\d+$/.test(key) || /^AF-DXS-\d+$/.test(key);
 }
 
 // b28 G-05: the refresh-attempt record shares this durable store (see crypto-attempts.ts).
