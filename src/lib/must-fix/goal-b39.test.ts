@@ -1,4 +1,4 @@
-// pull-check:v3-goal-b53b-2026-10-21
+// pull-check:v3-restore-b53b-2026-10-21
 import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it } from "vitest";
 import {

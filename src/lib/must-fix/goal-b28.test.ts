@@ -6,7 +6,7 @@ const read = (p: string) => readFileSync(p, "utf8");
 
 describe("b28 version bump", () => {
   it("pins the build everywhere", () => {
-    expect(read("public/build-version.txt").trim()).toMatch(/^v3-goal-b(2[89]|[3-9]\d)[a-z]?-/);
+    expect(read("public/build-version.txt").trim()).toMatch(/^v3-(?:goal|restore)-b(2[89]|[3-9]\d)[a-z]?-/);
     expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-goal-b28-2026-10-19");
   });
 });

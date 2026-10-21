@@ -7,7 +7,7 @@ import { GUIDES } from "@/data/learn-content";
 const read = (p: string) => readFileSync(p, "utf8");
 
 describe("Goal b21", () => {
-  it("pins the build", () => expect(read("public/build-version.txt").trim()).toMatch(/^v3-goal-b\d+[a-z]?-2026-10-\d\d$/));
+  it("pins the build", () => expect(read("public/build-version.txt").trim()).toMatch(/^v3-(?:goal|restore)-b\d+[a-z]?-2026-10-\d\d$/));
   it("G-08: per-oz row shows spot itself, value = oz × spot to the cent", () => {
     const rows = heldMetalRows([{ metal: "gold", ounces: 0.01, marketValueNZD: 74.4, purchasePerOz: 7000 } as never], { gold: 7438.57 });
     expect(rows[0].pricePerOz).toBe(7438.57);

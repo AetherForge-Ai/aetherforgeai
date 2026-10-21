@@ -1,0 +1,40 @@
+# Real OpenNext Cloudflare build + local Worker runtime (wrangler dev via opennextjs-cloudflare preview),
+# then curl key routes. No secrets, no deploy. Catches a Worker that builds but 500s at runtime.
+name: opennext-runtime
+on:
+  pull_request:
+    branches: [develop, main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: opennext-runtime-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: OpenNext build (same script Publish uses)
+        run: npm run cloudflare-build
+      - name: Start Worker locally
+        run: |
+          (npx opennextjs-cloudflare preview --port 8787 > preview.log 2>&1 &)
+          for i in $(seq 1 90); do curl -s -o /dev/null http://127.0.0.1:8787/ && break; sleep 2; done
+      - name: Curl routes
+        run: |
+          FAIL=0
+          for p in / /markets /login /api/ticker; do
+            code=$(curl -s -o body.txt -w '%{http_code} %{time_starttransfer}' "http://127.0.0.1:8787$p")
+            echo "$p -> $code $(head -c 120 body.txt | tr '\n' ' ')" | tee -a "$GITHUB_STEP_SUMMARY"
+            c=${code%% *}; if [ "$c" -ge 500 ] && ! grep -q "\"ok\":false" body.txt || grep -q "Server failed to respond" body.txt; then FAIL=1; fi
+          done
+          exit $FAIL
+      - if: always()
+        run: tail -80 preview.log
