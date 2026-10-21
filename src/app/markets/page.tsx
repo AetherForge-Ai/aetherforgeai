@@ -77,7 +77,8 @@ export default async function MarketsPage({
   // b38 (Chief ruling 4): a slow session is never shown as signed out.
   if (user === SESSION_PENDING) return <MarketsAccountPending />;
   // b40 H-1 (a): never an empty crypto board while a snapshot exists.
-  const index = built ? await ensureCryptoTab(built) : null;
+  // b54 REG-1: the snapshot fill is bounded too, so the first byte stays under 2 s.
+  const index = built ? await withDeadline(ensureCryptoTab(built), 400, built) : null;
   if (!index) return <MarketsTimeout />;
 
   if (!user) {

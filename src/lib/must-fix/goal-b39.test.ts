@@ -1,4 +1,4 @@
-// pull-check:v3-goal-b53b-2026-10-21
+// pull-check:v3-goal-b54-2026-10-21
 import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
@@ -163,7 +163,7 @@ describe("b39 G-10: wiring", () => {
   it("route resolves the key first with a fresh query, guards the insert, tombstones on delete", () => {
     expect(route).toMatch(/findIdemRowsFresh\(user\._id, idemKey\)/);
     expect(route).toMatch(/guardedIdemWrite<IdemRow>/);
-    expect(route).toMatch(/markIdemTombstone\(user\._id, deletedKey\)/);
+    expect(route).toMatch(/markIdemTombstone\(user\._id, deletedKey[,)]/); // G-10 tombstone table adds metadata args
     expect(route).toMatch(/status: 410/);
     expect(route).not.toMatch(/findIdempotentRow\(book\.transactions/);
     expect(route.indexOf("findIdemRowsFresh(user._id, idemKey).catch")).toBeLessThan(route.indexOf("findDuplicateDividendTx(book.transactions"));
