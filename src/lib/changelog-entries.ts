@@ -4,6 +4,31 @@
  */
 export const CHANGELOG_ENTRIES = [
   {
+    href: "/status",
+    title: "22 Oct 2026 — Help, guides and the status page",
+    body: "The status page shows the last good time for each price feed in New Zealand time, and keeps it after an update to the site. When no new share quote has arrived, it shows the time of the latest saved quote instead of saying none exists. The help page and guides were refreshed.",
+  },
+  {
+    href: "/markets",
+    title: "22 Oct 2026 — A faster markets page",
+    body: "The markets page and the coin pages open faster, because they start from the latest saved prices instead of waiting for every price source. The site also moved to a newer version of the framework it runs on.",
+  },
+  {
+    href: "/import",
+    title: "21 Oct 2026 — InvestNow import marked as Beta",
+    body: "The InvestNow import is labelled Beta until it has been checked against a real InvestNow export. The daily broker sync was made more reliable, with a backup check if a scheduled run is missed.",
+  },
+  {
+    href: "/import",
+    title: "20 Oct 2026 — InvestNow import and the IR3 tax page",
+    body: "You can import an InvestNow file, with the same preview, duplicate check and undo as the other brokers. The IR3 tax page brings your tax figures together, and you can download them as a CSV or PDF.",
+  },
+  {
+    href: "/tax",
+    title: "20 Oct 2026 — Tax to the cent, broker files and status",
+    body: "Tax figures now use one rounding rule everywhere, so they match to the cent. Tax pages link to the right Inland Revenue pages. More broker file layouts are recognised on import. The status page keeps showing the last good time when a feed is slow.",
+  },
+  {
     href: "/contact",
     title: "15 Oct 2026 — Contact form, clearer pricing and tidier market pages",
     body: "The Contact page now has a message form. The pricing page explains the refund rules the same way as the Refunds policy, and says that Pro and Ultimate reports can be refreshed once per bot every four hours. Profit and loss on the dashboard and the tax pages now include buying and selling fees in the same way. Stock pages show one company name and hide figures the data provider did not send. Dividends show a confirmation when they are saved and warn you about a possible double entry.",
