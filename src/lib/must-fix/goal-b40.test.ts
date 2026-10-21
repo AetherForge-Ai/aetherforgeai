@@ -47,7 +47,7 @@ describe("b40 CLS /tax, /status, console, CR-2", () => {
   });
   it("/status falls back to the colo's last OK time and the edge snapshot", () => {
     const s = read("src/lib/status-feeds.server.ts");
-    expect(s).toMatch(/latestSavedEquityAt\(\) \?\? \(await lastOkFor\("equity"\)\)/);
+    expect(s).toMatch(/\(await lastOkFor\("equity"\)\) \?\? latestSavedEquityAt\(\)/); // M-2 P2: ticker snapshot first, seed last
     expect(s).toMatch(/edgeSnapshotGet<\{ version: number; at: string \}>/);
     expect(s).toMatch(/edgeTimePut\("crypto", cryptoAt\)/);
   });

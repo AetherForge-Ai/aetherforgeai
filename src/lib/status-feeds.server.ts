@@ -8,8 +8,8 @@ import { loadPublicTickerBounded } from "@/lib/public-ticker";
 import { FEED_FORCE_LABEL, FEED_FRESHNESS_WINDOWS } from "@/lib/feed-freshness-hook";
 // b28 G-05: registers the durable attempt store this page reads.
 import "@/lib/crypto-snapshot";
-import { formatDisplayDateTime } from "@/lib/currency";
-import { latestIso, savedSnapshotLabel, shapeStatusFeed, type StatusFeedRow } from "@/lib/status-feeds";
+import { formatStatusTime, latestIso, shapeStatusFeed, statusSavedLabel, type StatusFeedRow } from "@/lib/status-feeds";
+import { readStatusLastOk, saveStatusLastOk } from "@/lib/status-last-ok.server";
 
 /** b31 M-2/REG-1: a probe waits at most this long; on a timeout the last OK time is shown. */
 export const STATUS_PROBE_TIMEOUT_MS = 1_500;
@@ -19,6 +19,8 @@ const lastOk: Record<string, string> = {};
 
 function remember(key: string, at: string | null | undefined): string | null {
   if (at && (!lastOk[key] || at > lastOk[key])) lastOk[key] = at;
+  // M-2 P2: also kept in the existing Totalum store so a redeploy does not lose it (throttled, background).
+  saveStatusLastOk(key, at);
   return at ?? null;
 }
 
@@ -61,7 +63,10 @@ function edgeTimePut(key: string, at: string | null) {
 async function lastOkFor(key: string): Promise<string | null> {
   if (lastOk[key]) return lastOk[key];
   const edge = await within(edgeTimeGet(key), 600) /* b46 M-2: was 300 ms */;
-  return edge ? remember(key, edge) : null;
+  if (edge) return remember(key, edge);
+  // M-2 P2: a fresh deploy has an empty colo cache too; the durable Totalum copy is last.
+  const stored = (await within(readStatusLastOk(), 900))?.[key] ?? null;
+  return stored ? remember(key, stored) : null;
 }
 
 async function within<T>(work: Promise<T>, ms = STATUS_PROBE_TIMEOUT_MS): Promise<T | null> {
@@ -91,10 +96,13 @@ async function equityRow(row: StatusFeedRow, now: number, tapeLate?: Promise<{ r
     const rows = await edgeJsonGet<{ nzx?: Array<{ quotedAt?: string | null }>; asx?: Array<{ quotedAt?: string | null }> }>("equity", 500);
     return rows ? latestIso([...(rows.nzx ?? []), ...(rows.asx ?? [])].map((r) => r.quotedAt)) : null;
   };
+  // M-2 P2: the newest NZX/ASX quotedAt in the ticker snapshot (memory/colo, then the colo rows, then the
+  // late tape) comes before the bundled seed, and the durable store covers a fresh deploy.
   const at =
-    latestSavedEquityAt() ?? (await lastOkFor("equity")) ?? (await within(lastGoodEquityAt(), 800)) ?? (await within(coloRows(), 700)) ?? remember("equity", await lateTape());
+    (await within(lastGoodEquityAt(), 800)) ?? (await within(coloRows(), 700)) ?? (await lastOkFor("equity")) ?? latestSavedEquityAt() ?? (await lateTape());
+  if (at) remember("equity", at);
   return at
-    ? { ...row, tone: "amber", text: savedSnapshotLabel(at, now) }
+    ? { ...row, tone: "amber", text: statusSavedLabel(at, now) }
     : { ...row, tone: "amber", text: EQUITY_NO_TIME_TEXT };
 }
 
@@ -151,8 +159,8 @@ export async function loadStatusFeeds(now = Date.now()): Promise<StatusFeedRow[]
   // b46 M-2 (TT b45: crypto "check timed out" 4/140): the crypto time comes from the snapshot, so a slow
   // tape probe does not make the crypto row a timed-out check when a snapshot time was read.
   const cryptoTimedOut = tapeTimedOut && !snap?.at;
-  const fxAt = fxTimedOut ? lastOk.fx ?? null : remember("fx", fx?.sourced ? fx.asOf : null);
-  const metalsAt = metalsTimedOut ? lastOk.metals ?? null : remember("metals", metals?.live ? metals.quotedAt : null);
+  const fxAt = fxTimedOut ? await lastOkFor("fx") : remember("fx", fx?.sourced ? fx.asOf : null);
+  const metalsAt = metalsTimedOut ? await lastOkFor("metals") : remember("metals", metals?.live ? metals.quotedAt : null);
   const killed = cryptoFeedKilled();
   return [
     await equityRow(withLastOk(shapeStatusFeed({ label: FEED_FORCE_LABEL.equity, at: equityAt, now, ...FEED_FRESHNESS_WINDOWS.equity }), tapeTimedOut), now, tapeLate),
@@ -188,7 +196,7 @@ function localCryptoAttemptRow(): StatusFeedRow {
   return {
     label: "Crypto list last attempt",
     tone: last.ok || attemptIsGuard(last.code) ? "ok" : "red",
-    text: `${formatDisplayDateTime(last.at)} · ${attemptLabel(last)} (this server)`,
+    text: `${formatStatusTime(last.at)} · ${attemptLabel(last)} (this server)`,
   };
 }
 let lastSharedAttempt: CryptoAttempt | null = null;
@@ -202,6 +210,6 @@ async function cryptoAttemptRow(early?: Promise<Awaited<ReturnType<typeof readSh
   return {
     label: "Crypto list last attempt",
     tone: last.ok || attemptIsGuard(last.code) ? "ok" : "red",
-    text: `${formatDisplayDateTime(last.at)} · ${attemptLabel(last)}`,
+    text: `${formatStatusTime(last.at)} · ${attemptLabel(last)}`,
   };
 }
