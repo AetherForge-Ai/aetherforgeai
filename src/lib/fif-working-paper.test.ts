@@ -120,7 +120,7 @@ describe("FIF working paper", () => {
     expect(over.attributing[0].costNzd).toBe(50012.5);
   });
 
-  it("keeps the peak at the pre-sale cost and does not apply a quick sale adjustment", () => {
+  it("keeps the peak at the pre-sale cost and applies the IR461 quick sale adjustment as its own line", () => {
     const paper = paperFor(
       [
         buy({ ticker: "AAPL", executed_at: "2026-05-01", quantity: 100, price: 10, fx_rate: 1.6 }),
@@ -142,7 +142,10 @@ describe("FIF working paper", () => {
     expect(paper.peakCostNzd).toBe(1600);
     expect(aapl.costsInYearNzd).toBe(1600);
     expect(aapl.gainsNzd).toBe(768);
-    expect(aapl.fdrNzd).toBe(90);
+    // G-31: 5% of 1,800 = 90; quick sale = lesser of 5% x 40 x $16 = $32 and actual gain 768 - 640 = $128.
+    expect(aapl.fdrBaseNzd).toBe(90);
+    expect(aapl.quickSaleNzd).toBe(32);
+    expect(aapl.fdrNzd).toBe(122);
     expect(aapl.cvNzd).toBe(-632);
   });
 

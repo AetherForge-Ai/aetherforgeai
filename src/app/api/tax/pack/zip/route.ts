@@ -38,6 +38,7 @@ export async function GET(req: Request) {
       { name: `positions-${endingYear}.csv`, data: pack.csvs.positions },
       { name: `trades-${endingYear}.csv`, data: pack.csvs.trades },
       { name: `corporate-actions-${endingYear}.csv`, data: pack.csvs.corporateActions },
+      { name: `ir3-helper-${endingYear}.csv`, data: pack.csvs.ir3 },
       { name: "README.txt", data: `AetherForge NZ tax pack, tax year ending 31 March ${endingYear}.\n${TAX_INDICATIVE_LABEL}\nThe CSVs are built from the same ledger rows as the PDF.\n` },
     ]);
     return new NextResponse(zip as unknown as BodyInit, {

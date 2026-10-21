@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { runTrackRecord } from "@/lib/track-record-run.server";
-import { persistTrackRun } from "@/lib/track-record-store.server";
+import { persistTrackRun, readTrackRunLog } from "@/lib/track-record-store.server";
+import { slotAlreadyBuilt, trackSlotKey } from "@/lib/track-record-slot";
+import { withKeyLock } from "@/lib/idem-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +22,14 @@ export async function GET(req: Request) {
   // Goal b20 CR-2: headers only; the ?key= query form leaked the secret into logs and was removed.
   if (req.headers.get("x-cron-secret") !== secret && bearer !== secret) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  }
+  // b53: slot-time idempotency key. A second run in the same 6-hour UTC slot (e.g. cron-fallback
+  // dispatching a slot cron.yml already ran) is a no-op; the stored run log is the durable record.
+  const slot = trackSlotKey(Date.now());
+  return withKeyLock(`track-record:${slot}`, async () => {
+  if (slotAlreadyBuilt(await readTrackRunLog(), Date.now())) {
+    console.log(`[track-record] slot ${slot} already built; no-op`);
+    return NextResponse.json({ ok: true, stored: false, duplicate: true, slot });
   }
   const started = Date.now();
   const run = await runTrackRecord();
@@ -47,5 +57,6 @@ export async function GET(req: Request) {
     reportsRead: run.reportsRead,
     laterPrices: { fetched: run.laterPrices.fetched, reused: run.laterPrices.reused },
     data,
+  });
   });
 }
