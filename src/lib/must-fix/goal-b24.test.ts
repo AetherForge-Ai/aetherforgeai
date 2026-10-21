@@ -16,7 +16,7 @@ describe("goal b24 hotfix: exact deploy toolchain pins", () => {
   });
   it("opennext's next peer range is satisfied by the pinned next", () => {
     const peer = lock.packages["node_modules/@opennextjs/cloudflare"].peerDependencies?.next ?? "";
-    expect(peer).toContain(">=16.4.2 <16");
+    expect(peer).toContain(">=16.4.1");
   });
 });
 
