@@ -1,3 +1,4 @@
+import { totalumErrorText } from "@/lib/totalum-user-row";
 /**
  * Signup consent. The published Terms date is 7 October 2026.
  * Bump TERMS_VERSION only when those Terms are re-issued.
@@ -81,11 +82,17 @@ async function attemptCreate<T>(
   payload: Record<string, unknown>,
   create: (row: Record<string, unknown>) => Promise<{ record: T | null; error: unknown }>
 ): Promise<{ record: T | null; error: unknown }> {
+  let result: { record: T | null; error: unknown };
   try {
-    return await create(payload);
+    result = await create(payload);
   } catch (error) {
-    return { record: null, error };
+    result = { record: null, error };
   }
+  if (!result.record) {
+    // H-4/signup: keep Totalum's reason in the log (emails masked, no values).
+    console.error("[signup] Totalum user create refused:", totalumErrorText(result.error) || "no error text", "keys:", Object.keys(payload).sort().join(","));
+  }
+  return result;
 }
 
 /**
