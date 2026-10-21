@@ -1,5 +1,6 @@
 "use client";
 
+import { KiwiSaverPanel } from "@/components/dashboard/KiwiSaverPanel";
 import { useCallback, useEffect, useState } from "react";
 import { goalProgress, monthlyNeeded, rangeRatesText, validateGoal } from "@/lib/goal-math";
 import { formatGoalDate, goalMissingField, normalizeGoalRow } from "@/lib/goal-record";
@@ -209,6 +210,7 @@ export default function GoalsWorkflow() {
           );
         })}
       </ul>
+      <KiwiSaverPanel />
     </div>
   );
 }
