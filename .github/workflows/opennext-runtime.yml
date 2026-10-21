@@ -40,7 +40,8 @@ jobs:
           check /markets 200
           check /login 200
           check /pricing 200
-          check /dashboard '307|302'   # signed out -> /login
+          check /dashboard 200         # by design: signed-out guest view (middleware SIGNED_IN_ONLY excludes it)
+          check /settings '307|302'    # signed-in-only page -> /login
           check /kiwisaver 404         # no such page: KiwiSaver lives in the signed-in Goals tab
           check /api/ticker '200|503'  # 503 = app JSON when CI has no price data
           exit $FAIL
