@@ -1,0 +1,13 @@
+# BS-01 / G-20 Cloudflare Worker cron trigger. NOT deployed until Chief confirms GH_ACTIONS_DISPATCH_TOKEN.
+# Deploy (Lukas/Chief approved only):  npx wrangler deploy  (from this dir)
+# Secret via stdin only:  printenv GH_ACTIONS_DISPATCH_TOKEN | npx wrangler secret put GH_ACTIONS_DISPATCH_TOKEN
+name = "aetherforge-cron-dispatch"
+main = "src/index.ts"
+compatibility_date = "2026-10-01"
+workers_dev = false
+
+[triggers]
+crons = ["7 16 * * *", "23 */6 * * *", "55 * * * *"]
+
+[observability]
+enabled = true
