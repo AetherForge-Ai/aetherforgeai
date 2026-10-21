@@ -5,6 +5,7 @@ import {
   TERMS_VERSION,
   consentFields,
   createUserWithConsentFallback,
+  signupCountry,
   validateSignupConsent,
 } from "./signup-consent";
 
@@ -44,43 +45,41 @@ describe("signup consent", () => {
       }
     );
     expect(created).toEqual({ _id: "user-1", email: "a@b.co" });
-    expect(calls).toHaveLength(3);
-    expect(calls[1]).not.toHaveProperty("country");
-    expect(calls[1]).toHaveProperty("age_confirmed", "yes");
-    expect(calls[2]).not.toHaveProperty("age_confirmed");
-    expect(calls[2]).not.toHaveProperty("terms_accepted_at");
-    expect(calls[2]).not.toHaveProperty("terms_version");
-    expect(calls[2]).not.toHaveProperty("country");
+    expect(calls).toHaveLength(2);
+    expect(calls[1]).not.toHaveProperty("age_confirmed");
+    expect(calls[1]).not.toHaveProperty("terms_accepted_at");
+    expect(calls[1]).not.toHaveProperty("terms_version");
+    // H-4/signup: country is required on Totalum; the fallback keeps it.
+    expect(calls[1]).toHaveProperty("country", "New Zealand");
     expect(warn).toHaveBeenCalledWith("[consent] user columns missing");
     warn.mockRestore();
   });
 
-  it("retries without country only and keeps the consent columns", async () => {
+  it("never strips country, even when Totalum's error names it", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
     const calls: Record<string, unknown>[] = [];
-    const created = await createUserWithConsentFallback(
-      {
-        email: "a@b.co",
-        age_confirmed: "yes",
-        terms_accepted_at: "2026-10-07T06:00:00.000Z",
-        terms_version: TERMS_VERSION,
-        country: "New Zealand",
-      },
+    await createUserWithConsentFallback(
+      { email: "a@b.co", age_confirmed: "yes", terms_version: TERMS_VERSION, country: "Australia" },
       async (row) => {
         calls.push(row);
-        if ("country" in row) {
-          return { record: null, error: { errorMessage: "unknown field country" } };
-        }
-        return { record: { _id: "user-2", email: row.email }, error: null };
+        return { record: null, error: { errorMessage: "unknown field country" } };
       }
     );
-    expect(created).toEqual({ _id: "user-2", email: "a@b.co" });
-    expect(calls).toHaveLength(2);
-    expect(calls[1]).not.toHaveProperty("country");
-    expect(calls[1]).toMatchObject({
-      age_confirmed: "yes",
-      terms_accepted_at: "2026-10-07T06:00:00.000Z",
-      terms_version: TERMS_VERSION,
+    expect(calls.length).toBeGreaterThan(0);
+    for (const row of calls) expect(row).toHaveProperty("country", "Australia");
+  });
+
+  it("fills a missing country with Unknown so the required column is set", async () => {
+    const calls: Record<string, unknown>[] = [];
+    const created = await createUserWithConsentFallback({ email: "a@b.co", age_confirmed: "yes" }, async (row) => {
+      calls.push(row);
+      return row.country ? { record: { _id: "u3" }, error: null } : { record: null, error: { errorMessage: "country is required" } };
     });
+    expect(created).toEqual({ _id: "u3" });
+    expect(calls[0]).toHaveProperty("country", "Unknown");
+    expect(signupCountry("  New Zealand ")).toBe("New Zealand");
+    expect(signupCountry("")).toBe("Unknown");
+    expect(signupCountry(undefined)).toBe("Unknown");
   });
 
   it("does not retry a signup failure that is not a missing column", async () => {
@@ -102,7 +101,7 @@ describe("preview framing", () => {
     const next = readFileSync("next.config.ts", "utf8");
     const middleware = readFileSync("src/middleware.ts", "utf8");
     expect(next).toContain("poweredByHeader: false");
-    expect(next).toContain("preserveDynamicSegmentTraces");
+    expect(next).toContain("turbopack: {}");
     expect(next).toContain("SECURITY_HEADERS");
     expect(middleware).not.toContain("SECURITY_HEADERS");
     expect(middleware).not.toContain("addCspHeaders");
