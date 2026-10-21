@@ -8,7 +8,12 @@ const sent: Record<string, unknown>[] = [];
 let reply: unknown = { errors: { errorCode: "VALIDATION", errorMessage: "bad value for a@example.test" } };
 vi.mock("@/lib/totalum", () => ({
   totalumSdk: { crud: {
-    createRecord: async (_t: string, row: Record<string, unknown>) => { sent.push(row); return reply; },
+    createRecord: async (_t: string, row: Record<string, unknown>) => {
+      sent.push(row);
+      if (reply !== undefined) return reply;
+      if (_t !== "user") return { data: { _id: `${_t}-1`, ...row } };
+      return row.country ? { data: { _id: "u1", ...row } } : { errors: { errorMessage: "country is required" } };
+    },
     query: async () => ({ data: [] }),
     getRecords: async () => ({ data: [] }),
   } },
@@ -73,14 +78,17 @@ describe("H-4/signup: user row coercion", () => {
     err.mockRestore();
   });
 
-  it("a real sign-up succeeds when Totalum returns the record", async () => {
-    reply = { data: { _id: "u1", email: "ok@example.test", name: "O", email_verified: 0 } };
+  it("a sign-up without country succeeds (country defaults to Unknown)", async () => {
+    // Totalum requires country: refuse any create without it, as production does.
+    sent.length = 0;
+    reply = undefined;
     vi.spyOn(console, "error").mockImplementation(() => {});
     const { auth } = await import("@/lib/auth");
     const res = await auth.handler(new Request("http://localhost:3000/api/auth/sign-up/email", {
       method: "POST", headers: { "content-type": "application/json", origin: "http://localhost:3000" },
       body: JSON.stringify({ email: "ok@example.test", password: "pw-123456", name: "O", age_confirmed: "yes" }),
     }));
-    expect(res.status).not.toBe(422);
+    expect(res.status).toBe(200);
+    expect(sent[0]).toHaveProperty("country", "Unknown");
   });
 });

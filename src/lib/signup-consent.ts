@@ -34,17 +34,19 @@ export function consentFields(now = new Date()): {
 export const CONSENT_COLUMN_KEYS = ["age_confirmed", "terms_accepted_at", "terms_version"] as const;
 
 /**
- * Columns the signup create may omit when Totalum does not have them yet.
- * `country` is the country chosen on the register form.
- * TODO(owner): the Totalum user.country column must exist for that choice to persist.
+ * H-4/signup: `country` is the only REQUIRED column on the Totalum user table.
+ * Every user create carries it, and the consent fallback never strips it.
+ * The register form sends a name from `@/lib/countries` ("New Zealand", ...). A create
+ * without one (API, scripts, fixtures) is stored as COUNTRY_UNKNOWN; we never guess a country.
  */
-export const SIGNUP_OPTIONAL_COLUMN_KEYS = [...CONSENT_COLUMN_KEYS, "country"] as const;
+export const COUNTRY_UNKNOWN = "Unknown";
 
-export function withoutCountry<T extends Record<string, unknown>>(row: T): T {
-  const next = { ...row };
-  delete next.country;
-  return next;
+export function signupCountry(value: unknown): string {
+  return typeof value === "string" && value.trim() ? value.trim() : COUNTRY_UNKNOWN;
 }
+
+/** Columns the signup create may omit when Totalum does not have them yet (never `country`). */
+export const SIGNUP_OPTIONAL_COLUMN_KEYS = [...CONSENT_COLUMN_KEYS] as const;
 
 export function withoutConsentColumns<T extends Record<string, unknown>>(row: T): T {
   const next = { ...row };
@@ -104,20 +106,12 @@ export async function createUserWithConsentFallback<T>(
   payload: Record<string, unknown>,
   create: (row: Record<string, unknown>) => Promise<{ record: T | null; error: unknown }>
 ): Promise<T | null> {
-  const first = await attemptCreate(payload, create);
+  const withCountry = { ...payload, country: signupCountry(payload.country) };
+  const first = await attemptCreate(withCountry, create);
   if (first.record) return first.record;
   if (!isUnknownConsentFieldError(first.error)) return null;
-
-  let current = payload;
-  if (payload.country != null && payload.country !== "") {
-    current = withoutCountry(payload);
-    const countryRetry = await attemptCreate(current, create);
-    if (countryRetry.record) return countryRetry.record;
-    if (!isUnknownConsentFieldError(countryRetry.error)) return null;
-  }
-
-  if (!rowHasConsent(current)) return null;
+  if (!rowHasConsent(withCountry)) return null;
   console.warn("[consent] user columns missing");
-  const stripped = await attemptCreate(withoutConsentColumns(current), create);
+  const stripped = await attemptCreate(withoutConsentColumns(withCountry), create);
   return stripped.record;
 }
