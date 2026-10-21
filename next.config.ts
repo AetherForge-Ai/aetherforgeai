@@ -3,6 +3,63 @@ import { PORTFOLIO_ROUTE_ALIASES } from "./src/lib/portfolio-route-aliases";
 import { PUBLIC_ROUTE_ALIASES } from "./src/lib/public-route-aliases";
 import { CROSS_ORIGIN_ASSET_SOURCES, STATIC_SECURITY_HEADERS } from "./src/lib/security-headers";
 
+type DynamicSegmentAsset = { source: () => string | Buffer };
+type DynamicSegmentChunk = { id?: string | number };
+type DynamicSegmentEntrypoint = {
+  name?: string;
+  getEntrypointChunk: () => DynamicSegmentChunk;
+};
+type DynamicSegmentCompilation = {
+  entrypoints: { values: () => Iterable<DynamicSegmentEntrypoint> };
+  hooks: {
+    processAssets: {
+      tap: (opts: { name: string; stage: number }, fn: () => void) => void;
+    };
+  };
+  getAsset: (name: string) => DynamicSegmentAsset | undefined;
+  getPath: (name: string, data: { chunk: DynamicSegmentChunk }) => string;
+  renameAsset: (from: string, to: string) => void;
+  emitAsset: (name: string, source: unknown) => void;
+};
+
+const DYNAMIC_SEGMENT_SUFFIXES = [
+  ".js.nft.json",
+  ".js",
+  "_client-reference-manifest.js",
+] as const;
+
+function preserveDynamicSegmentTraces(
+  compilation: DynamicSegmentCompilation,
+  webpack: { sources: { RawSource: new (source: string) => unknown } },
+) {
+  for (const entrypoint of compilation.entrypoints.values()) {
+    const entryName = entrypoint.name;
+    if (!entryName?.includes("[id]")) continue;
+    const chunk = entrypoint.getEntrypointChunk();
+    for (const suffix of DYNAMIC_SEGMENT_SUFFIXES) {
+      const literal = `../${entryName}${suffix}`;
+      let substituted = literal;
+      try {
+        substituted = compilation.getPath(literal, { chunk });
+      } catch {
+        const id = chunk?.id;
+        if (id !== undefined && id !== null) {
+          substituted = literal.replaceAll("[id]", String(id));
+        }
+      }
+      if (compilation.getAsset(literal)) continue;
+      if (substituted !== literal && compilation.getAsset(substituted)) {
+        compilation.renameAsset(substituted, literal);
+        continue;
+      }
+      if (suffix !== ".js.nft.json") continue;
+      compilation.emitAsset(
+        literal,
+        new webpack.sources.RawSource(JSON.stringify({ version: 1, files: [] })),
+      );
+    }
+  }
+}
 
 const nextConfig: NextConfig = {
   // b31 H-1/REG-1: metadata (including the x-af-snapshot-* meta tags) is rendered in <head>
@@ -34,6 +91,8 @@ const nextConfig: NextConfig = {
       }
     ]
   },
+  // Next 16: plain `next build` (Totalum preview) uses Turbopack; OpenNext builds with --webpack.
+  turbopack: {},
   // b53a: the Totalum Cloudflare build of b53 was OOM-killed at "Checking validity of types".
   // CI's Typecheck job (tests.yml, tsc --noEmit) type-checks every PR, so the production build skips it.
   typescript: {
@@ -66,9 +125,53 @@ const nextConfig: NextConfig = {
   // Cache-Control is applied once in middleware.ts.
   // Security headers are applied once in headers() above. Setting them in
   // middleware as well comma-joins the value (max-age=86400, max-age=86400).
-  // b54b BUILD: Next 16 builds with Turbopack by default (Totalum runs plain `npx next build`). The b2x
-  // webpack-only `[id]` trace workaround is not needed under Turbopack and was removed with the webpack hook.
-  turbopack: {},
+  webpack: (config, { dev, isServer, nextRuntime, webpack }) => {
+    if (dev) {
+      config.watchOptions = {
+        ...config.watchOptions,
+        ignored: [
+          '**/node_modules/**',
+          '**/.next/**',
+          '**/.git/**',
+          '**/playwright-screenshots/**',
+          '**/.playwright-mcp/**',
+          '**/playwright-dev-server.log',
+          '**/npm-start.log',
+          '**/frontend.log',
+          '**/project-docs/**',
+        ],
+      };
+    }
+    // Webpack's path templating treats `[id]` as the chunk id. Next asks
+    // collect-build-traces for `.next/server/app/api/alerts/[id]/route.js.nft.json`,
+    // but a second template pass (or an asset rename) writes that trace under
+    // the numeric chunk id instead. Alerts is the first `[id]` route, so the
+    // build dies there with ENOENT. Put the literal file back before emit.
+    if (isServer && !dev && nextRuntime === "nodejs") {
+      config.plugins.push({
+        apply(compiler: {
+          hooks: {
+            thisCompilation: {
+              tap: (name: string, fn: (compilation: DynamicSegmentCompilation) => void) => void;
+            };
+          };
+        }) {
+          compiler.hooks.thisCompilation.tap("PreserveDynamicSegmentTraces", (compilation) => {
+            compilation.hooks.processAssets.tap(
+              {
+                name: "PreserveDynamicSegmentTraces",
+                stage: webpack.Compilation.PROCESS_ASSETS_STAGE_REPORT,
+              },
+              () => {
+                preserveDynamicSegmentTraces(compilation, webpack);
+              },
+            );
+          });
+        },
+      });
+    }
+    return config;
+  },
 };
 
 export default nextConfig;
