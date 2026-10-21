@@ -1,0 +1,34 @@
+# b51 BS-01 (TT b50: the 16:07 UTC broker-sync slot ran 4 h 52 min late on 19 Oct; the 19:23 UTC
+# track-record slot never ran). GitHub drops or delays scheduled runs under load. This hourly watchdog
+# looks at cron.yml's job history and, when a job's last success is older than its interval plus slack,
+# dispatches cron.yml for that job. It never edits cron.yml.
+# Safety: it uses only the workflow's own GITHUB_TOKEN (actions read/write on this repo). It reads no
+# repo secrets, prints no secrets, calls no app route itself and sends no email.
+name: cron-fallback
+on:
+  schedule:
+    # b53b BS-01/G-20: slot-aware. Runs at :10, :40 and :55 so a missed 16:07 broker-sync slot (grace 45 min)
+    # is dispatched by 16:55 and a missed :23 track-record slot by :10 the next hour (both within 1 hour).
+    - cron: "10,40,55 * * * *"
+  workflow_dispatch:
+permissions:
+  actions: write
+  contents: read
+concurrency:
+  group: cron-fallback
+  cancel-in-progress: false
+jobs:
+  watchdog:
+    if: ${{ github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts/cron-watchdog.mjs
+          sparse-checkout-cone-mode: false
+      - name: Dispatch missed cron.yml slots
+        run: node scripts/cron-watchdog.mjs

@@ -94,6 +94,11 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  // b53a: the Totalum Cloudflare build of b53 was OOM-killed at "Checking validity of types".
+  // CI's Typecheck job (tests.yml, tsc --noEmit) type-checks every PR, so the production build skips it.
+  typescript: {
+    ignoreBuildErrors: true,
+  },
   experimental: {
     // Dynamic dashboard RSC must not be replayed from the client router cache
     // after a paper-book switch. Static marketing prefetch keeps its default.
