@@ -11,7 +11,7 @@ export const CHANGELOG_ENTRIES = [
   {
     href: "/markets",
     title: "22 Oct 2026 — A faster markets page",
-    body: "The markets page and the coin pages open faster, because they start from the latest saved prices instead of waiting for every price source. The site also moved to a newer version of the framework it runs on.",
+    body: "The markets page and the coin pages open faster, because they start from the latest saved prices instead of waiting for every price source. The site also moved to a newer version of the framework it runs on. The crypto list no longer shrinks when a price refresh comes back short: coins that missed an update stay listed and are marked as delayed.",
   },
   {
     href: "/import",
