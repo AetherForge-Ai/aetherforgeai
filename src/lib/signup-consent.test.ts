@@ -102,7 +102,7 @@ describe("preview framing", () => {
     const next = readFileSync("next.config.ts", "utf8");
     const middleware = readFileSync("src/middleware.ts", "utf8");
     expect(next).toContain("poweredByHeader: false");
-    expect(next).toContain("preserveDynamicSegmentTraces");
+    expect(next).toContain("turbopack: {}");
     expect(next).toContain("SECURITY_HEADERS");
     expect(middleware).not.toContain("SECURITY_HEADERS");
     expect(middleware).not.toContain("addCspHeaders");
