@@ -6,7 +6,7 @@ import { totalumAdapter } from "@/lib/better-auth-totalum-adapter";
 import { totalumSdk } from "@/lib/totalum";
 import { sendAuthResetPassword, sendAuthVerificationEmail } from "@/lib/auth-mail";
 import { APIError } from "better-auth/api";
-import { SIGNUP_CONSENT_ERROR, TERMS_VERSION, ageConfirmed, consentFields, signupCountry } from "@/lib/signup-consent";
+import { SIGNUP_CONSENT_ERROR, TERMS_VERSION, ageConfirmed, consentFields } from "@/lib/signup-consent";
 
 // TESTING_MODE is set only by the test:serve script (npm run test:serve).
 // When active, use LOCAL_NEXTJS_PROJECT_TESTING_URL so that CORS, baseURL,
@@ -335,11 +335,12 @@ export const auth = betterAuth({
           }
           const consent = consentFields();
           const recordWithCountry = user as typeof user & { country?: unknown };
-          // H-4/signup: country is required on the Totalum user table; always sent ("Unknown" if absent).
+          // TODO(owner): country, age_confirmed, terms_accepted_at and terms_version now exist.
+          // createUserWithConsentFallback still strips them only if Totalum returns an unknown-field error.
           return {
             data: {
               ...user,
-              country: signupCountry(recordWithCountry.country),
+              country: typeof recordWithCountry.country === "string" ? recordWithCountry.country : undefined,
               age_confirmed: consent.age_confirmed,
               terms_accepted_at: consent.terms_accepted_at,
               terms_version: consent.terms_version || TERMS_VERSION,

@@ -12,7 +12,6 @@
  *  4. a deleted key is tombstoned, so a late replay can't recreate it (answer 410).
  * Pure and dependency-injected so the race can be tested without Totalum.
  */
-import { durableTombstoned, writeDurableTombstone, type TombstoneMeta, type TombstoneStore } from "@/lib/ledger-tombstone";
 
 export interface IdemRow {
   _id?: string;
@@ -77,22 +76,9 @@ function edgeCache(): Cache | null {
   }
 }
 
-/* G-10: optional durable store (`ledger_tombstone`), set only when LEDGER_TOMBSTONE_TABLE=on. */
-let durable: TombstoneStore | null = null;
-export function configureDurableTombstones(store: TombstoneStore | null) {
-  durable = store;
-}
-
-export async function markIdemTombstone(userId: string, key: string, now = Date.now(), meta: TombstoneMeta = {}): Promise<void> {
+export async function markIdemTombstone(userId: string, key: string, now = Date.now()): Promise<void> {
   if (!userId || !key) return;
   memTomb.set(`${userId}:${key}`, now);
-  if (durable) {
-    try {
-      await writeDurableTombstone(durable, userId, key, meta, now);
-    } catch {
-      console.error("[idem] durable tombstone write failed"); // no key or user id logged
-    }
-  }
   const cache = edgeCache();
   if (!cache) return;
   try {
@@ -107,18 +93,9 @@ export async function isIdemTombstoned(userId: string, key: string, now = Date.n
   const at = memTomb.get(`${userId}:${key}`);
   if (at && now - at < IDEM_TOMBSTONE_TTL_S * 1000) return true;
   const cache = edgeCache();
-  if (cache) {
-    try {
-      if (await cache.match(tombUrl(userId, key))) return true;
-    } catch {
-      /* fall through to the durable store */
-    }
-  }
-  if (!durable) return false;
+  if (!cache) return false;
   try {
-    const hit = await durableTombstoned(durable, userId, key);
-    if (hit) memTomb.set(`${userId}:${key}`, now);
-    return hit;
+    return Boolean(await cache.match(tombUrl(userId, key)));
   } catch {
     return false;
   }
@@ -126,7 +103,6 @@ export async function isIdemTombstoned(userId: string, key: string, now = Date.n
 
 export function resetIdemGuardForTests() {
   memTomb.clear();
-  durable = null;
   locks.clear();
 }
 

@@ -419,34 +419,8 @@ export async function loadPublicMarketIndex(): Promise<PublicMarketIndex> {
     if (Date.now() >= nextRefreshAt) void startBuild();
     return reevaluateRowDelay(memo.value);
   }
-  // b54 REG-1 (TT P2: signed-out /markets TTFB sometimes >5 s on a cold isolate). A cold read waits at most
-  // COLD_BUDGET_MS for the build; after that it serves the saved listings (names + coverage) and the stored
-  // crypto snapshot, while the build carries on in the background and fills the memo for the next request
-  // (stale-while-revalidate inside the isolate; no Worker, no edge rule).
-  const build = startBuild();
-  const value = await within<PublicMarketIndex | null>(build, null, COLD_BUDGET_MS);
-  if (value) return value.priceRowCount > 0 ? reevaluateRowDelay(value) : emptyIndex();
-  return coldSavedIndex();
-}
-
-/** b54 REG-1: cold-path budget for the live build before the saved copy is served. */
-export const COLD_BUDGET_MS = 1_000;
-/** b54 REG-1: budget for the stored crypto snapshot on the cold path. */
-const COLD_SNAPSHOT_MS = 500;
-
-async function coldSavedIndex(): Promise<PublicMarketIndex> {
-  const boards: StockBoard[] = ["NZX", "ASX", "DOW", "NASDAQ", "NYSE"];
-  const empty = (id: "CRYPTO" | "DEX", title: string): PublicPriceTab => ({ id, title, asOf: "time not given by the data provider", rows: [] });
-  const recalled = (id: string) => {
-    const tab = recallPublicTab(id);
-    return tab?.rows.length ? tab : null;
-  };
-  const crypto =
-    recalled("CRYPTO") ?? (await within(cryptoTabFromSnapshot(), null, COLD_SNAPSHOT_MS)) ?? empty("CRYPTO", "Crypto");
-  const dex = recalled("DEX") ?? empty("DEX", "DEX");
-  const tabs = [...boards.map((id) => equityFallback(id)), crypto, dex];
-  const priceRowCount = tabs.reduce((sum, tab) => sum + tab.rows.length, 0);
-  return priceRowCount > 0 ? reevaluateRowDelay({ tabs, priceRowCount }) : emptyIndex();
+  const value = await startBuild();
+  return value.priceRowCount > 0 ? reevaluateRowDelay(value) : emptyIndex();
 }
 
 const quoteMemo = new Map<string, { at: number; value: Promise<string | null> }>();
