@@ -1,0 +1,27 @@
+# b54b BUILD: the Cloudflare publish step runs the OpenNext adapter; run it here so an adapter/Next
+# support failure is caught before Publish. Build only: no deploy, no secrets, no Cloudflare API calls.
+name: opennext-build
+on:
+  pull_request:
+    branches: [develop, main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: opennext-build-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  opennext:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Adapter versions
+        run: npx opennextjs-cloudflare --version || true; node -p "require('next/package.json').version"
+      - name: opennextjs-cloudflare build
+        run: npx opennextjs-cloudflare build
