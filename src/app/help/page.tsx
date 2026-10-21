@@ -2,7 +2,6 @@ import { JsonLd } from "@/components/public/JsonLd";
 import { SiteHeader } from "@/components/SiteHeader";
 import { HelpSearch } from "@/components/help/HelpSearch";
 import { helpArticles } from "@/lib/help-index";
-import { EmailAddress } from "@/components/EmailAddress";
 import { breadcrumbJsonLd, helpFaqJsonLd } from "@/lib/public-schema";
 import { publicPageMetadata } from "@/lib/reviewed-book";
 
@@ -30,7 +29,11 @@ export default function HelpPage() {
           <h1 className="font-display text-4xl font-bold">Help</h1>
           <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
             Search the docs and the pricing questions. For an account question, email{" "}
-            <EmailAddress email="admin@aetherforgeai.co.nz" />.
+            {/* M-2: plain text, not a link. The "@" sits in its own span so edge email obfuscation leaves it readable. */}
+            <span className="font-medium text-foreground" data-testid="help-contact-email">
+              admin<span>@</span>aetherforgeai.co.nz
+            </span>
+            .
           </p>
           <div className="mt-8">
             <HelpSearch articles={articles} />
