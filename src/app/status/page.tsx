@@ -6,9 +6,8 @@ import { publicPageMetadata } from "@/lib/reviewed-book";
 import { loadStatusFeeds } from "@/lib/status-feeds.server";
 import { applyFeedForce, readFeedForce } from "@/lib/feed-freshness-hook";
 import { currentUserMayUseTestHooks } from "@/lib/test-hooks.server";
-import { statusFeedBody } from "@/lib/status-feeds";
 import { NO_INCIDENTS_LINE, STATUS_INCIDENTS } from "@/lib/docs-guides";
-import { formatDisplayDateTime } from "@/lib/currency";
+import { formatStatusTime, statusFeedBody } from "@/lib/status-feeds";
 import { aiProviderHealth, aiProviderStatusLine } from "@/lib/ai-provider-health";
 
 export const dynamic = "force-dynamic";
@@ -48,7 +47,7 @@ export default async function StatusPage() {
           ? {
               title: "Incident history",
               body: STATUS_INCIDENTS.map(
-                (i) => `${formatDisplayDateTime(i.startedAt)} to ${i.resolvedAt ? formatDisplayDateTime(i.resolvedAt) : "ongoing"}: ${i.title}. ${i.detail}`
+                (i) => `${formatStatusTime(i.startedAt)} to ${i.resolvedAt ? formatStatusTime(i.resolvedAt) : "ongoing"}: ${i.title}. ${i.detail}`
               ).join(" "),
             }
           : { title: "Incident history", body: NO_INCIDENTS_LINE },
