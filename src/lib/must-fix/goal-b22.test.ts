@@ -6,7 +6,7 @@ import { GUIDES, COMPARISONS } from "@/data/learn-content";
 const read = (p: string) => readFileSync(p, "utf8");
 
 describe("Goal b22", () => {
-  it("pins the build", () => expect(read("public/build-version.txt").trim()).toMatch(/^v3-goal-b\d+[a-z]?-2026-10-\d\d$/));
+  it("pins the build", () => expect(read("public/build-version.txt").trim()).toMatch(/^v3-(?:goal|restore)-b\d+[a-z]?-2026-10-\d\d$/));
   it("G-23: 26 guides + 3 compare pages + /learn = 30 URLs, all sourced", () => {
     expect(GUIDES.length + COMPARISONS.length + 1).toBeGreaterThanOrEqual(30);
     for (const g of GUIDES) for (const f of g.facts) expect(f.source != null || !!f.missingReason).toBe(true);
