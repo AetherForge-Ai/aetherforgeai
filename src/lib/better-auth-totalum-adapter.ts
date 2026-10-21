@@ -4,7 +4,6 @@ import type { Adapter } from "better-auth";
 import { createAdapterFactory } from "better-auth/adapters";
 import { sessionWriteResult } from "@/lib/trade-commit-session";
 import { createUserWithConsentFallback } from "@/lib/signup-consent";
-import { coerceUserRow } from "@/lib/totalum-user-row";
 
 // ==================== Type Definitions ====================
 
@@ -310,7 +309,7 @@ export function totalumAdapter(
 
           const record =
             data.model === "user"
-              ? await createUserWithConsentFallback(coerceUserRow(snakeCaseData), async (row) => {
+              ? await createUserWithConsentFallback(snakeCaseData, async (row) => {
                   const response = await client.crud.createRecord(tableName, row);
                   return { record: unwrapTotalumResponse(response), error: response?.errors ?? null };
                 })

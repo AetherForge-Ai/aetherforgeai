@@ -24,7 +24,7 @@ describe("b40 REG-1 / H-1 (a): deadline serves a snapshot, never a 503 while one
     expect(route).toMatch(/lastGoodResponse && lastGoodResponse\.version >= floor/);
   });
   it("/markets fills an empty crypto tab from the snapshot (edge copy first)", () => {
-    expect(read("src/app/markets/page.tsx")).toMatch(/ensureCryptoTab\(built\)/);
+    expect(read("src/app/markets/page.tsx")).toMatch(/await ensureCryptoTab\(built\)/);
     const idx = read("src/lib/public-market-index.ts");
     expect(idx).toMatch(/export async function ensureCryptoTab/);
     expect(idx).toMatch(/edgeSnapshotGet<Snap>\(300\)/);

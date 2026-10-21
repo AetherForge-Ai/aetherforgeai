@@ -12,12 +12,7 @@ import { tradeSchema } from "@/lib/trade-schema";
 import { hasForeignOwner, requestClaimsOtherUser } from "@/lib/account-guard";
 import { accountMismatchResponse, privateJson } from "@/lib/account-response";
 import { writeMarkHeaders } from "@/lib/write-integrity";
-import { configureDurableTombstones, guardedIdemWrite, idemKeyFromNotes, idemNotesRegex, isIdemTombstoned, markIdemTombstone, pickIdemWinner, type IdemRow } from "@/lib/idem-guard";
-import { entityTypeOf, tombstoneTableEnabled } from "@/lib/ledger-tombstone";
-import { totalumTombstoneStore } from "@/lib/ledger-tombstone.server";
-
-// G-10: durable tombstones only when the approved table exists and the flag is on (rollback = flag off).
-configureDurableTombstones(tombstoneTableEnabled() ? totalumTombstoneStore : null);
+import { guardedIdemWrite, idemKeyFromNotes, idemNotesRegex, isIdemTombstoned, markIdemTombstone, pickIdemWinner, type IdemRow } from "@/lib/idem-guard";
 import { TRADE_CONFIRM_REQUIRED } from "@/lib/trade-confirm";
 import { previewActivityEmail } from "@/lib/activity-email";
 import { readActivityEmailPrefs } from "@/lib/activity-email-server";
@@ -391,7 +386,7 @@ export async function DELETE(req: Request) {
     }
     // b39 G-10: tombstone the row's idempotency key so a late journal replay can't recreate it.
     const deletedKey = idemKeyFromNotes((row as { notes?: string }).notes) || new URL(req.url).searchParams.get("idem")?.trim() || "";
-    if (deletedKey) await markIdemTombstone(user._id, deletedKey, Date.now(), { entityType: entityTypeOf(type), entityId: id, op: "delete" });
+    if (deletedKey) await markIdemTombstone(user._id, deletedKey);
     console.info("[write]", JSON.stringify({ action: "delete", id, status: 200, cashAfter: (result as { cash?: { after?: number } })?.cash?.after ?? null }));
     ledgerAudit("delete", user._id, row, result);
     invalidateBookCache(user._id);
