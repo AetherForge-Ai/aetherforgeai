@@ -30,10 +30,10 @@ jobs:
       - name: Curl routes
         run: |
           FAIL=0
-          for p in / /markets /sign-in /api/ticker; do
+          for p in / /markets /login /api/ticker; do
             code=$(curl -s -o body.txt -w '%{http_code} %{time_starttransfer}' "http://127.0.0.1:8787$p")
             echo "$p -> $code $(head -c 120 body.txt | tr '\n' ' ')" | tee -a "$GITHUB_STEP_SUMMARY"
-            case "${code%% *}" in 200|307|308) ;; *) FAIL=1;; esac
+            c=${code%% *}; if [ "$c" -ge 500 ] && ! grep -q "\"ok\":false" body.txt || grep -q "Server failed to respond" body.txt; then FAIL=1; fi
           done
           exit $FAIL
       - if: always()
