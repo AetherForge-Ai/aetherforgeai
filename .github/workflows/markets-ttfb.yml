@@ -1,0 +1,39 @@
+# b54 REG-1 (TT P2): signed-out /markets TTFB must be under 2 s at p95. Production build + next start on the
+# runner, then 40 timed requests with no cookies. No secrets, no deploy, no app data writes.
+name: markets-ttfb
+on:
+  pull_request:
+    branches: [develop, main]
+    paths: ["src/app/markets/**", "src/lib/public-market-index.ts", "src/lib/ticker-serve.ts", ".github/workflows/markets-ttfb.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  ttfb:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: NODE_OPTIONS=--max-old-space-size=6144 npm run build
+      - name: Start (prod)
+        run: (PORT=3000 NEXT_TELEMETRY_DISABLED=1 DISABLE_OPENNEXT=true npx next start -p 3000 > server.log 2>&1 &) && npx --yes wait-on -t 120000 tcp:127.0.0.1:3000
+      - name: 40 timed signed-out requests
+        run: |
+          : > t.txt
+          for i in $(seq 1 40); do
+            curl -s -o /dev/null -w '%{http_code} %{time_starttransfer}\n' "http://127.0.0.1:3000/markets" >> t.txt
+          done
+          cat t.txt
+          awk '{print $2}' t.txt | sort -n > s.txt
+          P95=$(sed -n '38p' s.txt); MAX=$(tail -1 s.txt); FIRST=$(head -1 t.txt | awk '{print $2}')
+          BAD=$(awk '$1!=200' t.txt | wc -l)
+          echo "first=${FIRST}s p95=${P95}s max=${MAX}s non200=${BAD}" | tee -a "$GITHUB_STEP_SUMMARY"
+          awk -v p="$P95" 'BEGIN{exit !(p < 2.0)}'
+          test "$BAD" -eq 0
+      - if: always()
+        run: tail -50 server.log
