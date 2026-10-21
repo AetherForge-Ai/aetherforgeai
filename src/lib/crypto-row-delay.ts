@@ -10,7 +10,12 @@ export const CRYPTO_ROW_DELAYED_AFTER_MS = 15 * 60 * 1000;
  * did not match, so a coin no source returns any more aged forever. A row whose own quote lags the
  * list by more than this is dropped instead of carried.
  */
-export const CRYPTO_ROW_DROP_AFTER_MS = 2 * 60 * 60 * 1000;
+// H-1 (b57, TT health 22 Oct: list shrank 400 → 365 → 264): a 2 h drop window threw away the
+// last good rows whenever CoinGecko page 2 kept failing. Carried rows keep a "delayed" label and
+// are only dropped after a full day.
+export const CRYPTO_ROW_DROP_AFTER_MS = 24 * 60 * 60 * 1000;
+/** H-1: the shared list never holds more than this many coins. */
+export const CRYPTO_LIST_CAP = 400;
 
 /**
  * b38 H-1: refresh matching coins from a partial list; the rest keep their price AND their own
@@ -83,3 +88,38 @@ export function cryptoRowDelayed(quotedAt: string | null | undefined, now = Date
   return !Number.isFinite(t) || now - t > CRYPTO_ROW_DELAYED_AFTER_MS;
 }
 
+
+/**
+ * H-1 (b57): a verified but shorter list (e.g. CoinGecko page 1 only, page 2 rate-limited) refreshes
+ * the rows it has and ADDS coins the saved list lacked; saved rows it does not return are kept with
+ * their own quotedAt (so they show "delayed") instead of being dropped. Rows older than
+ * CRYPTO_ROW_DROP_AFTER_MS are dropped. Sorted by rank, capped at CRYPTO_LIST_CAP.
+ */
+export function unionCryptoList(
+  existing: { at: string; coins: CoinMarket[] },
+  incoming: CoinMarket[],
+  at: string,
+  cap = CRYPTO_LIST_CAP
+): CoinMarket[] {
+  const atMs = Date.parse(at);
+  const key = (c: CoinMarket) => (c.id ? `id:${String(c.id).toLowerCase()}` : `sym:${c.symbol.toUpperCase()}`);
+  const fresh = incoming.filter((c) => typeof c.price === "number" && Number.isFinite(c.price) && c.price > 0);
+  const out = new Map<string, CoinMarket>();
+  const freshSyms = new Set(fresh.map((c) => c.symbol.toUpperCase()));
+  for (const c of fresh) out.set(key(c), { ...c, quotedAt: c.quotedAt || at });
+  for (const c of existing.coins) {
+    const k = key(c);
+    if (out.has(k)) {
+      const f = out.get(k)!;
+      if (f.quotedAt && c.quotedAt && Date.parse(f.quotedAt) < Date.parse(c.quotedAt)) out.set(k, c);
+      continue;
+    }
+    if (!c.id && freshSyms.has(c.symbol.toUpperCase())) continue;
+    const quotedAt = c.quotedAt || existing.at || null;
+    const t = Date.parse(quotedAt || "");
+    if (Number.isFinite(atMs) && Number.isFinite(t) && atMs - t > CRYPTO_ROW_DROP_AFTER_MS) continue;
+    out.set(k, { ...c, quotedAt });
+  }
+  const rank = (c: CoinMarket) => (Number.isFinite(c.rank) && c.rank > 0 ? c.rank : Number.MAX_SAFE_INTEGER);
+  return Array.from(out.values()).sort((a, b) => rank(a) - rank(b)).slice(0, cap);
+}
