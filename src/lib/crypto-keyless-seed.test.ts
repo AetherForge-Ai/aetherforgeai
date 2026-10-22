@@ -264,7 +264,8 @@ describe("pull-check:v3-crypto-seed-2026-10-12", () => {
     expect(board.coins.length).toBeGreaterThanOrEqual(50);
     expect(board.coins.every((row) => row.price > 0)).toBe(true);
     expect(board.notice).toMatch(/Prices last updated /);
-    expect(board.notice).not.toContain("CoinPaprika");
+    // b58 P3 (TT, supersedes the Retest 14 hide): the notice credits CoinPaprika when it supplied the list.
+    expect(board.notice).toContain("Source: CoinPaprika.");
     expect(board.at).toBeTruthy();
   });
 

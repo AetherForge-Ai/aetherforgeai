@@ -133,7 +133,7 @@ export function latestIso(values: Array<string | null | undefined>): string | nu
 
 /**
  * b34 M-2 (Chief ruling): honest label for the saved equity snapshot time — never implies live.
- * "Prices last updated 6:32 am NZT" today, "Prices last updated 6:32 am NZT, 13 Oct" otherwise.
+ * "Prices last updated 6:32 am NZDT" today, "Prices last updated 6:32 am NZDT, 13 Oct" otherwise (NZST in winter).
  */
 export function savedSnapshotLabel(at: string, now = Date.now()): string {
   const d = new Date(at);
@@ -142,5 +142,8 @@ export function savedSnapshotLabel(at: string, now = Date.now()): string {
   const day = (x: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(x);
   const sameDay = day(d) === day(new Date(now));
   const date = new Intl.DateTimeFormat("en-NZ", { timeZone: tz, day: "numeric", month: "short" }).format(d);
-  return `Prices last updated ${time} NZT${sameDay ? "" : `, ${date}`}`;
+  // b58 P3 (TT): the real zone label for that moment, NZDT in summer and NZST in winter (was a fixed "NZT").
+  const zone =
+    new Intl.DateTimeFormat("en-NZ", { timeZone: tz, timeZoneName: "short" }).formatToParts(d).find((p) => p.type === "timeZoneName")?.value || "NZ time";
+  return `Prices last updated ${time} ${zone}${sameDay ? "" : `, ${date}`}`;
 }

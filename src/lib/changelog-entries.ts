@@ -4,6 +4,11 @@
  */
 export const CHANGELOG_ENTRIES = [
   {
+    href: "/portfolio",
+    title: "22 Oct 2026 — Share splits, exchange rates and crypto notes",
+    body: "Recording a share split no longer changes your cash balance. Exchange rates now pick up the provider's new daily rate soon after it is published, instead of up to two hours later. The crypto price note shows the New Zealand time zone in full (NZDT in summer, NZST in winter) and names both CoinGecko and CoinPaprika when both supplied prices.",
+  },
+  {
     href: "/status",
     title: "22 Oct 2026 — Help, guides and the status page",
     body: "The status page shows the last good time for each price feed in New Zealand time, and keeps it after an update to the site. When no new share quote has arrived, it shows the time of the latest saved quote instead of saying none exists. The help page and guides were refreshed.",

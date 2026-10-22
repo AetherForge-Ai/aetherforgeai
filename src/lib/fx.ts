@@ -23,7 +23,19 @@ export interface FxSnapshot {
 // One-hour in-memory cache. FX moves slowly enough that hourly is plenty and
 // keeps us well within any free-tier limits.
 const TTL_MS = 60 * 60 * 1000;
-let cache: { snapshot: FxSnapshot; fetchedAtMs: number } | null = null;
+let cache: { snapshot: FxSnapshot; fetchedAtMs: number; nextUpdateMs?: number | null } | null = null;
+/** FX P2 (b58): after the provider's announced next daily update, a cached rate is refetched straight away. */
+export const FX_NEXT_UPDATE_GRACE_MS = 5 * 60 * 1000;
+
+/** True when a cached FX snapshot should still be served. */
+export function fxCacheFresh(
+  entry: { fetchedAtMs: number; nextUpdateMs?: number | null } | null,
+  nowMs: number
+): boolean {
+  if (!entry || nowMs - entry.fetchedAtMs >= TTL_MS) return false;
+  if (entry.nextUpdateMs && nowMs >= entry.nextUpdateMs + FX_NEXT_UPDATE_GRACE_MS) return false;
+  return true;
+}
 
 /**
  * open.er-api.com returns rates with USD (or any base) as the base:
@@ -39,10 +51,11 @@ export function providerRateAsOf(unix: unknown): string | null {
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
-async function fetchLiveRatesToNZD(): Promise<{ rates: FxRatesToNZD; asOf: string | null }> {
+async function fetchLiveRatesToNZD(fresh = false): Promise<{ rates: FxRatesToNZD; asOf: string | null; nextUpdateMs: number | null }> {
   const res = await fetch("https://open.er-api.com/v6/latest/NZD", {
-    // Revalidate hourly at the platform layer too.
-    next: { revalidate: 3600 },
+    // Revalidate hourly at the platform layer too; once the provider's daily update is due, skip that layer
+    // (FX P2: the platform copy could hold yesterday's rate for up to another hour).
+    ...(fresh ? { cache: "no-store" } : { next: { revalidate: 3600 } }),
     // b31 REG-1: never hang a render on the FX provider; the caller falls back.
     signal: AbortSignal.timeout(1_500),
   } as RequestInit);
@@ -53,6 +66,7 @@ async function fetchLiveRatesToNZD(): Promise<{ rates: FxRatesToNZD; asOf: strin
     result?: string;
     rates?: Record<string, number>;
     time_last_update_unix?: number;
+    time_next_update_unix?: number;
   };
 
   if (json.result !== "success" || !json.rates) {
@@ -74,6 +88,7 @@ async function fetchLiveRatesToNZD(): Promise<{ rates: FxRatesToNZD; asOf: strin
       USD: 1 / usdPerNzd,
     }),
     asOf: providerRateAsOf(json.time_last_update_unix),
+    nextUpdateMs: ((next) => (next ? Date.parse(next) : null))(providerRateAsOf(json.time_next_update_unix)),
   };
 }
 
@@ -117,19 +132,21 @@ export async function historicalNzdPerUnit(
 export async function getFxSnapshot(nowMs?: number): Promise<FxSnapshot> {
   const t = nowMs ?? Date.now();
 
-  if (cache && t - cache.fetchedAtMs < TTL_MS) {
+  if (cache && fxCacheFresh(cache, t)) {
     return cache.snapshot;
   }
 
+  // FX P2: the cache expired because the provider's daily update is due, so ask the provider directly.
+  const updateDue = Boolean(cache?.nextUpdateMs && t >= cache.nextUpdateMs + FX_NEXT_UPDATE_GRACE_MS);
   try {
-    const fetched = await fetchLiveRatesToNZD();
+    const fetched = await fetchLiveRatesToNZD(updateDue);
     const snapshot: FxSnapshot = {
       ratesToNZD: fetched.rates,
       live: false,
       sourced: fetched.asOf != null,
       asOf: fetched.asOf,
     };
-    cache = { snapshot, fetchedAtMs: t };
+    cache = { snapshot, fetchedAtMs: t, nextUpdateMs: fetched.nextUpdateMs };
     console.log("[fx] Live FX rates resolved:", fetched.rates);
     return snapshot;
   } catch (err) {

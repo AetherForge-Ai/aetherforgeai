@@ -1,4 +1,4 @@
-// pull-check:v3-goal-b57-2026-10-22
+// pull-check:v3-goal-b58-2026-10-22
 import { describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 
@@ -252,7 +252,7 @@ describe("b37 P2: CR-6 hook plan name, M-2 dashboard label, G-14 focus", () => {
   it("M-2: the signed-in strip shows one 'Prices last updated' line", async () => {
     expect(read("src/components/MarketTicker.tsx")).toContain("data-prices-last-updated");
     const { savedSnapshotLabel } = await import("@/lib/status-feeds");
-    expect(savedSnapshotLabel("2026-10-18T18:30:00Z", Date.parse("2026-10-18T19:00:00Z"))).toMatch(/^Prices last updated 7:30 am NZT$/);
+    expect(savedSnapshotLabel("2026-10-18T18:30:00Z", Date.parse("2026-10-18T19:00:00Z"))).toMatch(/^Prices last updated 7:30 am NZDT$/);
   });
   it("G-14: stray focus goes to the field after the last one focused, not to the first field", () => {
     const d = read("src/components/dashboard/TransactionDialog.tsx");

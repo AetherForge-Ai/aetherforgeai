@@ -221,7 +221,8 @@ export function snapshotFeedLabel(sources: string[]): string {
   for (const source of ordered) {
     const id = (source || "").trim().toLowerCase();
     if (!id || !publicSourceAllowed(id)) continue;
-    const label = sourceLabel(id);
+    // b58 P3 (TT): the list notice credits CoinPaprika too (the same name as /trust); elsewhere it stays unnamed.
+    const label = id === "coinpaprika" ? "CoinPaprika" : sourceLabel(id);
     if (!label || labels.includes(label)) continue;
     labels.push(label);
   }
