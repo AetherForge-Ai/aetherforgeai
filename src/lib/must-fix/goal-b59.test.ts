@@ -2,7 +2,7 @@
  * Goal b59: H-9b (foreign-currency buy cash) and H-9c (split rows in positions).
  * Fixture: FIXTURE-SEED-SPEC H-9 (pro-h9tax, user 6ad966a6e13d2527633fcb78).
  * NZ-tax-safe: the NZ$ cost base is unchanged by the split, no GST, cash in NZD.
- * pull-check:v3-goal-b60-2026-10-22
+ * pull-check:v3-goal-b59-2026-10-22
  */
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
