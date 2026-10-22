@@ -45,6 +45,7 @@ import { feedEntryForTicker } from "@/lib/feed-mapping";
 import { withUserTradeLock } from "@/lib/trade-lock";
 import { applyPaperCashMove } from "@/lib/paper-cash";
 import { planHoldingCorrection } from "@/lib/holding-correction";
+import { holdingAfterSplit, readSplit } from "@/lib/stock-split";
 import { cleanChain, dexSectorTag, parseDexSector, preserveQuoteStamp, withDexNotes, withQuoteStamp } from "@/lib/dex-source";
 import { buildDividendRecord, paymentDateFx, withDividendNotes, type DividendParts } from "@/lib/dividend-ledger";
 import { cashFromLedgerRows } from "@/lib/ledger-cash-lines";
@@ -787,7 +788,7 @@ async function applyTransactionUnlocked(
   const ticker = normalizeTicker(input.ticker || "");
   if (!ticker) throw new Error("Ticker is required");
   const assetType: TxAssetType = input.asset_type || "stock";
-  const quantity = Number(input.quantity) || 0;
+  let quantity = Number(input.quantity) || 0;
   let price = Number(input.price) || 0;
   const fees = Math.max(0, Number(input.fees) || 0);
   if (quantity <= 0) throw new Error("Quantity must be greater than 0");
@@ -803,6 +804,15 @@ async function applyTransactionUnlocked(
     const existing = holdingFromList(await holdingsListPromise, ticker, assetType);
     if (input.type === "correction" && !existing) {
       throw new Error(`You don't hold ${ticker} to correct`);
+    }
+    // H-9 split-cash: a split is restated from the holding read inside the trade lock, not from
+    // the caller's earlier read, so a buy booked in between is not overwritten. Cash is untouched.
+    const splitTag = input.type === "correction" ? readSplit(input.notes) : null;
+    if (splitTag && existing) {
+      const restated = holdingAfterSplit(Number(existing.shares) || 0, Number(existing.purchase_price) || 0, splitTag.ratio);
+      if (!(restated.shares > 0)) throw new Error(`You don't hold ${ticker} to split`);
+      quantity = restated.shares;
+      price = restated.averageCost > 0 ? restated.averageCost : price;
     }
     const plan = planHoldingCorrection({
       beforeShares: existing?.shares || 0,
@@ -863,7 +873,13 @@ async function applyTransactionUnlocked(
       ...(holdingId ? { stock: holdingId } : {}),
     });
     console.log(`[transactions] ${input.type} ${ticker} qty=${quantity} @ ${price} ${currency} (cash unchanged)`);
-    return { transaction: rec?.data, cashBalance: currentCash, realizedNZD: 0, holdingId };
+    return {
+      transaction: rec?.data,
+      cashBalance: currentCash,
+      realizedNZD: 0,
+      holdingId,
+      holding: { _id: holdingId, ticker, asset_type: assetType, shares: round(quantity, 6), purchase_price: roundFillPrice(price) },
+    };
   }
 
   // Recommendations / ideas must NOT book as filled trades or realized P&L.

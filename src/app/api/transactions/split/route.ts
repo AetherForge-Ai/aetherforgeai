@@ -44,7 +44,11 @@ export async function POST(req: Request) {
       { fromHoldingEdit: true }
     );
     invalidateBookCache(user._id);
-    return NextResponse.json({ ok: true, holding: after, holdingId: result.holdingId ?? holding._id });
+    // H-9 split-cash: report the holding as restated under the trade lock.
+    const written = result.holding
+      ? { shares: result.holding.shares, averageCost: result.holding.purchase_price }
+      : after;
+    return NextResponse.json({ ok: true, holding: written, holdingId: result.holdingId ?? holding._id });
   } catch (err) {
     const message = err instanceof Error ? err.message : "The split was not saved";
     return NextResponse.json({ ok: false, error: message }, { status: 400 });
