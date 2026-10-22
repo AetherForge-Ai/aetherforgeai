@@ -48,7 +48,7 @@ import { planHoldingCorrection } from "@/lib/holding-correction";
 import { holdingAfterSplit, readSplit } from "@/lib/stock-split";
 import { cleanChain, dexSectorTag, parseDexSector, preserveQuoteStamp, withDexNotes, withQuoteStamp } from "@/lib/dex-source";
 import { buildDividendRecord, paymentDateFx, withDividendNotes, type DividendParts } from "@/lib/dividend-ledger";
-import { cashFromLedgerRows } from "@/lib/ledger-cash-lines";
+import { reconciledLedgerCash } from "@/lib/ledger-cash-lines";
 import { buildMovementPreview } from "@/lib/movement-preview";
 import { assessMovement, earlierCivilDay, exceedsAvailableCash, movementCivilDay } from "@/lib/transaction-rules";
 import { dateOnlyInstant, lotCivilDay, resolveExecutedInstant } from "@/lib/executed-at";
@@ -1740,11 +1740,10 @@ export function ledgerAfterBooking(
     const amount = Number(row.total);
     if (Number.isFinite(amount)) incomeTotal += Math.abs(amount);
   }
-  const summed = transactions.length ? cashFromLedgerRows(transactions) : booked.cashBalance;
   // Confirm already wrote this cash. A book that does not contain the opening
   // balance must not replace it with the sum of the trade lines alone.
-  const cashBalance =
-    Number.isFinite(summed) && Math.abs(summed - booked.cashBalance) < 0.02 ? summed : booked.cashBalance;
+  // b59 H-9b: a book that does hold its opening balance reports the NZD replay.
+  const { cashBalance } = reconciledLedgerCash(transactions as never, booked.cashBalance);
   return {
     transactions: withFifo,
     cashBalance,
@@ -1808,8 +1807,16 @@ async function loadLedgerFresh(user: AppUser, limit: number): Promise<Transactio
   for (const [ticker, rate] of fifoRemainingCostFx(book)) costFxByTicker[ticker] = rate;
   for (const [ticker, rate] of fifoRemainingQtyFx(book)) qtyFxByTicker[ticker] = rate;
   const realisedFxNzd = sumRealisedFxNzd(book);
-  const summed = bookRows.length ? cashFromLedgerRows(bookRows) : storedCash;
-  const cashBalance = Math.abs(summed - storedCash) < 0.02 ? summed : storedCash;
+  // b59 H-9b: same NZD replay as /api/portfolio/snapshot (cashReplayNzd). When the
+  // book holds its opening balance and the stored user cash drifted, the stored
+  // figure is healed so the next buy or sell starts from the replayed NZD cash.
+  const { cashBalance, drift } = reconciledLedgerCash(bookRows as never, storedCash);
+  if (Math.abs(drift) >= 0.02 && cashBalance !== storedCash) {
+    console.warn(`[transactions] H-9b cash healed for user ${user._id}: stored ${storedCash} -> replay ${cashBalance}`);
+    void totalumSdk.crud
+      .editRecordById("user", user._id, { cash_balance: cashBalance })
+      .catch((err) => console.error("[transactions] H-9b cash heal failed (non-fatal):", err));
+  }
   let incomeTotal = 0;
   for (const r of bookRows) {
     if (r.type !== "dividend") continue;

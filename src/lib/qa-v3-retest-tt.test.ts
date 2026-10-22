@@ -41,7 +41,7 @@ afterEach(() => {
 describe("pull-check:v3-retest-tt-2026-10-12", () => {
   it("marks the retest build", () => {
     expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-retest-tt-2026-10-12");
-    expect(read("public/build-version.txt").trim()).toBe("v3-goal-b58-2026-10-22");
+    expect(read("public/build-version.txt").trim()).toBe("v3-goal-b59-2026-10-22");
     expect(read("src/app/api/crypto/route.ts")).toContain("readSharedCryptoBoard");
     expect(pageTitle("About — Built in New Zealand, for New Zealanders")).toBe(
       "About — Built in New Zealand, for New Zealanders — AetherForge AI"

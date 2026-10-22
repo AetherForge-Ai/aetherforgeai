@@ -53,7 +53,7 @@ describe("pull-check:v3-retest9-2026-10-12", () => {
   it("records the marker and the build", () => {
     expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-retest9-2026-10-12");
     expect(read("src/lib/public-copy.ts")).toContain("pull-check:v3-retest9-2026-10-12");
-    expect(read("public/build-version.txt").trim()).toBe("v3-goal-b58-2026-10-22");
+    expect(read("public/build-version.txt").trim()).toBe("v3-goal-b59-2026-10-22");
     expect(read("src/lib/changelog-entries.ts")).toContain("12 Oct 2026 — Shared prices, coin pages and cash");
     expect(read("src/lib/changelog-entries.ts")).not.toMatch(/GPT|Claude|Gemini|OpenAI|Anthropic/);
   });
@@ -362,7 +362,9 @@ describe("pull-check:v3-retest9-2026-10-12", () => {
     ).toBe(33287.37);
     expect(read("src/lib/transactions.ts")).toContain("LEDGER_QUERY_LIMIT = 5000");
     expect(read("src/lib/transactions.ts")).toContain("ledgerAfterBooking");
-    expect(read("src/lib/transactions.ts")).toContain("cashFromLedgerRows");
+    // b59 H-9b: transactions.ts sums cash through reconciledLedgerCash, which replays cashFromLedgerRows.
+    expect(read("src/lib/transactions.ts")).toContain("reconciledLedgerCash");
+    expect(read("src/lib/ledger-cash-lines.ts")).toMatch(/reconciledLedgerCash[\s\S]*cashFromLedgerRows\(rows\)/);
     expect(read("src/app/api/transactions/route.ts")).toContain("ledgerAfterBooking");
     expect(read("src/app/api/transactions/export/route.ts")).toContain("loadLedger(user, 5000)");
     expect(read("src/components/dashboard/TransactionCenter.tsx")).toContain("showing all");
