@@ -63,10 +63,10 @@ describe("b34 H-10 (Research BROKER-CSV-COLUMNS.md): real fixture set", () => {
 });
 
 describe("b34 M-2 (Chief ruling): saved snapshot time, labelled honestly", () => {
-  it("today: 'Prices last updated h:mm am NZT'; another day adds '13 Oct'", () => {
+  it("today: 'Prices last updated h:mm am NZDT'; another day adds '13 Oct'", () => {
     const at = "2026-10-12T19:32:00Z"; // 13 Oct 8:32 am NZDT
-    expect(savedSnapshotLabel(at, Date.parse("2026-10-12T22:00:00Z"))).toBe("Prices last updated 8:32 am NZT");
-    expect(savedSnapshotLabel(at, Date.parse("2026-10-18T20:00:00Z"))).toBe("Prices last updated 8:32 am NZT, 13 Oct");
+    expect(savedSnapshotLabel(at, Date.parse("2026-10-12T22:00:00Z"))).toBe("Prices last updated 8:32 am NZDT");
+    expect(savedSnapshotLabel(at, Date.parse("2026-10-18T20:00:00Z"))).toBe("Prices last updated 8:32 am NZDT, 13 Oct");
   });
   it("the equity row never says 'unavailable' while a saved time exists", () => {
     const s = readFileSync("src/lib/status-feeds.server.ts", "utf8");
