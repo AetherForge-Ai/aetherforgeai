@@ -18,6 +18,7 @@ import {
 import { parseDividendNotes } from "@/lib/dividend-ledger";
 import { cashFromLedgerRows, ledgerDisplayedCash } from "@/lib/ledger-cash-lines";
 import { buyLotDay } from "@/lib/lot-day";
+import { applyLedgerSplits } from "@/lib/stock-split";
 import { isBullionHolding } from "@/lib/metal-valuation";
 import { solveXirr, XIRR_ANNUALISE_AFTER_DAYS, type SolverFlow } from "@/lib/performance-math";
 import type { ReturnSplit } from "@/lib/returns-split";
@@ -757,7 +758,10 @@ export function buildPortfolioSnapshot(input: SnapshotInput): PortfolioSnapshot 
   let feeReason: string | null = null;
   const feeNotes: string[] = [];
 
-  const chronological = orderedRows(input.rows);
+  // b59 H-9c: split correction rows ([SPLIT:r=..;d=..]) restate earlier lots as
+  // quantity × ratio at price ÷ ratio. The correction row itself opens no lot,
+  // so nothing is counted twice and the NZ$ cost is unchanged.
+  const chronological = orderedRows(applyLedgerSplits(input.rows));
 
   for (const row of chronological) {
     const type = String(row.type || "");

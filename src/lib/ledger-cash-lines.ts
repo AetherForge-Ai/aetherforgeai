@@ -149,3 +149,29 @@ export function ledgerSections(rows: LedgerRowLike[]): { dividends: LedgerRowLik
     tax: rows.filter((r) => r.type === "tax"),
   };
 }
+
+/**
+ * b59 H-9b: the cash /api/transactions reports, reconciled with the snapshot.
+ * A book that holds its own opening balance is complete, so the NZD replay of
+ * its rows (the figure the snapshot shows as cashReplayNzd) is the truth, even
+ * when the stored user cash drifted (for example a foreign-currency buy whose
+ * NZD cost never reached the stored balance). A book without an opening row
+ * (older accounts whose starting cash lives only on the user record) keeps the
+ * stored figure unless the replay agrees to the cent.
+ */
+export function hasOpeningAnchor(rows: ReadonlyArray<{ type?: string | null; ticker?: string | null }>): boolean {
+  return rows.some((row) => row.type === "opening_balance" && !String(row.ticker || "").trim());
+}
+
+export function reconciledLedgerCash(
+  rows: Parameters<typeof cashFromLedgerRows>[0] & ReadonlyArray<{ ticker?: string | null }>,
+  storedCash: number
+): { cashBalance: number; replay: number | null; drift: number } {
+  if (!rows.length) return { cashBalance: storedCash, replay: null, drift: 0 };
+  const replay = cashFromLedgerRows(rows);
+  if (!Number.isFinite(replay)) return { cashBalance: storedCash, replay: null, drift: 0 };
+  const drift = round2(replay - storedCash);
+  if (Math.abs(drift) < 0.02) return { cashBalance: replay, replay, drift };
+  if (hasOpeningAnchor(rows)) return { cashBalance: replay, replay, drift };
+  return { cashBalance: storedCash, replay, drift };
+}

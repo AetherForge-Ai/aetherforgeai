@@ -5,6 +5,11 @@
 export const CHANGELOG_ENTRIES = [
   {
     href: "/portfolio",
+    title: "22 Oct 2026 — Cash after overseas buys and share splits in holdings",
+    body: "The cash balance on the transactions page now matches the portfolio summary after a buy in a foreign currency, because both add up the same ledger in NZ dollars. A recorded share split now shows in your holdings with the new share count and the average price divided by the split ratio, with the NZ$ cost unchanged.",
+  },
+  {
+    href: "/portfolio",
     title: "22 Oct 2026 — Share splits, exchange rates and crypto notes",
     body: "Recording a share split no longer changes your cash balance. Exchange rates now pick up the provider's new daily rate soon after it is published, instead of up to two hours later. The crypto price note shows the New Zealand time zone in full (NZDT in summer, NZST in winter) and names both CoinGecko and CoinPaprika when both supplied prices.",
   },
