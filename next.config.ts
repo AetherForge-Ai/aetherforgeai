@@ -118,7 +118,7 @@ const nextConfig: NextConfig = {
       { source: "/portfolio", destination: "/dashboard", permanent: false },
       { source: "/how", destination: "/how-it-works", permanent: false },
       { source: "/billing", destination: "/settings/billing", permanent: false },
-      ...PORTFOLIO_ROUTE_ALIASES.map((row) => ({ ...row, permanent: false })),
+      ...PORTFOLIO_ROUTE_ALIASES.map((row) => ({ source: row.source, destination: row.destination, permanent: row.permanent })),
       ...PUBLIC_ROUTE_ALIASES.map((row) => ({ ...row, permanent: false })),
     ];
   },
