@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { FEED_OFF_COOKIE } from "@/lib/test-hooks";
 import { ONBOARDING_FUNNEL_KEY } from "@/lib/onboarding-30";
+import { aucklandCivilToday } from "@/lib/nz-tax-year";
 
 /** Goal b10: test-mode switches for TT's live checks. Affects this browser only. */
 export default function TestHooksPanel({ enabled }: { enabled: boolean }) {
@@ -14,7 +15,7 @@ export default function TestHooksPanel({ enabled }: { enabled: boolean }) {
       const res = await fetch("/api/transactions?dryRun=1", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ type: "buy", ticker: "CAPCHECK.NZ", asset_type: "stock", quantity: 1, price: 1, confirm: true, trade_date: new Date().toISOString().slice(0, 10) }),
+        body: JSON.stringify({ type: "buy", ticker: "CAPCHECK.NZ", asset_type: "stock", quantity: 1, price: 1, confirm: true, trade_date: aucklandCivilToday() }),
       });
       const body = (await res.json().catch(() => ({}))) as { error?: string; message?: string; dryRun?: boolean };
       if (res.status === 401) setCapResult("Sign in first, then run this again.");

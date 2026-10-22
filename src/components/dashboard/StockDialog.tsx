@@ -35,6 +35,7 @@ import {
   type DialogCloseReason,
 } from "@/lib/dialog-guards";
 import { checkFillSanity, ADVISORY_NOTE } from "@/lib/fill-integrity-client";
+import { lotCivilDay } from "@/lib/executed-at";
 
 type AssetType = "stock" | "crypto";
 
@@ -137,7 +138,7 @@ export function StockDialog({ open, onOpenChange, editing, onSaved, defaultAsset
       setPurchasePrice(editing ? String(editing.purchase_price) : "");
       // New holdings default to today (⇒ live-price lock). Editing keeps the stored
       // date; legacy rows without one fall back to today.
-      setPurchaseDate(editing?.purchase_date ? String(editing.purchase_date).slice(0, 10) : todayStr);
+      setPurchaseDate(editing?.purchase_date ? lotCivilDay(String(editing.purchase_date), todayStr) : todayStr);
       setPricePrefilled(false);
       setPriceLoading(false);
       // When editing an existing holding we never want the stored purchase price to

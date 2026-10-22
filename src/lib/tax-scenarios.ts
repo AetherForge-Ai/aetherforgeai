@@ -4,6 +4,7 @@
  * scenarios (src/lib/fixtures/tax-golden.md) and the dividends ledger.
  */
 import type { TaxLedgerRow } from "@/lib/taxable-income";
+import { lotCivilDay } from "@/lib/executed-at";
 
 /**
  * A DRP allotment as a FIFO buy lot: `shares` received at `costNative` in total
@@ -46,7 +47,7 @@ export function splitAdjustedRows<T extends TaxLedgerRow>(rows: readonly T[], ti
   if (!(ratio > 0) || ratio === 1) return [...rows];
   const sym = ticker.toUpperCase();
   return rows.map((row) => {
-    const day = String(row.trade_date || row.executed_at || "").slice(0, 10);
+    const day = lotCivilDay(String(row.trade_date || row.executed_at || ""), "");
     if (String(row.ticker || "").toUpperCase() !== sym || !day || day >= splitDate) return row;
     if (row.type !== "buy" && row.type !== "sell" && row.type !== "opening_balance") return row;
     return {
