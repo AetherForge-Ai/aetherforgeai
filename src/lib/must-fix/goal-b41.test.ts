@@ -137,7 +137,7 @@ describe("b41 H-1: the snapshot cannot freeze while a source answers; refusals a
 
   it("a verified shorter list merges after 10 min instead of waiting for the 15-min band", () => {
     const src = read("src/lib/crypto-snapshot.ts");
-    expect(src).toMatch(/existingAge > CRYPTO_PARTIAL_REFRESH_AFTER_MS \? mergeStaleCryptoList\(existing, tagged, at\)/);
+    expect(src).toMatch(/existingAge > CRYPTO_PARTIAL_REFRESH_AFTER_MS \? unionCryptoList\(existing, tagged, at\)/);
     expect(src).toMatch(/guardDetail\("shorter"/);
     expect(src).toMatch(/guardDetail\("unverified"/);
     // Every fresh list reaches the store (the old "verified only" gate hid the partial path).

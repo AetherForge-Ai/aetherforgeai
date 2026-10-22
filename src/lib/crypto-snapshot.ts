@@ -993,8 +993,8 @@ export async function readDexSnapshot(timeoutMs = SNAPSHOT_READ_TIMEOUT_MS): Pro
   return memoryDex;
 }
 
-export { CRYPTO_PARTIAL_REFRESH_AFTER_MS, CRYPTO_ROW_DELAYED_AFTER_MS, mergeStaleCryptoList, cryptoRowDelayed } from "@/lib/crypto-row-delay";
-import { CRYPTO_PARTIAL_REFRESH_AFTER_MS, countMergeableRows, mergeStaleCryptoList } from "@/lib/crypto-row-delay";
+export { CRYPTO_PARTIAL_REFRESH_AFTER_MS, CRYPTO_ROW_DELAYED_AFTER_MS, mergeStaleCryptoList, unionCryptoList, cryptoRowDelayed } from "@/lib/crypto-row-delay";
+import { CRYPTO_PARTIAL_REFRESH_AFTER_MS, countMergeableRows, mergeStaleCryptoList, unionCryptoList } from "@/lib/crypto-row-delay";
 
 /** A refreshed list must keep at least this share of the saved list's rows to replace it. */
 export const CRYPTO_REPLACE_MIN_SHARE = 0.9;
@@ -1052,7 +1052,8 @@ export async function persistCryptoSnapshot(coins: CoinMarket[], at = new Date()
     if (existingVerified && !existingAmber && tagged.length < Math.floor(existing.coins.length * CRYPTO_REPLACE_MIN_SHARE)) {
       // b41 H-1 (TT: snapshot stuck 15m16s): a verified but shorter list used to wait for the 15-minute
       // amber band. After 10 minutes its rows that pass the per-row checks merge into the saved list.
-      const merged = Number.isFinite(existingAge) && existingAge > CRYPTO_PARTIAL_REFRESH_AFTER_MS ? mergeStaleCryptoList(existing, tagged, at) : null;
+      // H-1 (b57): union, not replace — coins the shorter list lacks stay, marked delayed.
+      const merged = Number.isFinite(existingAge) && existingAge > CRYPTO_PARTIAL_REFRESH_AFTER_MS ? unionCryptoList(existing, tagged, at) : null;
       if (!merged) {
         recordCryptoAttempt(false, new Error("unavailable: shorter list kept the previous one"), Date.now(), guardDetail("shorter", existing, tagged, existingAge));
         return;
@@ -1065,6 +1066,15 @@ export async function persistCryptoSnapshot(coins: CoinMarket[], at = new Date()
     // b29 H-1: compare-and-set on as-of. An older list never replaces a newer one.
     if (Number.isFinite(existingAge) && existingAge < 0) {
       recordCryptoAttempt(false, new Error("unavailable: a newer list is already saved"));
+      return;
+    }
+    // H-1 (b57, TT health 22 Oct: 400 → 365 → 264): past the amber band a shorter verified list used
+    // to replace the saved one wholesale, so every page-2 failure shrank the list for good. Keep the
+    // last good rows (own quotedAt → "delayed") and refresh/add what the new list has.
+    if (existingVerified && tagged.length < existing.coins.length) {
+      const work = persistCryptoDurable(unionCryptoList(existing, tagged, at), at, existing.version ?? 0);
+      pendingSnapshotWrite = work;
+      await keepAlive(work);
       return;
     }
     // b29 H-1: a fallback provider's list does not silently replace the primary one while the

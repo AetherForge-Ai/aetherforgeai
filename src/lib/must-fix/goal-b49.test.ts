@@ -107,10 +107,10 @@ describe("b49: a crypto row hours behind the list is dropped (TT b48: one row 16
   const iso = (ago: number) => new Date(now - ago).toISOString();
   const coin = (id: string, quotedAt: string) => ({ id, symbol: id.toUpperCase(), price: 1, change24h: 0, quotedAt }) as never;
   it("dropLaggingRows keeps the list and drops the laggard", () => {
-    const rows = [{ quotedAt: iso(60_000) }, { quotedAt: iso(16 * 3600_000) }, { quotedAt: null }];
+    const rows = [{ quotedAt: iso(60_000) }, { quotedAt: iso(30 * 3600_000) }, { quotedAt: null }];
     expect(dropLaggingRows(rows)).toHaveLength(2);
     // A whole list that is old together is kept (nothing lags the newest row).
-    expect(dropLaggingRows([{ quotedAt: iso(20 * 3600_000) }, { quotedAt: iso(20 * 3600_000 + 1) }])).toHaveLength(2);
+    expect(dropLaggingRows([{ quotedAt: iso(40 * 3600_000) }, { quotedAt: iso(40 * 3600_000 + 1) }])).toHaveLength(2);
   });
   it("a partial merge drops unmatched rows older than the drop age", () => {
     const merged = mergeStaleCryptoList(
@@ -122,7 +122,7 @@ describe("b49: a crypto row hours behind the list is dropped (TT b48: one row 16
   });
   it("the /markets index drops it and recounts", () => {
     const idx = reevaluateRowDelay(
-      { tabs: [{ id: "CRYPTO", rows: [{ asOf: "a", quotedAt: iso(60_000) }, { asOf: "b", quotedAt: iso(16 * 3600_000) }] }], priceRowCount: 2 },
+      { tabs: [{ id: "CRYPTO", rows: [{ asOf: "a", quotedAt: iso(60_000) }, { asOf: "b", quotedAt: iso(30 * 3600_000) }] }], priceRowCount: 2 },
       now
     );
     expect(idx.tabs[0].rows).toHaveLength(1);
@@ -138,6 +138,6 @@ describe("b49 M-2: /status crypto Last OK falls back to the snapshot time", () =
 
 describe("b49 build marker", () => {
   it("pins the build", () => {
-    expect(read("public/build-version.txt")).toContain("v3-goal-b56-2026-10-22");
+    expect(read("public/build-version.txt")).toContain("v3-goal-b57-2026-10-22");
   });
 });

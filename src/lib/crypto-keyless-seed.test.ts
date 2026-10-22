@@ -184,14 +184,14 @@ describe("pull-check:v3-crypto-seed-2026-10-12", () => {
     expect(still?.at).toBe(at);
   });
 
-  it("b24 G-05: a shorter verified page replaces a list that is already amber (15+ min old)", async () => {
+  it("b24 G-05 / H-1 b57: a shorter verified page refreshes an amber list and keeps the last good rows", async () => {
     installSnapshotDurable(memoryDurable());
     await persistCryptoSnapshot(many(400), "2026-10-12T03:00:00.000Z");
     clearSnapshotMemory();
     await persistCryptoSnapshot(many(250), "2026-10-12T03:16:00.000Z");
     clearSnapshotMemory();
     const now = await readCryptoSnapshot(50);
-    expect(now?.coins).toHaveLength(250);
+    expect(now?.coins).toHaveLength(400);
     expect(now?.at).toBe("2026-10-12T03:16:00.000Z");
   });
 
