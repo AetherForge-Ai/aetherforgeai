@@ -10,6 +10,7 @@
  */
 
 import { formatDisplayDate, roundMoney } from "@/lib/currency";
+import { lotCivilDay } from "@/lib/executed-at";
 
 export type PerformancePeriod = "1M" | "3M" | "YTD" | "1Y" | "since";
 
@@ -389,7 +390,7 @@ export function externalFlowsFromLedger(rows: LedgerCashRow[]): { date: string; 
   for (const row of rows) {
     const type = String(row.type || "").toLowerCase();
     if (type !== "deposit" && type !== "withdraw") continue;
-    const date = String(row.trade_date || row.executed_at || "").slice(0, 10);
+    const date = lotCivilDay(String(row.trade_date || row.executed_at || ""), "");
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
     const signed = Number(row.cash_nzd ?? row.total);
     if (!Number.isFinite(signed) || signed === 0) continue;

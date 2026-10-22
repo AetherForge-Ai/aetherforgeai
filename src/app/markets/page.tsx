@@ -12,6 +12,9 @@ import { dexscreenerPublicDisplay, dexPoweredByLine } from "@/lib/dexscreener-di
 
 export const dynamic = "force-dynamic";
 
+/** b60: budget for the snapshot meta tags. */
+const MARKETS_META_SNAPSHOT_MS = 400;
+
 export async function generateMetadata({
   searchParams,
 }: {
@@ -19,7 +22,10 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const meta = await marketsMetadata(searchParams);
   // b30 H-1: x-af-snapshot-at / x-af-snapshot-version as meta tags.
-  return { ...meta, other: { ...(meta.other ?? {}), ...(await snapshotMetaOther()) } };
+  // b60 TT P3 (/markets TTFB 3.94 s): the snapshot read for these meta tags was unbounded and held the
+  // head. It now has a 400 ms budget; when slower, the page ships without the two meta tags.
+  const other = await withDeadline(snapshotMetaOther().catch(() => ({})), MARKETS_META_SNAPSHOT_MS, {} as Record<string, string>);
+  return { ...meta, other: { ...(meta.other ?? {}), ...other } };
 }
 
 async function marketsMetadata(searchParams: Promise<{ tab?: string }>): Promise<Metadata> {

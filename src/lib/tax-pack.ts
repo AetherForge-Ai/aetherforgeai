@@ -16,6 +16,7 @@ import { fifThresholdSentence, fifTotals } from "@/lib/fif-working-paper";
 import { TAX_INDICATIVE_LABEL } from "@/lib/tax-disclaimer";
 import type { RealisedReport } from "@/lib/tax-realised";
 import type { TaxableIncomeReport } from "@/lib/taxable-income";
+import { lotCivilDay } from "@/lib/executed-at";
 
 export const TAX_PACK_NOTE = "This pack is not an accountant sign-off.";
 
@@ -255,7 +256,7 @@ export function fxRateLines(
     const fx = Number(row.fx_rate);
     const cur = String(row.currency || "").toUpperCase();
     if (!(fx > 0) || !cur || cur === "NZD") continue;
-    const day = String(row.executed_at || "").slice(0, 10) || "date not stored";
+    const day = lotCivilDay(row.executed_at, "") || "date not stored";
     const source = String(row.fx_source || "").trim() || "rate saved with the trade (source not recorded)";
     const line = `${String(row.ticker || "").toUpperCase()} ${row.type || ""} ${day}: ${fx.toFixed(4)} NZD per ${cur}, source ${source}`;
     if (seen.has(line)) continue;

@@ -38,7 +38,8 @@ export async function POST(req: Request) {
         quantity: after.shares,
         price: after.averageCost > 0 ? after.averageCost : 0.000001,
         notes: splitNote(ratio, String(body.date)),
-        executed_at: `${body.date}T00:00:00+13:00`,
+        // b60: date-only, stored as noon Auckland (correct in NZST and NZDT).
+        executed_at: String(body.date),
         trade_date: body.date,
       } as never,
       { fromHoldingEdit: true }
