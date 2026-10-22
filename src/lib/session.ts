@@ -279,6 +279,8 @@ async function loadCurrentUser(opts: { fresh?: boolean } = {}): Promise<AppUser 
     const userId = session.user.id;
     let record: any = null;
     let recordReadAt: number | undefined;
+    // H-9 split-cash: only a live read in this request may stand in for a cash re-read.
+    let recordLive = false;
     // A browser that just wrote (af_bw stamp) never gets a record read before its write: cash moved.
     const writtenNotBefore = bookNotBeforeFromCookie(headerList.get("cookie"));
     const cachedRecord = recordCache.get(userId);
@@ -294,6 +296,7 @@ async function loadCurrentUser(opts: { fresh?: boolean } = {}): Promise<AppUser 
         const res = await sessionDeadline(totalumSdk.crud.getRecordById("user", userId), "user record");
         record = (res as any)?.data ?? null;
         recordReadAt = Date.now();
+        recordLive = true;
         if (record) rememberBounded(recordCache, userId, { at: recordReadAt, record });
       } catch (err) {
         // b29 H-4: a slow user-record read with a known record is not an outage.
@@ -337,7 +340,9 @@ async function loadCurrentUser(opts: { fresh?: boolean } = {}): Promise<AppUser 
       cash_balance: typeof record?.cash_balance === "number" ? record.cash_balance : 0,
       // b26 G-10: when the cash came from a live read, writes in this request reuse it.
       // b29: the time of the read that produced it (a cached record is older, so writes re-read).
-      cash_read_at: record && typeof record.cash_balance === "number" ? recordReadAt : undefined,
+      // H-9 split-cash: a cached record (up to USER_RECORD_FRESH_MS old) can predate a cash write made
+      // by a client without the af_bw cookie. Writes must then re-read cash, so it is not stamped.
+      cash_read_at: sessionCashReadAt(record, recordReadAt, recordLive),
       first_name: record?.first_name ?? (session.user as any).first_name ?? null,
       last_name: record?.last_name ?? (session.user as any).last_name ?? null,
       country: record?.country ?? (session.user as any).country ?? null,
@@ -353,6 +358,11 @@ async function loadCurrentUser(opts: { fresh?: boolean } = {}): Promise<AppUser 
  * Portfolio loads and confirmed trades use this so a just-issued login cookie
  * cannot 401 the book or clear the session.
  */
+/** H-9 split-cash: cash_read_at is set only when this request read the user record live. */
+export function sessionCashReadAt(record: { cash_balance?: unknown } | null | undefined, readAt: number | undefined, live: boolean): number | undefined {
+  return live && record && typeof record.cash_balance === "number" ? readAt : undefined;
+}
+
 /** b29: a write that changed this user's record (cash, plan) must not be answered from the record cache. */
 export function forgetCachedUserRecord(userId: string | null | undefined): void {
   if (userId) recordCache.delete(userId);
