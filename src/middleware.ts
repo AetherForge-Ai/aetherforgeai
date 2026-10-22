@@ -2,7 +2,7 @@ import { BOOK_WRITE_COOKIE, isBookWriteRequest } from "@/lib/book-write-mark";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { PRIVATE_NO_STORE_HEADERS } from "@/lib/account-guard";
-import { portfolioAliasRedirect } from "@/lib/portfolio-route-aliases";
+import { portfolioAliasRedirect, portfolioAliasStatus } from "@/lib/portfolio-route-aliases";
 import {
   filterAnonymousAuthSetCookies,
   isCacheableMarketingPath,
@@ -182,7 +182,7 @@ export async function middleware(request: NextRequest) {
 
   const alias = publicAliasRedirect(pathname) ?? portfolioAliasRedirect(pathname);
   if (alias) {
-    const redirectResponse = NextResponse.redirect(new URL(alias, request.url));
+    const redirectResponse = NextResponse.redirect(new URL(alias, request.url), portfolioAliasStatus(pathname) ?? 307);
     return finish(redirectResponse, request, signedIn);
   }
 
