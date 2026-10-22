@@ -4,6 +4,11 @@
  */
 export const CHANGELOG_ENTRIES = [
   {
+    href: "/tax",
+    title: "22 Oct 2026 — Tax-year dates and quicker links",
+    body: "A transaction dated 1 April now always counts in the new tax year in tax reports, the tax pack and performance figures, whether New Zealand is on daylight time or standard time. Old links to the ledger now go straight to the Transactions tab, and the markets page starts sending sooner.",
+  },
+  {
     href: "/portfolio",
     title: "22 Oct 2026 — Cash after overseas buys and share splits in holdings",
     body: "The cash balance on the transactions page now matches the portfolio summary after a buy in a foreign currency, because both add up the same ledger in NZ dollars. A recorded share split now shows in your holdings with the new share count and the average price divided by the split ratio, with the NZ$ cost unchanged.",

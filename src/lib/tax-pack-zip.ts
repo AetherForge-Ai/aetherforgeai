@@ -5,6 +5,7 @@ import { inNzTaxYear } from "@/lib/nz-tax-year";
 import { readSplit } from "@/lib/stock-split";
 import { TAX_INDICATIVE_LABEL } from "@/lib/tax-disclaimer";
 import type { TaxLedgerRow } from "@/lib/taxable-income";
+import { lotCivilDay } from "@/lib/executed-at";
 
 /**
  * b29 H-9 (research addendum §6): extra CSVs for the tax-pack ZIP, from the same rows as the PDF.
@@ -12,7 +13,8 @@ import type { TaxLedgerRow } from "@/lib/taxable-income";
  */
 const money = (v: number | null | undefined) => (v == null || !Number.isFinite(v) ? "" : moneyCell(v)); // b51 G-12: the one rule
 const line = (cells: unknown[]) => cells.map((c) => csvEscape(c == null ? "" : String(c))).join(",");
-const day = (row: TaxLedgerRow) => String((row as { executed_at?: string }).executed_at || (row as { createdAt?: string }).createdAt || "").slice(0, 10);
+// b60: Auckland civil day, so noon-NZDT 1 Apr (03-31T23:00Z) stays 1 Apr.
+const day = (row: TaxLedgerRow) => lotCivilDay(String((row as { executed_at?: string }).executed_at || (row as { createdAt?: string }).createdAt || ""), "");
 const id = (row: TaxLedgerRow) => String((row as { _id?: string; id?: string })._id || (row as { id?: string }).id || "");
 
 /** Opening (1 April) and closing (31 March) positions per FIF/AU holding, as on the working paper. */

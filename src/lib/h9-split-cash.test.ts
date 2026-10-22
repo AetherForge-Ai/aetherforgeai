@@ -100,7 +100,7 @@ function split(ratio: number, day: string, staleShares: number, staleAvg: number
     quantity: after.shares,
     price: after.averageCost,
     notes: splitNote(ratio, day),
-    executed_at: `${day}T00:00:00+13:00`,
+    executed_at: day, // b60: the split route stores a date-only value (noon Auckland)
     trade_date: day,
   } as TransactionInput;
 }
