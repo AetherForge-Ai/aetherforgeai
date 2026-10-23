@@ -1,3 +1,4 @@
+import { GSC_404_REDIRECTS } from "./src/lib/gsc-404-redirects";
 import type { NextConfig } from "next";
 import { PORTFOLIO_ROUTE_ALIASES } from "./src/lib/portfolio-route-aliases";
 import { PUBLIC_ROUTE_ALIASES } from "./src/lib/public-route-aliases";
@@ -118,6 +119,8 @@ const nextConfig: NextConfig = {
       { source: "/portfolio", destination: "/dashboard", permanent: false },
       { source: "/how", destination: "/how-it-works", permanent: false },
       { source: "/billing", destination: "/settings/billing", permanent: false },
+      // b62 GSC-404 (Search Console "Not found (404)", 22 Oct 2026): retired or guessed URLs, one 308 each.
+      ...GSC_404_REDIRECTS.map((row) => ({ ...row, permanent: true })),
       ...PORTFOLIO_ROUTE_ALIASES.map((row) => ({ source: row.source, destination: row.destination, permanent: row.permanent })),
       ...PUBLIC_ROUTE_ALIASES.map((row) => ({ ...row, permanent: false })),
     ];

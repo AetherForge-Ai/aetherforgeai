@@ -8,7 +8,7 @@ import { loadPublicTickerBounded } from "@/lib/public-ticker";
 import { FEED_FORCE_LABEL, FEED_FRESHNESS_WINDOWS } from "@/lib/feed-freshness-hook";
 // b28 G-05: registers the durable attempt store this page reads.
 import "@/lib/crypto-snapshot";
-import { formatStatusTime, latestIso, shapeStatusFeed, statusSavedLabel, type StatusFeedRow } from "@/lib/status-feeds";
+import { dexStatusRow, formatStatusTime, latestIso, shapeStatusFeed, statusSavedLabel, type StatusFeedRow } from "@/lib/status-feeds";
 import { readStatusLastOk, saveStatusLastOk } from "@/lib/status-last-ok.server";
 
 /** b31 M-2/REG-1: a probe waits at most this long; on a timeout the last OK time is shown. */
@@ -117,6 +117,15 @@ export async function loadStatusFeeds(now = Date.now()): Promise<StatusFeedRow[]
   const edgeP = within(edgeSnapshotGet<{ version: number; at: string }>(800), 900);
   const lastOkP = lastOkFor("crypto");
   const attemptP = within(readSharedCryptoAttempt(), 1_600);
+  // b62 TT P2: the DEX list gets its own row (saved time + this server's last failed refresh).
+  const dexP = within(
+    (async () => {
+      const { readDexSnapshot } = await import("@/lib/crypto-snapshot");
+      const { lastDexRefreshFailure } = await import("@/lib/crypto-board-store");
+      const snap = await readDexSnapshot();
+      return { at: snap?.at ?? null, failure: lastDexRefreshFailure() };
+    })()
+  );
   // b51 M-2 (TT b50: equities "no saved quote time yet" 2/140, cold IAD isolates): the tape keeps
   // loading past the probe timeout; a late tape still supplies the NZX/ASX quote time (same request).
   const tapeLate = loadPublicTickerBounded(STATUS_TAPE_LATE_MS);
@@ -173,6 +182,12 @@ export async function loadStatusFeeds(now = Date.now()): Promise<StatusFeedRow[]
       failedText: "— switched off by the operator",
     }), cryptoTimedOut),
     (await within(cryptoAttemptRow(attemptP))) ?? localCryptoAttemptRow(),
+    await (async () => {
+      const dex = await dexP;
+      const at = remember("dex", dex?.at ?? null) ?? (await lastOkFor("dex"));
+      edgeTimePut("dex", at);
+      return dexStatusRow(at, dex?.failure ?? null, now);
+    })(),
     withLastOk(shapeStatusFeed({
       label: FEED_FORCE_LABEL.fx,
       at: fxAt,

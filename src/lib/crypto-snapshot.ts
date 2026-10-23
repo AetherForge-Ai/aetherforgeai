@@ -986,8 +986,21 @@ export function primarySnapshotSource(coins: Array<{ source?: string | null }>):
   return best;
 }
 
+/** b62 TT P2: when this isolate last re-read the stored DEX row. */
+let memoryDexCheckedAt = 0;
+
 export async function readDexSnapshot(timeoutMs = SNAPSHOT_READ_TIMEOUT_MS): Promise<DexSnapshot | null> {
-  if (memoryDex) return memoryDex;
+  if (memoryDex) {
+    // b62 TT P2: an isolate used to keep its first DEX copy for its whole life, so a list saved by
+    // another isolate (or the cron route) never reached it and it kept serving an old time. Like the
+    // crypto row, the stored copy is re-read after SNAPSHOT_LOCAL_TTL_MS; memory only moves forward.
+    if (Date.now() - memoryDexCheckedAt >= SNAPSHOT_LOCAL_TTL_MS) {
+      memoryDexCheckedAt = Date.now();
+      rememberRaw("dex", await readRaw("dex", Math.min(timeoutMs, STORE_HARD_TIMEOUT_MS)).catch(() => null));
+    }
+    return memoryDex;
+  }
+  memoryDexCheckedAt = Date.now();
   const raw = await readRaw("dex", timeoutMs);
   rememberRaw("dex", raw);
   return memoryDex;

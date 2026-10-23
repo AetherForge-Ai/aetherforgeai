@@ -16,7 +16,7 @@ import {
 } from "@/lib/stock-markets";
 import type { PublicMarketIndex } from "@/lib/public-market-types";
 import { BuyDialog, type BuyTarget } from "@/components/dashboard/BuyDialog";
-import { columnHasFigure, cryptoCoveragePhrase, dexCoverageLine, dexTabLabel } from "@/lib/crypto-coverage";
+import { columnHasFigure, cryptoCountLine, dexCoverageLine, dexTabLabel } from "@/lib/crypto-coverage";
 import { coingeckoSupplied, countLine, stripLastGoodCell } from "@/lib/crypto-board";
 import { sourceLabel } from "@/lib/crypto-price-chain";
 import { DEX_EMPTY_NOTICE } from "@/lib/crypto-dex";
@@ -690,6 +690,12 @@ export function MarketsExplorer({
   const loadingRows = isDexTab ? dex.loading && !seededDex : isCoinTab ? crypto.loading && !seededCrypto : loading;
   const stockLoading = !isCryptoTab && loading && !(data?.rows.length);
   const cryptoListed = isCryptoTab ? Math.min(CRYPTO_TOP_N, rows.length) : 0;
+  // b62 TT P3: the count line uses the whole list, not the search-filtered rows.
+  const cryptoFullList = isCoinTab
+    ? crypto.coins.length || seedCryptoTab?.listCount || seedCrypto.filter((row) => (row.usd ?? 0) > 0).length
+    : isDexTab
+      ? dex.rows.length || seedDexTab?.listCount || seedDex.filter((row) => (row.usd ?? 0) > 0).length
+      : 0;
   const total = isCryptoTab ? cryptoListed : data?.total ?? 0;
   const liveCount = isCryptoTab ? cryptoListed : data?.liveCount ?? 0;
   const asOf = isCryptoTab ? "" : data?.asOf ?? "";
@@ -886,7 +892,7 @@ export function MarketsExplorer({
           )}
           {isCoinTab && (
             <p className="flex items-center gap-1 text-[0.62rem] text-muted-foreground/80">
-              <Bitcoin className="size-3" /> {cryptoCoveragePhrase(cryptoListed)} · {showNzd ? "NZ$" : "USD"}
+              <Bitcoin className="size-3" /> {cryptoCountLine(cryptoFullList)} · {showNzd ? "NZ$" : "USD"}
               {fxReady ? ` · 1 USD = NZ$${formatFxInput(fx.rates.USD)}` : " · Loading today's NZ$ exchange rate…"}
             </p>
           )}
@@ -910,7 +916,7 @@ export function MarketsExplorer({
           )}
           {isDexTab && (
             <p className="flex items-center gap-1 text-[0.62rem] text-muted-foreground/80">
-              <Bitcoin className="size-3" /> {dexCoverageLine(cryptoListed)}
+              <Bitcoin className="size-3" /> {dexCoverageLine(cryptoFullList)}
             </p>
           )}
           {isDexTab && <p className="text-sm text-muted-foreground">{dexCredit}</p>}
