@@ -1,0 +1,15 @@
+# AetherForge AI
+
+> New Zealand investment portfolio tracker by FORGE INTELLIGENCE LIMITED. General information only, not financial advice.
+
+## Pages
+- [Home](https://aetherforgeai.co.nz/)
+- [How it works](https://aetherforgeai.co.nz/how-it-works)
+- [Pricing](https://aetherforgeai.co.nz/pricing)
+- [Markets](https://aetherforgeai.co.nz/markets)
+- [Tax reports](https://aetherforgeai.co.nz/tax)
+- [Help](https://aetherforgeai.co.nz/help)
+- [Trust and data sources](https://aetherforgeai.co.nz/trust)
+- [Status](https://aetherforgeai.co.nz/status)
+- [Changelog](https://aetherforgeai.co.nz/changelog)
+- [Sitemap](https://aetherforgeai.co.nz/sitemap.xml)

@@ -1,0 +1,40 @@
+# b62 TT P2 (DEX tab empty, "Prices paused since 23 Oct 2026, 2:02 am"): nothing scheduled the
+# shared crypto + DEX refresh. Page reads start a short background refresh that a Worker isolate can
+# freeze when the response ends, so on a quiet night the DEX list stopped moving. This calls the
+# existing POST /api/cron/crypto-snapshot (CRON_SECRET header, no email) every 15 minutes, off :00/:15.
+# It prints only the HTTP code and the route's row counts. It never prints the secret.
+name: market-snapshot
+
+on:
+  schedule:
+    - cron: "4,19,34,49 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: market-snapshot
+  cancel-in-progress: false
+
+env:
+  BASE_URL: https://aetherforgeai.co.nz
+
+jobs:
+  refresh:
+    if: ${{ github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Call /api/cron/crypto-snapshot
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CRON_SECRET}" ]; then echo "CRON_SECRET is not set in repo secrets."; exit 1; fi
+          curl --fail --silent --show-error --retry 2 --retry-delay 20 --retry-all-errors \
+            --connect-timeout 20 --max-time 120 -X POST \
+            -H "x-cron-secret: ${CRON_SECRET}" \
+            -o /tmp/out.json -w "HTTP %{http_code}\n" \
+            "${BASE_URL}/api/cron/crypto-snapshot"
+          head -c 400 /tmp/out.json; echo
