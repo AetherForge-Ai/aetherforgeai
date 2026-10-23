@@ -96,7 +96,7 @@
     "@types/node": "24.0.4",
     "@types/react": "19.0.10",
     "@types/react-dom": "19.0.4",
-    "eslint": "9.27.0",
+    "eslint": "10.13.0",
     "eslint-config-next": "16.4.2",
     "next": "16.4.2",
     "tailwindcss": "^4.1.1",
