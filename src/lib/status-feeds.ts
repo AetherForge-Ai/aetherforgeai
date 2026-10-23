@@ -147,3 +147,29 @@ export function savedSnapshotLabel(at: string, now = Date.now()): string {
     new Intl.DateTimeFormat("en-NZ", { timeZone: tz, timeZoneName: "short" }).formatToParts(d).find((p) => p.type === "timeZoneName")?.value || "NZ time";
   return `Prices last updated ${time} ${zone}${sameDay ? "" : `, ${date}`}`;
 }
+
+/** b62 TT P2: /status DEX row label. */
+export const DEX_STATUS_LABEL = "DEX tokens";
+/** b62 TT P2: DEX list age bands (same as crypto quotes). */
+export const DEX_STATUS_WINDOW = { amberMs: 15 * 60 * 1000, redMs: 60 * 60 * 1000 };
+
+/**
+ * b62 TT P2: the DEX row. "Last OK" is the saved DEX list's own time; a refresh that failed
+ * after that time is named with its time and reason (this server's last attempt).
+ */
+export function dexStatusRow(
+  at: string | null | undefined,
+  failure: { at: string; reason: string } | null | undefined,
+  now = Date.now()
+): StatusFeedRow {
+  const row = shapeStatusFeed({ label: DEX_STATUS_LABEL, at, now, ...DEX_STATUS_WINDOW });
+  if (failure && (!at || Date.parse(failure.at) > Date.parse(at))) {
+    const reason = failure.reason.replace(/\s+/g, " ").trim().slice(0, 160);
+    return {
+      ...row,
+      tone: row.tone === "ok" ? "amber" : row.tone,
+      text: `${row.text} · last refresh failed ${formatStatusTime(failure.at)}: ${reason}`,
+    };
+  }
+  return row;
+}

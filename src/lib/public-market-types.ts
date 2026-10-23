@@ -48,6 +48,8 @@ export interface PublicPriceTab {
   /** Listings on this page whose price was not in the response. */
   footnote?: string;
   rows: PublicPriceRow[];
+  /** b62 TT P3: priced rows in the whole crypto or DEX list (the page ships only the first rows). */
+  listCount?: number;
 }
 
 export interface PublicMarketIndex {

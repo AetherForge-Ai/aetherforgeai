@@ -26,6 +26,17 @@ export function cryptoCoveragePhrase(rowCount: number): string {
   return `Showing ${count} of up to ${MARKET_LIST_TARGET}`;
 }
 
+/**
+ * b62 TT P3: the crypto tab always states how many coins the full list holds,
+ * "Showing N of up to 400" (also at 400), counted from the whole list, not the
+ * search-filtered or paged rows. An empty list stays number-free.
+ */
+export function cryptoCountLine(listCount: number): string {
+  const count = cryptoCoverageCount(listCount);
+  if (!count) return "The largest coins by market cap";
+  return `Showing ${count} of up to ${MARKET_LIST_TARGET}`;
+}
+
 export const SUPPLY_NOT_AVAILABLE = "Not available";
 
 /** Why a list stopped short of 400. Null only when 400 coins are in hand. */

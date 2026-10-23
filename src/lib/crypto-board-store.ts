@@ -621,6 +621,16 @@ function presentCrypto(coins: CoinMarket[], at: string | null, version = 0): Sha
   };
 }
 
+/** b62 TT P2: how long the last good DEX list is still shown (marked delayed) when refreshes fail. */
+export const DEX_LAST_GOOD_MAX_MS = 24 * 60 * 60 * 1000;
+
+/** b62 TT P2: the delayed-list sentence. The time is the saved list's own time, never invented. */
+export function dexDelayedNotice(at: string, sources: string[] = []): string {
+  const label = pricesAsAtLabel(at, Date.now(), DEX_REQUEST_FRESH_MS);
+  const base = `${label || "The feed is delayed."} The latest DEX refresh did not return a list, so the last good list is shown.`;
+  return withFeedSource(base, sources) ?? base;
+}
+
 function presentDex(rows: DexTokenRow[], at: string | null, sources: string[]): SharedDexBoard {
   const unique = dedupeDexByNetworkAddress(rows)
     .map((row) => {
@@ -630,6 +640,19 @@ function presentDex(rows: DexTokenRow[], at: string | null, sources: string[]): 
       return detailId ? { ...cleaned, detailId } : cleaned;
     })
     .filter((row): row is DexTokenRow => !!row && dexRowComplete(row) && !!resolvableCoinId(row.detailId));
+  // b62 TT P2: a list older than 30 minutes used to be blanked ("Prices paused ... No earlier price is
+  // stored") while the last good rows sat in the store. Up to DEX_LAST_GOOD_MAX_MS the last good list is
+  // served, marked delayed, with its saved time. Only an older list is paused.
+  if (at && unique.length && snapshotIsStale(at, Date.now(), SNAPSHOT_STALE_MS) && !snapshotIsStale(at, Date.now(), DEX_LAST_GOOD_MAX_MS)) {
+    return {
+      rows: unique,
+      at,
+      notice: dexDelayedNotice(at, sources),
+      sources,
+      delayed: true,
+      countLine: countLine("DEX tokens", unique.length),
+    };
+  }
   if (at && snapshotIsStale(at, Date.now(), SNAPSHOT_STALE_MS)) {
     return {
       rows: [],

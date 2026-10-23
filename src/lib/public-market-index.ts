@@ -161,7 +161,7 @@ async function cryptoTabFromSnapshot(): Promise<PublicPriceTab | null> {
     const coins = snap.coins.filter((coin) => coin.price > 0).slice(0, COIN_PAGE) as CryptoTabCoin[];
     const rows = cryptoRowsFromCoins(coins, snap.at);
     if (!rows.length) return null;
-    return { id: "CRYPTO", title: "Crypto", asOf: pricesAsAtLabel(snap.at) || asOfLabel(snap.at), rows };
+    return { id: "CRYPTO", title: "Crypto", asOf: pricesAsAtLabel(snap.at) || asOfLabel(snap.at), rows, listCount: coins.length };
   } catch {
     return null;
   }
@@ -209,6 +209,7 @@ async function loadCryptoTab(): Promise<PublicPriceTab> {
       title: "Crypto",
       asOf: page.notice || pricesAsAtLabel(page.at || quotedAt) || asOfLabel(page.at || quotedAt),
       rows,
+      listCount: coins.length,
     };
     if (rows.length) rememberPublicTab(tab);
     return choosePublicPriceTab(tab, recallPublicTab("CRYPTO"));
@@ -272,6 +273,7 @@ async function loadDexTab(): Promise<PublicPriceTab> {
       title: "DEX",
       asOf: page.notice || pricesAsAtLabel(page.at) || asOfLabel(page.at),
       rows,
+      listCount: priced.length,
     };
     if (rows.length) rememberPublicTab(tab);
     return choosePublicPriceTab(tab, recallPublicTab("DEX"));

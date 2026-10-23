@@ -10,6 +10,7 @@ import {
   PUBLIC_MARKETING_CACHE_HEADERS,
   shouldClearAnonymousAuthCookies,
 } from "@/lib/private-document";
+import { gsc404Redirect } from "@/lib/gsc-404-redirects";
 import { permanentRedirect, publicAliasRedirect } from "@/lib/public-route-aliases";
 import { documentAccess } from "@/lib/route-gate";
 import { makeCspNonce, nonceCsp } from "@/lib/security-headers";
@@ -173,6 +174,12 @@ export async function middleware(request: NextRequest) {
   if (request.method === "OPTIONS") {
     const response = new NextResponse(null, { status: 204 });
     return finish(response, request, signedIn);
+  }
+
+  // b62 GSC-404: retired or guessed URLs Search Console saw as 404 get one 308.
+  const gone = gsc404Redirect(pathname);
+  if (gone) {
+    return finish(NextResponse.redirect(new URL(gone, request.url), 308), request, signedIn);
   }
 
   const moved = permanentRedirect(pathname);

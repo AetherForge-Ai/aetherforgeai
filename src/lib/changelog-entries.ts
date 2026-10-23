@@ -74,7 +74,7 @@ export const CHANGELOG_ENTRIES = [
     body: "A saved crypto list and a saved DEX list stay available when a price source is slow, so the markets page does not go blank. Tax pages were tidied and the Tax link was added to the menu.",
   },
   {
-    href: "/ledger",
+    href: "/dashboard?tab=transactions",
     title: "11 Oct 2026 — Ledger dates, corrections, CSV and plan limits",
     body: "You can correct a recorded trade, and the CSV export matches the ledger. Plan limits for holdings and reports are shown in the same way on every page.",
   },
