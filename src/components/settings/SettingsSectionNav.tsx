@@ -1,16 +1,19 @@
 import Link from "next/link";
+import { flagOn } from "@/lib/schema/types";
 import { cn } from "@/lib/utils";
 
 const ITEMS = [
   { href: "/settings", label: "Profile & security", id: "profile" },
   { href: "/settings/billing", label: "Plan & billing", id: "billing" },
   { href: "/settings/notifications", label: "Notifications", id: "notifications" },
+  // b66 G-27: shown only while PORTFOLIO_SHARING=on.
+  { href: "/settings/sharing", label: "Sharing", id: "sharing" },
 ] as const;
 
 export function SettingsSectionNav({ current }: { current: (typeof ITEMS)[number]["id"] }) {
   return (
     <nav aria-label="Settings" className="mt-6 flex flex-wrap gap-2">
-      {ITEMS.map((item) => {
+      {ITEMS.filter((item) => item.id !== "sharing" || flagOn("PORTFOLIO_SHARING")).map((item) => {
         const active = item.id === current;
         return (
           <Link

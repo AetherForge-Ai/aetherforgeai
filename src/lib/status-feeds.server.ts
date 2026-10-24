@@ -124,9 +124,16 @@ export async function loadStatusFeeds(now = Date.now()): Promise<StatusFeedRow[]
       const { lastDexRefreshFailure } = await import("@/lib/crypto-board-store");
       const snap = await readDexSnapshot();
       const { dexSourceSummary, lastCryptoSeedReport } = await import("@/lib/crypto-keyless-seed");
-      const report = lastCryptoSeedReport().filter((r) => r.source === "geckoterminal" || r.source === "dexpaprika");
-      const oneEmpty = report.some((r) => !r.rows) && report.some((r) => r.rows > 0);
-      return { at: snap?.at ?? null, failure: lastDexRefreshFailure(), sourceNote: oneEmpty ? dexSourceSummary(report) : null };
+      // b66 TT P3: the per-source report is saved with the DEX snapshot, so every server reads the same
+      // note; this isolate's own last seed is only the fallback for an older snapshot without one.
+      const saved = (snap?.report || []).filter((r) => r.source === "geckoterminal" || r.source === "dexpaprika");
+      const report = saved.length ? saved : lastCryptoSeedReport().filter((r) => r.source === "geckoterminal" || r.source === "dexpaprika");
+      const note = report.length ? dexSourceSummary(report) : null;
+      const savedFailure =
+        saved.length && snap?.reportAt && snap.at && Date.parse(snap.reportAt) > Date.parse(snap.at) && saved.every((r) => !r.rows)
+          ? { at: snap.reportAt, reason: "no source returned rows. The previous snapshot was kept." }
+          : null;
+      return { at: snap?.at ?? null, failure: lastDexRefreshFailure() ?? savedFailure, sourceNote: note };
     })()
   );
   // b51 M-2 (TT b50: equities "no saved quote time yet" 2/140, cold IAD isolates): the tape keeps

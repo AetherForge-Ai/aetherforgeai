@@ -31,3 +31,36 @@ export async function auditFor(shareId: string): Promise<AuditEvent[]> {
   const res = await totalumSdk.crud.query(SHARE_AUDIT_EVENT.table, { _filter: { share: shareId }, _limit: 500 } as never);
   return (((res as { data?: Record<string, unknown>[] })?.data) || []).map((r) => ({ ...(r as unknown as AuditEvent), actor: idOf(r.actor) || null }));
 }
+
+/** b66 G-27: false when the owner's account no longer exists (deleted). Errors fail closed. */
+export async function ownerExists(ownerId: string): Promise<boolean> {
+  if (!ownerId) return false;
+  try {
+    const res = await totalumSdk.crud.query("user", { _filter: { _id: ownerId }, _limit: 1 } as never);
+    return (((res as { data?: unknown[] })?.data) || []).length > 0;
+  } catch {
+    return false;
+  }
+}
+
+/** b66 G-27: account deletion revokes every share the owner made (call before deleting the user). */
+export async function revokeAllSharesForOwner(ownerId: string, now = Date.now()): Promise<number> {
+  const { revokeAllForOwner } = await import("@/lib/sharing/share-core");
+  const rows = revokeAllForOwner(await sharesFor({ owner: ownerId }), ownerId, now);
+  for (const s of rows) {
+    await updateShareRow(s._id, { status: "revoked", revoked_at: s.revoked_at });
+    await logShareEvent({ share: s._id, portfolio_id: s.portfolio_id, actor: ownerId, event: "revoke", ip_trunc: "" });
+  }
+  return rows.length;
+}
+
+/** b66 G-27: the owner's rows for the read-only view (shaped by sharedBookView before leaving the server). */
+export async function loadOwnerBookRows(ownerId: string) {
+  const [stocks, metals, trades] = await Promise.all([
+    totalumSdk.crud.query("stock", { _filter: { user: ownerId }, _limit: 500 } as never),
+    totalumSdk.crud.query("precious_metal", { _filter: { user: ownerId }, _limit: 200 } as never),
+    totalumSdk.crud.query("transaction", { _filter: { user: ownerId }, _limit: 500 } as never),
+  ]);
+  const rows = (r: unknown) => ((r as { data?: Record<string, unknown>[] })?.data) || [];
+  return { stocks: rows(stocks), metals: rows(metals), trades: rows(trades) };
+}

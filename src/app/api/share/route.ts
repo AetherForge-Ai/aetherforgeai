@@ -1,10 +1,41 @@
 import { NextResponse } from "next/server";
 import { flagOn } from "@/lib/schema/types";
 import { getStableSessionUser } from "@/lib/session";
-import { acceptShare, canReadAuditLog, confirmShare, hashShareToken, newShare, newShareToken, revokeShare, truncateIp } from "@/lib/sharing/share-core";
+import { acceptShare, canReadAuditLog, confirmShare, hashShareToken, liveStatus, newShare, newShareToken, publicShare, revokeShare, truncateIp } from "@/lib/sharing/share-core";
+import { makeLimiter } from "@/lib/onboarding/funnel-core";
 import { auditFor, createShareRow, logShareEvent, sharesFor, updateShareRow } from "@/lib/sharing/share-store.server";
 
 export const dynamic = "force-dynamic";
+const NO_STORE = { "Cache-Control": "private, no-store, max-age=0" };
+/** b66 G-27: at most 10 new links per account per hour. */
+const createLimit = makeLimiter(10, 60 * 60 * 1000);
+const acceptLimit = makeLimiter(20, 60 * 60 * 1000);
+
+/**
+ * b66 G-27 GET: the signed-in account's shares. `owned` = links this owner made (no token or hash);
+ * `received` = active read-only shares granted to this account. Read fresh every time (no cache).
+ */
+export async function GET() {
+  if (!flagOn("PORTFOLIO_SHARING")) return NextResponse.json({ ok: false, error: "Not found." }, { status: 404 });
+  const user = await getStableSessionUser();
+  if (!user) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401, headers: NO_STORE });
+  try {
+    const [owned, received] = await Promise.all([sharesFor({ owner: user._id }), sharesFor({ invitee: user._id })]);
+    return NextResponse.json(
+      {
+        ok: true,
+        data: {
+          owned: owned.map(publicShare),
+          received: received.filter((s) => liveStatus(s, Date.now()) === "active").map((s) => ({ id: s._id, label: s.label, portfolioId: s.portfolio_id })),
+        },
+      },
+      { headers: NO_STORE }
+    );
+  } catch {
+    console.error("[api/share] list failed");
+    return NextResponse.json({ ok: false, error: "Sharing is unavailable just now." }, { status: 503, headers: NO_STORE });
+  }
+}
 
 /**
  * G-27 read-only sharing. POST {action}: create | accept | confirm | revoke | log.
@@ -21,6 +52,7 @@ export async function POST(req: Request) {
   const ip = truncateIp(req.headers.get("cf-connecting-ip"));
   try {
     if (action === "create") {
+      if (!createLimit(user._id, now)) return NextResponse.json({ ok: false, error: "Too many new links. Try again later." }, { status: 429 });
       const portfolioId = String(body.portfolioId || "main");
       const label = body.label === "accountant" ? "accountant" : "family";
       const token = newShareToken();
@@ -32,6 +64,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, data: { id, link: `/share/accept#${token}`, expiresAt: share.expires_at } }, { headers: { "Cache-Control": "no-store" } });
     }
     if (action === "accept") {
+      if (!acceptLimit(user._id, now)) return NextResponse.json({ ok: false, error: "Too many attempts. Try again later." }, { status: 429 });
       const tokenHash = await hashShareToken(String(body.token || ""));
       const share = (await sharesFor({ token_hash: tokenHash }))[0];
       if (!share) return NextResponse.json({ ok: false, error: "This link is not valid." }, { status: 404 });

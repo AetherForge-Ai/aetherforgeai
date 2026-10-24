@@ -51,6 +51,23 @@ export const PUBLIC_MARKETING_CACHE_HEADERS: Record<string, string> = {
   "Cloudflare-CDN-Cache-Control": "max-age=120",
 };
 
+/**
+ * b66 TT P3 (REG-1, /markets TTFB p90 2.21 s, slow first load after a gap): the signed-out /markets
+ * document (any ?tab) may be held at the edge for 30 s and served stale for up to 120 s while it
+ * refreshes. Signed-in requests (session cookie) never get this: they stay private, no-store.
+ * Set in code only; no Cloudflare dashboard or cache-rule change.
+ */
+export const PUBLIC_MARKETS_CACHE_HEADERS: Record<string, string> = {
+  "Cache-Control": "public, max-age=0, s-maxage=30, stale-while-revalidate=120",
+  "CDN-Cache-Control": "public, s-maxage=30, stale-while-revalidate=120",
+  "Cloudflare-CDN-Cache-Control": "max-age=30, stale-while-revalidate=120",
+};
+
+/** Only the /markets index page itself; detail pages (/markets/crypto/…, /markets/stock/…) are untouched. */
+export function isCacheableMarketsPath(pathname: string): boolean {
+  return normalizePathname(pathname) === "/markets";
+}
+
 export function normalizePathname(pathname: string): string {
   if (pathname.length > 1 && pathname.endsWith("/")) return pathname.slice(0, -1);
   return pathname;
