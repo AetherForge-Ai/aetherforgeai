@@ -1,4 +1,5 @@
 "use client";
+import { scrollRegionProps } from "@/lib/focus-trap";
 import { holdingsColumnWidth } from "@/lib/holdings-columns";
 
 import { Fragment, useState, type ReactNode } from "react";
@@ -283,7 +284,7 @@ export function UnifiedHoldingsTable({
 
       {/* b7 M-6: auto layout so no figure can draw over its neighbour; a narrow
           window scrolls the table sideways instead of overlapping columns. */}
-      <div className="mt-3 hidden overflow-x-auto rounded-3xl border border-border/70 bg-card/50 md:block">
+      <div className="mt-3 hidden overflow-x-auto rounded-3xl border border-border/70 bg-card/50 md:block" {...scrollRegionProps("Holdings table")}>
         {loading || !model ? (
           <div className="space-y-3 p-6">
             {[0, 1, 2, 3].map((row) => (

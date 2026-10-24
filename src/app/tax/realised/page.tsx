@@ -1,3 +1,4 @@
+import { scrollRegionProps } from "@/lib/focus-trap";
 import Link from "next/link";
 import { AppShell } from "@/components/AppShell";
 import { CsvExportButton } from "@/components/tax/CsvExportButton";
@@ -37,7 +38,7 @@ function DisposalTable({ rows }: { rows: RealisedLine[] }) {
     return <p className="mt-2 text-sm text-muted-foreground">No disposals in this tax year.</p>;
   }
   return (
-    <div className="mt-3 overflow-x-auto rounded-2xl border border-border/70">
+    <div className="mt-3 overflow-x-auto rounded-2xl border border-border/70" {...scrollRegionProps("Realised gains and losses")}>
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-border/60 text-left text-xs uppercase tracking-wide text-muted-foreground">

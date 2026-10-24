@@ -524,3 +524,9 @@ main p > a.text-primary {
 .af-date-overlay::-webkit-calendar-picker-indicator {
   display: none;
 }
+
+/* b65 G-14: keyboard focus is visible on scrollable table regions (dashboard, tax). */
+[role="region"][tabindex="0"]:focus-visible {
+  outline: 2px solid var(--ring, currentColor);
+  outline-offset: 2px;
+}
