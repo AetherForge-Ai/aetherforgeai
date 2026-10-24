@@ -179,7 +179,7 @@ describe("G-22 NZ tax unit tests (IRD rates from 1 Apr 2025)", () => {
     expect(pirFromTwoYears([{ taxable: cents("90000"), taxablePlusPie: cents("95000") }, { taxable: cents("40000"), taxablePlusPie: cents("45000") }])).toEqual(rate(175, 1000));
   });
   it("schema file only for goal_plan (no runtime reads/writes yet)", () => {
-    const s = JSON.parse(read("docs/schema/g22-goal-plan.json"));
+    const s = JSON.parse(read("qa/schema/g22-goal-plan.json"));
     expect(s.table).toBe("goal_plan");
     expect(s.fields.map((f: { name: string }) => f.name)).toContain("user");
   });
