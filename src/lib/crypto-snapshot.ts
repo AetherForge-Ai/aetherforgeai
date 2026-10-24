@@ -1,3 +1,4 @@
+import { swrMemo } from "@/lib/swr-memo";
 /**
  * Last good crypto and DEX lists.
  *
@@ -962,9 +963,18 @@ export async function readCryptoSnapshot(timeoutMs = SNAPSHOT_READ_TIMEOUT_MS, o
  * b30 H-1: the same stamp as <meta> tags for HTML pages (App Router pages cannot set
  * response headers while rendering), read from the stored snapshot.
  */
+/** b64 TT P3: the meta-tag read is a short stale-while-revalidate memo (was a store read per render). */
+const snapshotMetaMemo = swrMemo<Record<string, string>>(
+  async () => snapshotHeaders(await readCryptoSnapshot().catch(() => null)),
+  { freshMs: 3_000, staleMs: 10 * 60 * 1000, keep: (meta) => Object.keys(meta).length > 0 }
+);
+
 export async function snapshotMetaOther(): Promise<Record<string, string>> {
-  const snap = await readCryptoSnapshot().catch(() => null);
-  return snapshotHeaders(snap);
+  return snapshotMetaMemo.get();
+}
+
+export function resetSnapshotMetaMemo(): void {
+  snapshotMetaMemo.reset();
 }
 
 /** b30 H-1: response headers naming the snapshot a page or API was built from. */

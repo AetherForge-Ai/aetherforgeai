@@ -61,10 +61,10 @@ import { snapshotTapeChange } from "@/lib/ticker-feed";
 import {
   backupWithYahoo,
   loadKeylessCryptoMarkets,
-  lastCryptoSeedReport,
   loadKeylessDexMarkets,
   withFeedSource,
   YAHOO_BACKUP_FLOOR,
+  dexSourceSummary,
 } from "@/lib/crypto-keyless-seed";
 import { coinDisplayName } from "@/lib/crypto-names";
 import { resolvableCoinId, type CoinMarket } from "@/lib/crypto-market";
@@ -446,11 +446,9 @@ async function runDexSeed(): Promise<{ dexReplaced: boolean; dexRows: number }> 
   const at = new Date().toISOString();
   const loaded = await loadKeylessDexMarkets();
   if (!loaded.rows.length) {
-    const reasons = lastCryptoSeedReport()
-      .filter((row) => row.source === "geckoterminal" || row.source === "dexpaprika")
-      .map((row) => row.reason || (row.rows ? "" : `${row.source} returned no rows`))
-      .filter(Boolean);
-    noteDexRefreshFailure(reasons.join("; ") || "DEX refresh returned no rows. The previous snapshot was kept.");
+    // b64 TT P2: name each source and why it came back empty (was "did not return a list").
+    const summary = dexSourceSummary();
+    noteDexRefreshFailure(summary ? `${summary}. The previous snapshot was kept.` : "DEX refresh returned no rows. The previous snapshot was kept.");
     return { dexReplaced: false, dexRows: 0 };
   }
   dexRefreshFailure = null;

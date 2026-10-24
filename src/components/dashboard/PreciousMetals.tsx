@@ -554,7 +554,7 @@ export function PreciousMetals({
                       <span
                         className={cn(
                           "rounded-full px-2 py-0.5 text-[0.6rem] font-bold uppercase tracking-wide",
-                          spot?.live ? "bg-emerald-500/15 text-emerald-700" : "bg-muted text-muted-foreground",
+                          spot?.live ? "bg-emerald-500/15 text-gain" : "bg-muted text-muted-foreground",
                         )}
                         title={spotLive ? "Spot price" : METAL_SPOT_DOWN}
                       >
@@ -615,7 +615,7 @@ export function PreciousMetals({
                       <span
                         className={cn(
                           "rounded-full px-2 py-0.5 text-[0.6rem] font-bold uppercase tracking-wide",
-                          spot?.live ? "bg-emerald-500/15 text-emerald-700" : "bg-muted text-muted-foreground",
+                          spot?.live ? "bg-emerald-500/15 text-gain" : "bg-muted text-muted-foreground",
                         )}
                         title={spotLive ? "Spot price" : METAL_SPOT_DOWN}
                       >
@@ -786,10 +786,10 @@ export function PreciousMetals({
                       <td className="px-3 py-3.5 text-right" title={spotShown.live ? undefined : METAL_SPOT_DOWN}>
                         {spotShown.live ? (
                           <>
-                            <span className={cn("tnum font-medium", up ? "text-emerald-700" : gain < 0 ? "text-rose-600" : "text-muted-foreground")}>
+                            <span className={cn("tnum font-medium", up ? "text-gain" : gain < 0 ? "text-rose-600" : "text-muted-foreground")}>
                               {formatSignedMoney(gain)}
                             </span>
-                            <span className={cn("tnum block text-xs", up ? "text-emerald-700/80" : gain < 0 ? "text-rose-600/80" : "text-muted-foreground")}>
+                            <span className={cn("tnum block text-xs", up ? "text-gain/80" : gain < 0 ? "text-rose-600/80" : "text-muted-foreground")}>
                               {formatSignedPercent(gainPct)}
                             </span>
                           </>
@@ -867,10 +867,10 @@ export function PreciousMetals({
                       <td className="px-3 py-3.5 text-right" title={spotShown.live ? undefined : METAL_SPOT_DOWN}>
                         {spotShown.live ? (
                           <>
-                            <span className={cn("tnum font-medium", up ? "text-emerald-700" : gain < 0 ? "text-rose-600" : "text-muted-foreground")}>
+                            <span className={cn("tnum font-medium", up ? "text-gain" : gain < 0 ? "text-rose-600" : "text-muted-foreground")}>
                               {formatSignedMoney(gain)}
                             </span>
-                            <span className={cn("tnum block text-xs", up ? "text-emerald-700/80" : gain < 0 ? "text-rose-600/80" : "text-muted-foreground")}>
+                            <span className={cn("tnum block text-xs", up ? "text-gain/80" : gain < 0 ? "text-rose-600/80" : "text-muted-foreground")}>
                               {formatSignedPercent(gainPct)}
                             </span>
                           </>
@@ -888,7 +888,7 @@ export function PreciousMetals({
                               type="button"
                               onClick={() => void handleSell(h._id)}
                               disabled={sellingId === h._id || !confirmReady}
-                              className="inline-flex items-center gap-1 rounded-lg bg-emerald-500/15 px-2 py-1 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-500/25 disabled:opacity-50"
+                              className="inline-flex items-center gap-1 rounded-lg bg-emerald-500/15 px-2 py-1 text-xs font-semibold text-gain transition-colors hover:bg-emerald-500/25 disabled:opacity-50"
                               aria-label={`Confirm sell ${meta.label}`}
                             >
                               {sellingId === h._id ? (
@@ -961,7 +961,7 @@ export function PreciousMetals({
                     </td>
                     <td className="px-3 py-3.5 text-right" title={spotLive ? undefined : METAL_SPOT_DOWN}>
                       {spotLive ? (
-                        <span className={cn("tnum font-bold", totals.gain >= 0 ? "text-emerald-700" : "text-rose-600")}>
+                        <span className={cn("tnum font-bold", totals.gain >= 0 ? "text-gain" : "text-rose-600")}>
                           {totals.gain >= 0 ? (
                             <TrendingUp className="mr-1 inline size-3.5" />
                           ) : (

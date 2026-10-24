@@ -54,7 +54,8 @@ describe("M-7 contrast tokens", () => {
     expect(css).not.toContain("#059669");
     expect(css).toMatch(/--primary: #047857/);
     expect(css).not.toMatch(/--muted-foreground: #64748b/);
-    expect(css).toMatch(/\.chrome-dark \.text-emerald-700 \{\s*color: #34d399;/);
+    // b64 M-7: dark surfaces swap the single text-green token instead of overriding a class.
+    expect(css).toMatch(/\.chrome-dark \{\s*--text-green: #34d399;/);
   });
 });
 

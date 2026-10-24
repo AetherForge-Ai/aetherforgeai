@@ -11,7 +11,8 @@
  *   (10 holdings, no paid bot access).
  */
 import type { Plan } from "@/lib/plans";
-import { FREE_PLAN } from "@/lib/plans";
+import { FREE_PLAN, planByKey } from "@/lib/plans";
+import { testHooksAllowedFor } from "@/lib/test-hooks";
 
 export type AppSubscriptionStatus = "active" | "past_due" | "canceled" | "none";
 
@@ -112,4 +113,22 @@ export function resetProcessedEvents(): void {
 /** Unsigned events are refused in production. Dev without a secret may parse the body. */
 export function mayAcceptUnsignedEvent(nodeEnv = process.env.NODE_ENV): boolean {
   return nodeEnv !== "production";
+}
+
+/**
+ * b64 CR-6: a test-mode checkout uses an inline price (no price id, no price metadata), so the
+ * plan comes from the server-stamped subscription metadata. Only for test-mode objects
+ * (livemode false, checkout_mode "test"), and in production only for allow-listed test accounts
+ * (GOAL_TEST_HOOKS=1 + GOAL_TEST_HOOK_USER_IDS), so a Stripe test card never unlocks a paid
+ * plan for a real member.
+ */
+export function testModePlan(
+  subscription: { livemode?: boolean; metadata?: Record<string, string> | null },
+  userId: string,
+  env: Record<string, string | undefined> = process.env
+): Plan | undefined {
+  if (subscription.livemode !== false || subscription.metadata?.checkout_mode !== "test") return undefined;
+  if (env.NODE_ENV === "production" && !testHooksAllowedFor({ _id: userId }, env)) return undefined;
+  const plan = planByKey(subscription.metadata.plan);
+  return plan && !plan.archived && !plan.key.startsWith("ultimate_") ? plan : undefined;
 }

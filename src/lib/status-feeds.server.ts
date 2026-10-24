@@ -123,7 +123,10 @@ export async function loadStatusFeeds(now = Date.now()): Promise<StatusFeedRow[]
       const { readDexSnapshot } = await import("@/lib/crypto-snapshot");
       const { lastDexRefreshFailure } = await import("@/lib/crypto-board-store");
       const snap = await readDexSnapshot();
-      return { at: snap?.at ?? null, failure: lastDexRefreshFailure() };
+      const { dexSourceSummary, lastCryptoSeedReport } = await import("@/lib/crypto-keyless-seed");
+      const report = lastCryptoSeedReport().filter((r) => r.source === "geckoterminal" || r.source === "dexpaprika");
+      const oneEmpty = report.some((r) => !r.rows) && report.some((r) => r.rows > 0);
+      return { at: snap?.at ?? null, failure: lastDexRefreshFailure(), sourceNote: oneEmpty ? dexSourceSummary(report) : null };
     })()
   );
   // b51 M-2 (TT b50: equities "no saved quote time yet" 2/140, cold IAD isolates): the tape keeps
@@ -186,7 +189,7 @@ export async function loadStatusFeeds(now = Date.now()): Promise<StatusFeedRow[]
       const dex = await dexP;
       const at = remember("dex", dex?.at ?? null) ?? (await lastOkFor("dex"));
       edgeTimePut("dex", at);
-      return dexStatusRow(at, dex?.failure ?? null, now);
+      return dexStatusRow(at, dex?.failure ?? null, now, dex?.sourceNote ?? null);
     })(),
     withLastOk(shapeStatusFeed({
       label: FEED_FORCE_LABEL.fx,

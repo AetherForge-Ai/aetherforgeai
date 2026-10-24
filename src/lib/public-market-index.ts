@@ -1,3 +1,4 @@
+import { swrMemo } from "@/lib/swr-memo";
 import { cryptoRowDelayed } from "@/lib/crypto-row-delay";
 import { reevaluateRowDelay } from "@/lib/row-delay-label";
 import "server-only";
@@ -155,18 +156,20 @@ function cryptoRowsFromCoins(coins: CryptoTabCoin[], quotedAt: string): PublicPr
  * started alongside the live build, so the waits overlap instead of adding up.
  */
 const SNAPSHOT_TAB_SHARE_MS = 5_000;
-let snapshotTabShared: { at: number; work: Promise<PublicPriceTab | null> } | null = null;
+/** b64 TT P3: after the share window the last good tab is served at once while one read refreshes it. */
+export const SNAPSHOT_TAB_STALE_MS = 10 * 60 * 1000;
+const snapshotTabMemo = swrMemo<PublicPriceTab | null>(() => readCryptoTabFromSnapshot(), {
+  freshMs: SNAPSHOT_TAB_SHARE_MS,
+  staleMs: SNAPSHOT_TAB_STALE_MS,
+  keep: (tab) => !!tab?.rows.length,
+});
 
 export function cryptoTabFromSnapshot(): Promise<PublicPriceTab | null> {
-  const now = Date.now();
-  if (snapshotTabShared && now - snapshotTabShared.at < SNAPSHOT_TAB_SHARE_MS) return snapshotTabShared.work;
-  const work = readCryptoTabFromSnapshot();
-  snapshotTabShared = { at: now, work };
-  return work;
+  return snapshotTabMemo.get();
 }
 
 export function resetSnapshotTabShare(): void {
-  snapshotTabShared = null;
+  snapshotTabMemo.reset();
 }
 
 async function readCryptoTabFromSnapshot(): Promise<PublicPriceTab | null> {

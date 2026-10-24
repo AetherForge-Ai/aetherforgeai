@@ -14,6 +14,9 @@ import {
   sendRequestUrl,
   statementPending,
 } from "@/lib/broker-sync/ibkr-flex";
+import { isSandboxConnection } from "@/lib/broker-sync/ibkr-sandbox";
+import { IBKR_FLEX_FIXTURE } from "@/lib/broker-sync/ibkr-flex-fixture";
+import { testHooksAllowedFor } from "@/lib/test-hooks";
 
 type SyncUser = Parameters<typeof applyTransaction>[0];
 
@@ -120,8 +123,15 @@ export async function applyFlexStatement(user: SyncUser, statement: string): Pro
 /** One sync for one stored connection. Errors are stored as a plain message, never the token. */
 export async function syncConnection(user: SyncUser, conn: StoredConnection): Promise<SyncResult> {
   try {
-    const token = await decryptToken(conn.enc_token, user._id);
-    const statement = await fetchFlexStatement(token, conn.query_id);
+    let statement: string;
+    if (isSandboxConnection(conn)) {
+      // b64 BS-01: sandbox connections use the bundled fixture, and only for allow-listed test accounts.
+      if (!testHooksAllowedFor(user as { _id?: string })) throw new Error("This sandbox connection is not available. Disconnect and connect a real IBKR token.");
+      statement = IBKR_FLEX_FIXTURE;
+    } else {
+      const token = await decryptToken(conn.enc_token, user._id);
+      statement = await fetchFlexStatement(token, conn.query_id);
+    }
     const out = await applyFlexStatement(user, statement);
     await markSync(conn._id, "active", null);
     const message = `Synced: ${out.trades} trade${out.trades === 1 ? "" : "s"}, ${out.cash} dividend or cash line${out.cash === 1 ? "" : "s"}, ${out.duplicates} already in your book.`;

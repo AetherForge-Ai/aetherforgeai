@@ -160,9 +160,13 @@ export const DEX_STATUS_WINDOW = { amberMs: 15 * 60 * 1000, redMs: 60 * 60 * 100
 export function dexStatusRow(
   at: string | null | undefined,
   failure: { at: string; reason: string } | null | undefined,
-  now = Date.now()
+  now = Date.now(),
+  sourceNote?: string | null
 ): StatusFeedRow {
-  const row = shapeStatusFeed({ label: DEX_STATUS_LABEL, at, now, ...DEX_STATUS_WINDOW });
+  const shaped = shapeStatusFeed({ label: DEX_STATUS_LABEL, at, now, ...DEX_STATUS_WINDOW });
+  // b64 TT P2: when one source came back empty and the other carried the list, say which and why.
+  const note = (sourceNote || "").replace(/\s+/g, " ").trim().slice(0, 200);
+  const row = note ? { ...shaped, text: `${shaped.text} · ${note}` } : shaped;
   if (failure && (!at || Date.parse(failure.at) > Date.parse(at))) {
     const reason = failure.reason.replace(/\s+/g, " ").trim().slice(0, 160);
     return {
