@@ -1,3 +1,4 @@
+// pull-check:v3-goal-b63-2026-10-24
 import { vi, afterEach, describe, expect, it } from "vitest";
 vi.mock("server-only", () => ({}));
 import { fillFromLastGood, readPageWithRetry, rememberFullList, resetLastGoodList, LAST_GOOD_MAX_AGE_MS } from "@/lib/coingecko-pull";
