@@ -112,10 +112,34 @@ export interface CryptoSnapshot {
   source: string | null;
 }
 
+/** b66 TT P3: one upstream DEX source's result on the last refresh, saved with the snapshot. */
+export interface DexSourceNote {
+  source: string;
+  status: number | null;
+  rows: number;
+  reason: string | null;
+}
+
 export interface DexSnapshot {
   at: string;
   rows: DexTokenRow[];
   sources: string[];
+  /** b66 TT P3: per-source report from the last refresh attempt (even one that saved no rows). */
+  report?: DexSourceNote[];
+  reportAt?: string | null;
+}
+
+function cleanDexReport(value: unknown): DexSourceNote[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((r): r is Record<string, unknown> => !!r && typeof r === "object" && typeof (r as { source?: unknown }).source === "string")
+    .slice(0, 8)
+    .map((r) => ({
+      source: String(r.source).slice(0, 40),
+      status: typeof r.status === "number" && Number.isFinite(r.status) ? r.status : null,
+      rows: typeof r.rows === "number" && Number.isFinite(r.rows) && r.rows > 0 ? Math.floor(r.rows) : 0,
+      reason: typeof r.reason === "string" && r.reason.trim() ? r.reason.replace(/\s+/g, " ").trim().slice(0, 160) : null,
+    }));
 }
 
 interface CacheGlobal {
@@ -340,13 +364,15 @@ function parseCrypto(raw: string | null | undefined): CryptoSnapshot | null {
   }
 }
 
-function encodeDex(rows: DexTokenRow[], at: string, sources: string[] = []): string {
+function encodeDex(rows: DexTokenRow[], at: string, sources: string[] = [], report: DexSourceNote[] = [], reportAt: string | null = null): string {
   const live = rows.slice(0, 400);
   return JSON.stringify({
     v: 2,
     at,
     n: live.length,
     sources,
+    report: cleanDexReport(report),
+    reportAt,
     rows: live.map((row) => [
       row.id,
       row.symbol,
@@ -384,7 +410,7 @@ function dexFromCompact(row: unknown[]): DexTokenRow | null {
 function parseDex(raw: string | null | undefined): DexSnapshot | null {
   if (!raw) return null;
   try {
-    const parsed = JSON.parse(raw) as { at?: unknown; rows?: unknown; sources?: unknown };
+    const parsed = JSON.parse(raw) as { at?: unknown; rows?: unknown; sources?: unknown; report?: unknown; reportAt?: unknown };
     const at = typeof parsed.at === "string" ? parsed.at : "";
     const list = Array.isArray(parsed.rows) ? parsed.rows : [];
     const compact = list.length > 0 && list.every((row) => Array.isArray(row));
@@ -395,7 +421,9 @@ function parseDex(raw: string | null | undefined): DexSnapshot | null {
       ? parsed.sources.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
       : [];
     if (!at || !rows.length) return null;
-    return { at, rows, sources };
+    const report = cleanDexReport(parsed.report);
+    const reportAt = typeof parsed.reportAt === "string" && parsed.reportAt ? parsed.reportAt : null;
+    return { at, rows, sources, report, reportAt };
   } catch {
     return null;
   }
@@ -1212,7 +1240,8 @@ async function releaseCryptoLease(holder: string): Promise<void> {
 export async function persistDexSnapshot(
   rows: DexTokenRow[],
   at = new Date().toISOString(),
-  sources: string[] = []
+  sources: string[] = [],
+  report: DexSourceNote[] = []
 ): Promise<void> {
   const live = rows.filter((row) => dexLooksSaved(row) && !!resolvableCoinId(row.detailId)).slice(0, 400);
   if (!live.length) return;
@@ -1223,7 +1252,7 @@ export async function persistDexSnapshot(
   if (existing && existingLive.length > live.length && !dexSnapshotComplete(live)) {
     if (!(existingStale && live.length >= 15)) return;
   }
-  const body = encodeDex(live, at, sources.length ? sources : existing?.sources || []);
+  const body = encodeDex(live, at, sources.length ? sources : existing?.sources || [], report, report.length ? at : null);
   const parsed = parseDex(body);
   if (!parsed) return;
   memoryDex = parsed;
@@ -1231,6 +1260,25 @@ export async function persistDexSnapshot(
   const work = writeRaw("dex", body);
   pendingSnapshotWrite = work;
   await keepAlive(work);
+}
+
+/**
+ * b66 TT P3: a refresh that saved no rows still records why, on the saved snapshot (kept rows and
+ * time unchanged), so every server's /status reads the same per-source note.
+ */
+export async function persistDexReport(report: DexSourceNote[], reportAt = new Date().toISOString()): Promise<boolean> {
+  const clean = cleanDexReport(report);
+  if (!clean.length) return false;
+  const existing = memoryDex ?? (await readDexSnapshot());
+  if (!existing) return false;
+  const body = encodeDex(existing.rows, existing.at, existing.sources, clean, reportAt);
+  const parsed = parseDex(body);
+  if (!parsed) return false;
+  memoryDex = parsed;
+  const work = writeRaw("dex", body);
+  pendingSnapshotWrite = work;
+  await keepAlive(work);
+  return true;
 }
 
 export function hiddenSnapshotTicker(ticker: string | null | undefined): boolean {

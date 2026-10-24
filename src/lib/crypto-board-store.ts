@@ -65,10 +65,11 @@ import {
   withFeedSource,
   YAHOO_BACKUP_FLOOR,
   dexSourceSummary,
+  lastCryptoSeedReport,
 } from "@/lib/crypto-keyless-seed";
 import { coinDisplayName } from "@/lib/crypto-names";
 import { resolvableCoinId, type CoinMarket } from "@/lib/crypto-market";
-import { persistCryptoSnapshot, persistDexSnapshot, readCryptoSnapshot, readDexSnapshot } from "@/lib/crypto-snapshot";
+import { persistCryptoSnapshot, persistDexReport, persistDexSnapshot, readCryptoSnapshot, readDexSnapshot } from "@/lib/crypto-snapshot";
 import { publicSourceAllowed } from "@/lib/swyftx-display";
 
 const DIRECTORY_FILE = path.join(tmpdir(), "aetherforge-coin-directory.json");
@@ -442,6 +443,11 @@ function noteDexRefreshFailure(reason: string): void {
   console.error(`[crypto-board] DEX refresh failed: ${text}`);
 }
 
+/** b66 TT P3: GeckoTerminal and DexPaprika results from this isolate's last DEX seed. */
+function dexReportRows() {
+  return lastCryptoSeedReport().filter((r) => r.source === "geckoterminal" || r.source === "dexpaprika");
+}
+
 async function runDexSeed(): Promise<{ dexReplaced: boolean; dexRows: number }> {
   const at = new Date().toISOString();
   const loaded = await loadKeylessDexMarkets();
@@ -449,10 +455,12 @@ async function runDexSeed(): Promise<{ dexReplaced: boolean; dexRows: number }> 
     // b64 TT P2: name each source and why it came back empty (was "did not return a list").
     const summary = dexSourceSummary();
     noteDexRefreshFailure(summary ? `${summary}. The previous snapshot was kept.` : "DEX refresh returned no rows. The previous snapshot was kept.");
+    // b66 TT P3: save the per-source report with the kept snapshot so /status on any server shows it.
+    await persistDexReport(dexReportRows(), at).catch(() => false);
     return { dexReplaced: false, dexRows: 0 };
   }
   dexRefreshFailure = null;
-  await persistDexSnapshot(loaded.rows, at, loaded.sources);
+  await persistDexSnapshot(loaded.rows, at, loaded.sources, dexReportRows());
   const saved = await readDexSnapshot();
   const replaced = saved?.at === at;
   if (!replaced) console.log(`[crypto-board] DEX seed ${loaded.rows.length} kept the previous list`);

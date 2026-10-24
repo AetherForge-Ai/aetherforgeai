@@ -25,14 +25,39 @@ function xeroDate(day: string): string | null {
   return m ? `${m[3]}/${m[2]}/${m[1]}` : null;
 }
 
+/** b66 G-29: Xero statement text fields are kept short and single-line. */
+export const XERO_TEXT_MAX = 255;
+
+/**
+ * b66 G-29: one text cell. Line breaks become spaces, length is capped, and a leading = + - @ is
+ * prefixed with an apostrophe so a spreadsheet never runs it as a formula (CSV injection).
+ */
+export function xeroText(v: string): string {
+  let t = String(v ?? "").replace(/[\r\n\t]+/g, " ").trim().slice(0, XERO_TEXT_MAX);
+  if (/^[=+\-@]/.test(t)) t = `'${t}`.slice(0, XERO_TEXT_MAX);
+  return t;
+}
+
 function cell(v: string): string {
   return /[",\n\r]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+}
+
+/** Xero wants plain numbers: no currency symbol, no thousands separator, no exponent, 2 dp. */
+export function xeroAmount(n: number): string {
+  const r = Math.round(n * 100) / 100;
+  return (Object.is(r, -0) ? 0 : r).toFixed(2);
+}
+
+function plainQty(n: number): string {
+  if (!Number.isFinite(n)) return "";
+  return n.toLocaleString("en-US", { useGrouping: false, maximumFractionDigits: 8 });
 }
 
 export function xeroStatementCsv(lines: readonly SnapshotLedgerLine[]): { csv: string; rows: number; skipped: number } {
   const out: string[] = [XERO_HEADERS.join(",")];
   let skipped = 0;
-  const sorted = [...lines].sort((a, b) => (a.when < b.when ? -1 : a.when > b.when ? 1 : 0));
+  // b66 G-29: same-day lines keep a stable order (by id) so re-exports diff cleanly.
+  const sorted = [...lines].sort((a, b) => (a.when < b.when ? -1 : a.when > b.when ? 1 : String(a.id) < String(b.id) ? -1 : String(a.id) > String(b.id) ? 1 : 0));
   for (const l of sorted) {
     const date = xeroDate(l.when);
     const amount = Number(l.cashNzd);
@@ -41,9 +66,13 @@ export function xeroStatementCsv(lines: readonly SnapshotLedgerLine[]): { csv: s
       continue;
     }
     const label = TYPE_LABEL[l.type] ?? l.type;
-    const qty = l.quantity != null && l.price != null ? ` ${l.quantity} @ ${l.price} ${l.currency}` : "";
+    if (Math.abs(Math.round(amount * 100) / 100) < 0.005) {
+      skipped++;
+      continue;
+    }
+    const qty = l.quantity != null && l.price != null ? ` ${plainQty(Number(l.quantity))} @ ${plainQty(Number(l.price))} ${l.currency}` : "";
     const desc = `${label}${l.ticker ? ` ${l.ticker}` : ""}${qty}`.trim();
-    out.push([date, amount.toFixed(2), "AetherForge paper book", desc, l.id].map(cell).join(","));
+    out.push([date, xeroAmount(amount), xeroText("AetherForge paper book"), xeroText(desc), xeroText(String(l.id ?? ""))].map(cell).join(","));
   }
   return { csv: `${out.join("\n")}\n`, rows: out.length - 1, skipped };
 }

@@ -119,3 +119,109 @@ export interface AuditEvent {
 export function canReadAuditLog(share: Pick<Share, "owner">, userId: string): boolean {
   return share.owner === userId;
 }
+
+/** b66 G-27: what the owner UI may see of a share row. The token hash never leaves the server. */
+export function publicShare(share: Share) {
+  return {
+    id: share._id,
+    portfolioId: share.portfolio_id,
+    label: share.label,
+    status: liveStatus(share, Date.now()),
+    hasInvitee: !!share.invitee,
+    expiresAt: share.expires_at,
+    confirmedAt: share.confirmed_at ?? null,
+    revokedAt: share.revoked_at ?? null,
+  };
+}
+
+/** A pending link past its 7 days reads as expired (the row is not rewritten just to say so). */
+export function liveStatus(share: Pick<Share, "status" | "expires_at">, now: number): ShareStatus {
+  if (share.status === "pending" && Date.parse(share.expires_at) <= now) return "expired";
+  return share.status;
+}
+
+/**
+ * b66 G-27: access for one request. A deleted owner account (ownerExists false) means no access at all,
+ * so account deletion cuts every share off on the invitee's next request, even before rows are revoked.
+ */
+export function requestAccess(input: { userId: string; share: Share | null | undefined; ownerExists: boolean; now: number }): Access {
+  const s = input.share;
+  if (!s || !input.ownerExists) return "none";
+  return portfolioAccess({ userId: input.userId, portfolioOwnerId: s.owner, portfolioId: s.portfolio_id, shares: [s], now: input.now });
+}
+
+/** "view" is logged once per share, viewer and hour (per server), so the log stays readable. */
+export function makeViewDeduper(windowMs = 60 * 60 * 1000) {
+  const seen = new Map<string, number>();
+  return (shareId: string, viewerId: string, now = Date.now()): boolean => {
+    const key = `${shareId}:${viewerId}`;
+    const last = seen.get(key);
+    if (last != null && now - last < windowMs) return false;
+    seen.set(key, now);
+    if (seen.size > 5000) seen.clear();
+    return true;
+  };
+}
+
+export interface SharedHolding {
+  name: string;
+  ticker: string;
+  assetType: string;
+  quantity: number;
+  averageCost: number | null;
+  currency: string;
+}
+
+export interface SharedTrade {
+  date: string;
+  type: string;
+  ticker: string;
+  quantity: number | null;
+  price: number | null;
+  currency: string;
+}
+
+/**
+ * b66 G-27: the read-only book an invitee sees. Only the listed fields are copied out of the owner's
+ * rows: no ids, notes, cash balance, goals, chat, bot reports or account details.
+ */
+export function sharedBookView(input: {
+  stocks: readonly Record<string, unknown>[];
+  metals: readonly Record<string, unknown>[];
+  trades: readonly Record<string, unknown>[];
+}): { holdings: SharedHolding[]; trades: SharedTrade[] } {
+  const n = (v: unknown) => (v == null || v === "" ? null : Number.isFinite(Number(v)) ? Number(v) : null);
+  const holdings: SharedHolding[] = [];
+  for (const r of input.stocks) {
+    const q = n(r.shares);
+    if (!q || q <= 0) continue;
+    holdings.push({
+      name: String(r.company_name || r.ticker || ""),
+      ticker: String(r.ticker || ""),
+      assetType: String(r.asset_type || "stock"),
+      quantity: q,
+      averageCost: n(r.purchase_price),
+      currency: String(r.currency || "NZD"),
+    });
+  }
+  for (const r of input.metals) {
+    const q = n(r.ounces);
+    if (!q || q <= 0) continue;
+    const metal = String(r.metal || "");
+    holdings.push({ name: metal ? metal[0].toUpperCase() + metal.slice(1) : "Metal", ticker: metal.toUpperCase(), assetType: "metal", quantity: q, averageCost: n(r.purchase_price_per_oz), currency: "NZD" });
+  }
+  holdings.sort((a, b) => a.name.localeCompare(b.name));
+  const trades: SharedTrade[] = input.trades
+    .map((r) => ({
+      date: String(r.executed_at || r.createdAt || "").slice(0, 10),
+      type: String(r.type || ""),
+      ticker: String(r.ticker || ""),
+      quantity: n(r.quantity),
+      price: n(r.price),
+      currency: String(r.currency || "NZD"),
+    }))
+    .filter((t) => t.date && t.type)
+    .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
+    .slice(0, 200);
+  return { holdings, trades };
+}
