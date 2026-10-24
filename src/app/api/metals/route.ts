@@ -6,6 +6,7 @@ import { accountMismatchResponse, privateJson } from "@/lib/account-response";
 import { totalumSdk } from "@/lib/totalum";
 import { getMetalsSpot } from "@/lib/metals";
 import { recordMetalTrade } from "@/lib/transactions";
+import { tradeErrorResponse } from "@/lib/trade-error-status";
 import { TRADE_CONFIRM_REQUIRED } from "@/lib/trade-confirm";
 
 export const dynamic = "force-dynamic";
@@ -121,7 +122,8 @@ export async function POST(req: Request) {
       data: { metal: result?.data ?? record, cashBalance: trade.cashBalance, transaction: trade.transaction },
     });
   } catch (err: any) {
-    console.error("[api/metals] POST error:", err);
-    return NextResponse.json({ ok: false, error: err?.message || "Failed to add metal" }, { status: 500 });
+    const out = tradeErrorResponse(err, "Failed to add metal");
+    if (out.status >= 500) console.error("[api/metals] POST error:", err);
+    return NextResponse.json(out.body, { status: out.status });
   }
 }

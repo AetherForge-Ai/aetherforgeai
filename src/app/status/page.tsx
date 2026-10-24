@@ -42,7 +42,7 @@ export default async function StatusPage() {
           body: statusFeedBody(feed),
           tone: feed.tone,
         })),
-        { title: "AI guide provider", body: aiLine.body, tone: aiLine.tone },
+        { title: "AI guide", body: aiLine.body, tone: aiLine.tone },
         STATUS_INCIDENTS.length
           ? {
               title: "Incident history",

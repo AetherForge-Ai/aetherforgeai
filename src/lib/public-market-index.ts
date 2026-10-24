@@ -149,7 +149,27 @@ function cryptoRowsFromCoins(coins: CryptoTabCoin[], quotedAt: string): PublicPr
  * b37 H-1: /markets crypto tab had 0 rows on 4/127 loads (cold isolate, list read over budget).
  * The stored snapshot (the one /api/ticker serves) fills the tab instead of an empty table.
  */
-async function cryptoTabFromSnapshot(): Promise<PublicPriceTab | null> {
+/**
+ * b63 TT P3 (/markets TTFB 2.58 s): one cold request read the crypto snapshot up to three times in
+ * a row (cold saved index, then ensureCryptoTab). The read is now shared for a few seconds and
+ * started alongside the live build, so the waits overlap instead of adding up.
+ */
+const SNAPSHOT_TAB_SHARE_MS = 5_000;
+let snapshotTabShared: { at: number; work: Promise<PublicPriceTab | null> } | null = null;
+
+export function cryptoTabFromSnapshot(): Promise<PublicPriceTab | null> {
+  const now = Date.now();
+  if (snapshotTabShared && now - snapshotTabShared.at < SNAPSHOT_TAB_SHARE_MS) return snapshotTabShared.work;
+  const work = readCryptoTabFromSnapshot();
+  snapshotTabShared = { at: now, work };
+  return work;
+}
+
+export function resetSnapshotTabShare(): void {
+  snapshotTabShared = null;
+}
+
+async function readCryptoTabFromSnapshot(): Promise<PublicPriceTab | null> {
   try {
     const { readCryptoSnapshot } = await import("@/lib/crypto-snapshot");
     const { edgeSnapshotGet } = await import("@/lib/ticker-serve");
@@ -426,6 +446,7 @@ export async function loadPublicMarketIndex(): Promise<PublicMarketIndex> {
   // crypto snapshot, while the build carries on in the background and fills the memo for the next request
   // (stale-while-revalidate inside the isolate; no Worker, no edge rule).
   const build = startBuild();
+  void cryptoTabFromSnapshot(); // b63: overlap the snapshot read with the build budget.
   const value = await within<PublicMarketIndex | null>(build, null, COLD_BUDGET_MS);
   if (value) return value.priceRowCount > 0 ? reevaluateRowDelay(value) : emptyIndex();
   return coldSavedIndex();
