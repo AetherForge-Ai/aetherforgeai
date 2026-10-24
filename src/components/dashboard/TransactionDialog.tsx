@@ -1,5 +1,6 @@
 "use client";
 
+import { TABBABLE_SELECTOR, recoverFocusTarget, trapTabTarget } from "@/lib/focus-trap";
 import { useEffect, useRef, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import {
   Dialog,
@@ -109,9 +110,8 @@ export function TransactionDialog({
         panel.focus();
         return;
       }
-      const at = lastInside ? items.indexOf(lastInside) : -1;
-      const next = at === -1 ? items[0] : items[(at + (backwards ? -1 : 1) + items.length) % items.length];
-      next.focus();
+      const next = recoverFocusTarget(items, lastInside, backwards);
+      next?.focus();
     };
     document.addEventListener("keydown", onKey, true);
     document.addEventListener("focusin", onFocusIn);
@@ -125,22 +125,15 @@ export function TransactionDialog({
   function trapTab(event: ReactKeyboardEvent<HTMLDivElement>) {
     if (event.key !== "Tab") return;
     const root = event.currentTarget;
-    const items = Array.from(
-      root.querySelectorAll<HTMLElement>(
-        'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
-      )
-    ).filter((el) => isTabbableVisible(el) || el === document.activeElement);
-    if (!items.length) return;
-    const first = items[0];
-    const last = items[items.length - 1];
+    const items = Array.from(root.querySelectorAll<HTMLElement>(TABBABLE_SELECTOR)).filter(
+      (el) => isTabbableVisible(el) || el === document.activeElement
+    );
     const active = document.activeElement as HTMLElement | null;
-    if (event.shiftKey && (active === first || !root.contains(active))) {
-      event.preventDefault();
-      last.focus();
-    } else if (!event.shiftKey && (active === last || !root.contains(active))) {
-      event.preventDefault();
-      first.focus();
-    }
+    // b65 G-14: shared, unit-tested wrap logic (focus-trap.ts).
+    const next = trapTabTarget(items, active, event.shiftKey, Boolean(active && root.contains(active)));
+    if (!next) return;
+    event.preventDefault();
+    next.focus();
   }
 
   function requestExplicitClose() {

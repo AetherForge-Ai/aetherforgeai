@@ -1,5 +1,6 @@
 "use client";
 
+import { scrollRegionProps } from "@/lib/focus-trap";
 import { useMemo, useRef, useState } from "react";
 
 import { FigureReadout } from "@/components/dashboard/ShowTheMaths";
@@ -189,7 +190,7 @@ export function TransactionsTab({
           ) : null}
         </div>
       ) : null}
-      <div className="overflow-x-auto rounded-2xl border border-border/70 bg-card/50 md:overflow-x-clip">
+      <div className="overflow-x-auto rounded-2xl border border-border/70 bg-card/50 md:overflow-x-clip" {...scrollRegionProps("Transactions table")}>
         {error && !snapshot ? null : loading || !snapshot ? (
           <div className="space-y-3 p-6">
             {[0, 1, 2].map((row) => (

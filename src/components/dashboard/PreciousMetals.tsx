@@ -1,5 +1,6 @@
 "use client";
 
+import { scrollRegionProps } from "@/lib/focus-trap";
 import Image from "next/image";
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
@@ -469,7 +470,7 @@ export function PreciousMetals({
           </Button>
         </div>
         {held.length > 0 ? (
-          <div className="mt-5 overflow-x-auto">
+          <div className="mt-5 overflow-x-auto" {...scrollRegionProps("Metals prices")}>
             <table className="w-full text-sm">
               <caption className="sr-only">Bullion holdings</caption>
               <thead>
@@ -731,7 +732,7 @@ export function PreciousMetals({
             </p>
           </div>
         ) : (
-          <div className="mt-6 overflow-x-auto">
+          <div className="mt-6 overflow-x-auto" {...scrollRegionProps("Metals holdings")}>
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border/50 text-left text-xs uppercase tracking-wide text-muted-foreground">

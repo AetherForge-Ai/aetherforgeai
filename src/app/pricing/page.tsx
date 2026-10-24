@@ -2,6 +2,8 @@ import Link from "next/link";
 import { publicPageMetadata } from "@/lib/reviewed-book";
 import { SiteHeader } from "@/components/SiteHeader";
 import { PricingCards } from "@/components/pricing/PricingCards";
+import { HoldingCapsGrid } from "@/components/pricing/HoldingCapsGrid";
+import { HOLDING_CAPS_V2 } from "@/lib/feature-flags";
 import { FeatureComparison } from "@/components/pricing/FeatureComparison";
 import { PricingFAQ } from "@/components/pricing/PricingFAQ";
 import { JsonLd } from "@/components/public/JsonLd";
@@ -121,6 +123,8 @@ export default async function PricingPage() {
         {/* 2 + 3 · Billing toggle + pricing cards */}
         <section id="plans" className="mx-auto max-w-6xl scroll-mt-24 px-4 pt-12 sm:px-6 lg:px-8">
           <PricingCards initialFx={initialFx} />
+          {/* b65 G-07: behind HOLDING_CAPS_V2 (OFF in prod). */}
+          {HOLDING_CAPS_V2 ? <HoldingCapsGrid /> : null}
           <div className="mx-auto mt-10 max-w-3xl rounded-3xl border border-border/70 bg-card/40 p-6 text-sm leading-relaxed text-muted-foreground">
             <h2 className="font-display text-base font-bold text-foreground">Legacy plan: Apex Dual</h2>
             <p className="mt-2">{APEX_DUAL_PUBLIC_NOTE}</p>

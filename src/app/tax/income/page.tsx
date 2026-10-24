@@ -1,3 +1,4 @@
+import { scrollRegionProps } from "@/lib/focus-trap";
 import Link from "next/link";
 import { AppShell } from "@/components/AppShell";
 import { CsvExportButton } from "@/components/tax/CsvExportButton";
@@ -39,7 +40,7 @@ function ReportTables({ report, fifoNote }: { report: TaxableIncomeReport; fifoN
       {report.dividends.length === 0 ? (
         <p className="mt-2 text-sm text-muted-foreground">No dividends in this tax year.</p>
       ) : (
-        <div className="mt-3 overflow-x-auto rounded-2xl border border-border/70">
+        <div className="mt-3 overflow-x-auto rounded-2xl border border-border/70" {...scrollRegionProps("Income table")}>
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border/60 text-left text-xs uppercase tracking-wide text-muted-foreground">
@@ -81,7 +82,7 @@ function ReportTables({ report, fifoNote }: { report: TaxableIncomeReport; fifoN
       {report.realised.length === 0 ? (
         <p className="mt-2 text-sm text-muted-foreground">No sells in this tax year.</p>
       ) : (
-        <div className="mt-3 overflow-x-auto rounded-2xl border border-border/70">
+        <div className="mt-3 overflow-x-auto rounded-2xl border border-border/70" {...scrollRegionProps("Income table")}>
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border/60 text-left text-xs uppercase tracking-wide text-muted-foreground">

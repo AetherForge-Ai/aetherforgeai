@@ -1,0 +1,21 @@
+{
+  "ticket": "G-22",
+  "table": "goal_plan",
+  "approval": "New table allowed (Lukas, 20 Oct 2026 15:52 NZDT, per BACKLOG G-22). Schema only in b65: nothing reads or writes it yet.",
+  "purpose": "Save one member's KiwiSaver / NZ Super goal-planner inputs so the what-ifs reopen as they were left. Inputs only; every figure is recomputed in code.",
+  "fields": [
+    { "name": "user", "type": "relation", "to": "user", "required": true, "note": "Owner. One row per user (unique)." },
+    { "name": "salary_cents", "type": "number", "required": true },
+    { "name": "age", "type": "number", "required": true },
+    { "name": "balance_cents", "type": "number", "required": true },
+    { "name": "employee_rate_per_mille", "type": "number", "required": true, "note": "35, 40, 60, 80 or 100" },
+    { "name": "voluntary_yearly_cents", "type": "number", "required": false, "default": 0 },
+    { "name": "retire_age", "type": "number", "required": false, "default": 65 },
+    { "name": "household", "type": "options", "options": ["single-alone", "single-sharing", "couple-both"], "required": false, "default": "couple-both" },
+    { "name": "rates_version", "type": "text", "required": true, "note": "Dated rate set used, e.g. \"nz-2026-04-01\"" },
+    { "name": "updated_at", "type": "date", "required": true }
+  ],
+  "indexes": ["user (unique)"],
+  "rollback": "Delete the goal_plan table. No other table references it.",
+  "privacy": "Salary and balance are personal financial data: owner-only reads, deleted with the account."
+}

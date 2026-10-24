@@ -1,5 +1,6 @@
 "use client";
 
+import { scrollRegionProps } from "@/lib/focus-trap";
 import { useCallback, useMemo, useState, type ReactNode } from "react";
 import type { HoldingMetrics } from "@/lib/portfolio";
 import { formatNumber, formatPercent } from "@/lib/portfolio";
@@ -207,7 +208,7 @@ export function HoldingsOwnedTable({
           ) : null}
         </div>
       ) : (
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto" {...scrollRegionProps("Holdings owned")}>
           <table className="w-full min-w-[52rem] text-xs">
             <thead>
               <tr className="border-b border-border/50 text-left uppercase tracking-wide text-muted-foreground">
