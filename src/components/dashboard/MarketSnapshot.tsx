@@ -50,7 +50,7 @@ function MarketColumn({ code, label, sub, rows }: { code: MarketCode; label: str
             <span
               className={cn(
                 "tnum rounded px-1.5 py-0.5 text-[0.7rem] font-semibold",
-                avg >= 0 ? "bg-emerald-500/12 text-emerald-700" : "bg-rose-500/12 text-rose-600"
+                avg >= 0 ? "bg-emerald-500/12 text-gain" : "bg-rose-500/12 text-rose-600"
               )}
             >
               {fmtPct(avg)}

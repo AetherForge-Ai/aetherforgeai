@@ -16,7 +16,7 @@ import {
 } from "@/lib/stock-markets";
 import type { PublicMarketIndex } from "@/lib/public-market-types";
 import { BuyDialog, type BuyTarget } from "@/components/dashboard/BuyDialog";
-import { columnHasFigure, cryptoCountLine, cryptoHeaderCount, dexCoverageLine, dexTabLabel } from "@/lib/crypto-coverage";
+import { columnHasFigure, cryptoCountLine, cryptoFooterLine, cryptoHeaderCount, dexCoverageLine, dexTabLabel } from "@/lib/crypto-coverage";
 import { coingeckoSupplied, countLine, stripLastGoodCell } from "@/lib/crypto-board";
 import { sourceLabel } from "@/lib/crypto-price-chain";
 import { DEX_EMPTY_NOTICE } from "@/lib/crypto-dex";
@@ -189,7 +189,7 @@ function MoveCell({ value, reason }: { value: number | null | undefined; reason:
   if (value == null || !Number.isFinite(value)) return <DashCell reason={reason} />;
   const up = value >= 0;
   return (
-    <span className={cn("tnum font-semibold", up ? "text-emerald-700" : "text-rose-600")}>
+    <span className={cn("tnum font-semibold", up ? "text-gain" : "text-rose-600")}>
       <span aria-hidden="true">{value > 0 ? "▲ " : value < 0 ? "▼ " : ""}</span>
       {value > 0 ? "+" : value < 0 ? "−" : ""}
       {formatMarketChangePercent(Math.abs(value))}%
@@ -872,7 +872,7 @@ export function MarketsExplorer({
         </div>
         <div className="flex flex-col items-end gap-0.5">
           <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Radio className={cn("size-3.5", liveCount > 0 ? "text-emerald-700" : "text-muted-foreground")} />
+            <Radio className={cn("size-3.5", liveCount > 0 ? "text-gain" : "text-muted-foreground")} />
             {(isDexTab ? dex.error : isCoinTab ? crypto.error : loadError)
               ? (isDexTab ? dex.error : isCoinTab ? crypto.error : loadError)
               : hasData || remoteHits.length
@@ -1073,14 +1073,14 @@ export function MarketsExplorer({
                           <span
                             className={cn(
                               "tnum inline-flex items-center justify-end gap-0.5 font-semibold",
-                              up ? "text-emerald-700" : "text-rose-600"
+                              up ? "text-gain" : "text-rose-600"
                             )}
                           >
                             <span aria-hidden="true">{r.changePct > 0 ? "▲" : r.changePct < 0 ? "▼" : ""}</span>
                             {r.changePct > 0 ? "+" : r.changePct < 0 ? "−" : ""}
                             {formatMarketChangePercent(r.changePct)}%
                           </span>
-                          <span className={cn("tnum block text-[0.62rem]", up ? "text-emerald-700" : "text-rose-600")}>
+                          <span className={cn("tnum block text-[0.62rem]", up ? "text-gain" : "text-rose-600")}>
                             {isCryptoTab || r.coinId
                               ? fmtAbs(r.changeAbs ?? 0, r.price)
                               : formatStockChangeAmount(r.changeAbs ?? 0)}
@@ -1210,8 +1210,7 @@ export function MarketsExplorer({
       {isCryptoTab && rows.length > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/60 px-1 pt-3">
           <p className="text-xs text-muted-foreground">
-            Showing {cryptoPageSafe * CRYPTO_PAGE_SIZE + 1}–
-            {Math.min(rows.length, (cryptoPageSafe + 1) * CRYPTO_PAGE_SIZE)} of {rows.length}
+            {cryptoFooterLine(cryptoPageSafe, CRYPTO_PAGE_SIZE, rows.length, cryptoFullList, query)}
           </p>
           <div className="flex items-center gap-2">
             <Button

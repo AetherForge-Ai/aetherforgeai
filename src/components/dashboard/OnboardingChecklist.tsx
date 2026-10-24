@@ -225,7 +225,7 @@ export function OnboardingChecklist({
                 )}
               >
                 {done ? (
-                  <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-700" />
+                  <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-gain" />
                 ) : (
                   <Circle className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
                 )}

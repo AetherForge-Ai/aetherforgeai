@@ -167,7 +167,7 @@ export function ActionableIntelligence({
         </div>
       ) : stocks.length > 0 ? (
         <div className="flex items-start gap-3 rounded-2xl border border-emerald-500/30 bg-emerald-500/8 px-5 py-4">
-          <Shield className="mt-0.5 size-5 shrink-0 text-emerald-700" />
+          <Shield className="mt-0.5 size-5 shrink-0 text-gain" />
           <div>
             <p className="font-display font-bold text-emerald-200">No urgent exits</p>
             <p className="text-sm text-emerald-200/80">
@@ -225,14 +225,14 @@ export function ActionableIntelligence({
               type="button"
               onClick={() => setSnapshotsMinimized((m) => !m)}
               aria-expanded={!snapshotsMinimized}
-              className="flex min-w-0 flex-1 items-center gap-2 text-left text-sm font-semibold text-emerald-700"
+              className="flex min-w-0 flex-1 items-center gap-2 text-left text-sm font-semibold text-gain"
             >
               <ArrowUpRight className="size-4 shrink-0" />
               <span className="truncate">Market snapshots</span>
               <span className="hidden text-xs font-normal text-muted-foreground sm:inline">
                 {assetClass === "crypto" ? "(not held · crypto)" : "(not held · NZX · ASX · DJIA · NASDAQ)"}
               </span>
-              <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[0.65rem] font-semibold text-emerald-700">
+              <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[0.65rem] font-semibold text-gain">
                 {snapshots.length}
               </span>
               <span className="ml-auto shrink-0 text-xs font-medium text-muted-foreground">

@@ -154,7 +154,7 @@ export function ReturnsSplitCard({
           {figures.map((figure) => (
             <div key={figure.label} className="rounded-xl border border-border/60 bg-background/40 p-3">
               <p className="text-[0.68rem] font-semibold uppercase tracking-wide text-muted-foreground">{figure.label}</p>
-              <p className={`tnum mt-1 font-display text-lg font-bold ${figure.value < 0 ? "text-rose-600" : "text-emerald-700"}`}>
+              <p className={`tnum mt-1 font-display text-lg font-bold ${figure.value < 0 ? "text-rose-600" : "text-gain"}`}>
                 {formatNzd(figure.value)}
               </p>
               <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{figure.note}</p>

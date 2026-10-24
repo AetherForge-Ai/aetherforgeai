@@ -1,6 +1,6 @@
 /**
  * Goal loop batch b11 (GOAL-LOCK G-10 G-11 G-14 G-15 G-17).
- * pull-check:v3-goal-b63-2026-10-24
+ * pull-check:v3-goal-b64-2026-10-24
  */
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
@@ -12,8 +12,8 @@ const read = (p: string) => readFileSync(p, "utf8");
 
 describe("b11 pins", () => {
   it("build version", () => {
-    expect(read("public/build-version.txt").trim()).toBe("v3-goal-b63-2026-10-24");
-    expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-goal-b63-2026-10-24");
+    expect(read("public/build-version.txt").trim()).toBe("v3-goal-b64-2026-10-24");
+    expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-goal-b64-2026-10-24");
   });
 });
 
@@ -36,7 +36,7 @@ describe("G-15 schema", () => {
 describe("G-14 accessibility fixes", () => {
   it("light sheet restores AA colours and usage list is valid", () => {
     const css = read("src/app/globals.css");
-    expect(css).toContain(".content-light .text-emerald-700");
+    expect(css).toMatch(/\.content-light \{\s*--text-green: #047857;/); // b64 M-7 token form
     expect(css).toContain(".content-light .text-amber-400");
     const rail = read("src/components/dashboard/rail/DashboardRail.tsx");
     expect(rail).not.toMatch(/<div key=\{row\.label\}>\s*<div className="flex/);

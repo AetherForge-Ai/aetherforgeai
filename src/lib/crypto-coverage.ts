@@ -100,3 +100,15 @@ export function dexCoverageLine(count: number): string {
   if (shown >= MARKET_LIST_TARGET) return "Top 400 DEX tokens by 24-hour volume · GeckoTerminal";
   return `Showing ${shown} of up to ${MARKET_LIST_TARGET}`;
 }
+
+/**
+ * b64 TT P3: the crypto table footer said "Showing 1 – 25 of 25" under "400 coins" (the server render
+ * holds the first page only). With no search the total is the full list; a search counts its matches.
+ */
+export function cryptoFooterLine(page: number, pageSize: number, rowCount: number, listCount: number, query: string): string {
+  const total = (query || "").trim() ? rowCount : Math.max(rowCount, cryptoCoverageCount(listCount));
+  if (total <= 0) return "Showing 0 of 0";
+  const from = Math.min(total, page * pageSize + 1);
+  const to = Math.min(total, (page + 1) * pageSize);
+  return `Showing ${from}–${to} of ${total}`;
+}

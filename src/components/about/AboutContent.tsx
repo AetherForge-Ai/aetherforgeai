@@ -202,7 +202,7 @@ function ContactForm() {
     return (
       <div className="flex h-full min-h-[22rem] flex-col items-center justify-center rounded-3xl border border-[#059669]/20 bg-white p-10 text-center shadow-xl shadow-[#0F172A]/5">
         <div className="grid size-16 place-items-center rounded-full bg-[#059669]/10">
-          <CheckCircle2 className="size-9 text-[#059669]" />
+          <CheckCircle2 className="size-9 text-gain" />
         </div>
         <h3 className="mt-6 font-display text-2xl font-bold text-[#0F172A]">Message sent — thank you!</h3>
         <p className="mt-3 max-w-sm text-[15px] leading-relaxed text-[#475569]">
@@ -221,7 +221,7 @@ function ContactForm() {
   }
 
   const inputBase =
-    "w-full rounded-xl border border-[#0F172A]/12 bg-[#F8FAFC] px-4 py-3 text-[15px] text-[#0F172A] placeholder:text-[#94A3B8] outline-none transition-all focus:border-[#059669] focus:bg-white focus:ring-4 focus:ring-[#059669]/12";
+    "w-full rounded-xl border border-[#0F172A]/12 bg-[#F8FAFC] px-4 py-3 text-[15px] text-[#0F172A] placeholder:text-[#64748B] outline-none transition-all focus:border-[#059669] focus:bg-white focus:ring-4 focus:ring-[#059669]/12";
 
   return (
     <form
@@ -294,7 +294,7 @@ function ContactForm() {
       <button
         type="submit"
         disabled={status === "sending"}
-        className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#059669] px-6 py-3.5 text-[15px] font-semibold text-white shadow-lg shadow-[#059669]/25 transition-all hover:bg-[#047857] hover:shadow-xl hover:shadow-[#059669]/30 disabled:cursor-not-allowed disabled:opacity-70"
+        className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-6 py-3.5 text-[15px] font-semibold text-white shadow-lg shadow-[#059669]/25 transition-all hover:bg-emerald-800 hover:shadow-xl hover:shadow-[#059669]/30 disabled:cursor-not-allowed disabled:opacity-70"
       >
         {status === "sending" ? (
           <>
@@ -368,7 +368,7 @@ export function AboutContent() {
         <div className="mx-auto flex min-h-[78vh] max-w-7xl flex-col justify-center px-4 pb-20 pt-16 sm:px-6 lg:px-8">
           <Reveal>
             <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-1.5 text-xs font-semibold tracking-wide text-white backdrop-blur">
-              <span className="size-1.5 rounded-full bg-[#059669] shadow-[0_0_10px_2px_rgba(5,150,105,0.7)]" />
+              <span className="size-1.5 rounded-full bg-primary shadow-[0_0_10px_2px_rgba(5,150,105,0.7)]" />
               Registered in New Zealand
             </span>
           </Reveal>
@@ -394,7 +394,7 @@ export function AboutContent() {
               <button
                 type="button"
                 onClick={() => scrollToId("who")}
-                className="inline-flex items-center justify-center gap-2 rounded-full bg-[#059669] px-7 py-3.5 text-base font-semibold text-white shadow-xl shadow-[#059669]/30 transition-all hover:bg-[#047857] hover:shadow-2xl hover:shadow-[#059669]/40"
+                className="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-7 py-3.5 text-base font-semibold text-white shadow-xl shadow-[#059669]/30 transition-all hover:bg-emerald-800 hover:shadow-2xl hover:shadow-[#059669]/40"
               >
                 See How It Works <ArrowRight className="size-5" />
               </button>
@@ -417,7 +417,7 @@ export function AboutContent() {
       <section id="who" className="scroll-mt-24 bg-[#F8FAFC] py-20 sm:py-28">
         <div className="mx-auto max-w-4xl px-4 text-center sm:px-6 lg:px-8">
           <Reveal>
-            <p className="text-sm font-bold uppercase tracking-[0.2em] text-[#059669]">Who We Are</p>
+            <p className="text-sm font-bold uppercase tracking-[0.2em] text-gain">Who We Are</p>
             <h2 className="mt-4 font-display text-3xl font-bold tracking-tight text-[#0F172A] sm:text-4xl">
               Intelligent insight, made in New Zealand
             </h2>
@@ -443,7 +443,7 @@ export function AboutContent() {
                   key={chip.label}
                   className="inline-flex items-center gap-2 rounded-full border border-[#0F172A]/10 bg-white px-4 py-2 text-sm font-semibold text-[#334155] shadow-sm"
                 >
-                  <chip.icon className="size-4 text-[#059669]" />
+                  <chip.icon className="size-4 text-gain" />
                   {chip.label}
                 </span>
               ))}
@@ -459,7 +459,7 @@ export function AboutContent() {
             {/* Narrative */}
             <div className="order-2 lg:order-1">
               <Reveal>
-                <p className="text-sm font-bold uppercase tracking-[0.2em] text-[#059669]">Our Story</p>
+                <p className="text-sm font-bold uppercase tracking-[0.2em] text-gain">Our Story</p>
                 <h2 className="mt-4 font-display text-3xl font-bold tracking-tight text-[#0F172A] sm:text-4xl">
                   A note from our founder
                 </h2>
@@ -474,7 +474,7 @@ export function AboutContent() {
                         className="relative my-2 rounded-2xl border-l-4 bg-[#F8FAFC] py-6 pl-7 pr-6"
                         style={{ borderColor: "#059669" }}
                       >
-                        <Quote className="absolute -top-3 left-5 size-7 rotate-180 text-[#059669]/25" />
+                        <Quote className="absolute -top-3 left-5 size-7 rotate-180 text-gain/25" />
                         <p className="font-display text-xl font-semibold leading-snug text-[#0F172A] sm:text-2xl">
                           “{p.text}”
                         </p>
@@ -595,7 +595,7 @@ export function AboutContent() {
         <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
           <div className="mx-auto max-w-2xl text-center">
             <Reveal>
-              <p className="text-sm font-bold uppercase tracking-[0.2em] text-[#059669]">Let&apos;s Connect</p>
+              <p className="text-sm font-bold uppercase tracking-[0.2em] text-gain">Let&apos;s Connect</p>
               <h2 className="mt-4 font-display text-3xl font-bold tracking-tight text-[#0F172A] sm:text-4xl">
                 We&apos;re here to support you
               </h2>
@@ -616,11 +616,11 @@ export function AboutContent() {
                       href={`mailto:${PRIVACY_OFFICER_EMAIL}`}
                       className="group flex items-center gap-3 rounded-xl border border-[#0F172A]/8 bg-[#F8FAFC] px-4 py-3.5 transition-all hover:border-[#059669]/40 hover:bg-white"
                     >
-                      <span className="grid size-10 place-items-center rounded-lg bg-[#059669]/10 text-[#059669]">
+                      <span className="grid size-10 place-items-center rounded-lg bg-[#059669]/10 text-gain">
                         <Mail className="size-5" />
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="block text-[11px] font-bold uppercase tracking-[0.14em] text-[#059669]">
+                        <span className="block text-[11px] font-bold uppercase tracking-[0.14em] text-gain">
                           Lukas · privacy requests
                         </span>
                         <span className="block truncate text-[15px] font-semibold text-[#0F172A]">
@@ -628,17 +628,17 @@ export function AboutContent() {
                         </span>
                         <span className="block text-xs text-[#64748B]">lukas at aetherforgeai.co.nz</span>
                       </span>
-                      <ArrowRight className="size-4 text-[#94A3B8] transition-transform group-hover:translate-x-0.5 group-hover:text-[#059669]" />
+                      <ArrowRight className="size-4 text-[#94A3B8] transition-transform group-hover:translate-x-0.5 group-hover:text-gain" />
                     </a>
                     <a
                       href={`mailto:${CUSTOMER_EMAIL}`}
                       className="group flex items-center gap-3 rounded-xl border border-[#0F172A]/8 bg-[#F8FAFC] px-4 py-3.5 transition-all hover:border-[#059669]/40 hover:bg-white"
                     >
-                      <span className="grid size-10 place-items-center rounded-lg bg-[#059669]/10 text-[#059669]">
+                      <span className="grid size-10 place-items-center rounded-lg bg-[#059669]/10 text-gain">
                         <Mail className="size-5" />
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="block text-[11px] font-bold uppercase tracking-[0.14em] text-[#94A3B8]">
+                        <span className="block text-[11px] font-bold uppercase tracking-[0.14em] text-[#64748B]">
                           General and customer matters
                         </span>
                         <span className="block truncate text-[15px] font-semibold text-[#0F172A]">
@@ -646,7 +646,7 @@ export function AboutContent() {
                         </span>
                         <span className="block text-xs text-[#64748B]">admin at aetherforgeai.co.nz</span>
                       </span>
-                      <ArrowRight className="size-4 text-[#94A3B8] transition-transform group-hover:translate-x-0.5 group-hover:text-[#059669]" />
+                      <ArrowRight className="size-4 text-[#94A3B8] transition-transform group-hover:translate-x-0.5 group-hover:text-gain" />
                     </a>
                   </div>
                 </div>
@@ -665,11 +665,11 @@ export function AboutContent() {
                         aria-label={`AetherForge AI on ${label}`}
                         className="group/social inline-flex items-center gap-3 rounded-xl border border-[#0F172A]/8 bg-[#F8FAFC] px-4 py-3 transition-all hover:border-[#059669]/40 hover:bg-white hover:shadow-sm"
                       >
-                        <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-[#0F172A] text-white transition-colors group-hover/social:bg-[#059669]">
+                        <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-[#0F172A] text-white transition-colors group-hover/social:bg-primary">
                           <Icon className="size-5" />
                         </span>
                         <span className="min-w-0 flex-1 text-[15px] font-semibold text-[#0F172A]">{handle}</span>
-                        <ArrowRight className="size-4 shrink-0 text-[#94A3B8] transition-transform group-hover/social:translate-x-0.5 group-hover/social:text-[#059669]" />
+                        <ArrowRight className="size-4 shrink-0 text-[#94A3B8] transition-transform group-hover/social:translate-x-0.5 group-hover/social:text-gain" />
                       </a>
                     ))}
                   </div>

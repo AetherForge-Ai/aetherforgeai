@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import * as crypto from "node:crypto";
 import { lastDexRefreshFailure, refreshMarketSnapshotsNow } from "@/lib/crypto-board-store";
+import { dexSourceSummary } from "@/lib/crypto-keyless-seed";
 import { cronSecretBuffers, presentedHeaderCronSecret } from "@/lib/cron-header-secret";
 
 /**
@@ -37,7 +38,7 @@ async function handle(req: Request) {
   console.log(`[crypto-snapshot] refresh ${Date.now() - started}ms crypto=${result.cryptoReplaced} dex=${result.dexReplaced}`);
   // b62 TT P2: the DEX failure reason (provider status or "no rows"; never a key) for the Actions log.
   const dexFailure = result.dexReplaced ? null : lastDexRefreshFailure()?.reason ?? null;
-  return NextResponse.json({ ok: true, refreshed: true, email: "none", ...result, dexFailure });
+  return NextResponse.json({ ok: true, refreshed: true, email: "none", ...result, dexFailure, dexSources: dexSourceSummary() || null });
 }
 
 export async function GET(req: Request) {

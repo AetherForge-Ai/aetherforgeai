@@ -1,4 +1,4 @@
-// pull-check:v3-goal-b63-2026-10-24
+// pull-check:v3-goal-b64-2026-10-24
 /**
  * b63 TT P3 (CoinGecko pull shrinking 400 → 263): page-level retries and a last-good full list.
  * CoinGecko serves 250 rows a page, so 400 needs pages 1 and 2. A page that fails is retried

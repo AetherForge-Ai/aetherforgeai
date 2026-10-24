@@ -476,7 +476,7 @@ export function PriceAlerts({
                       <TrendingUp className="mr-1 size-3" /> Trim
                     </Badge>
                   ) : (
-                    <Badge variant="outline" className="border-emerald-500/30 text-emerald-700">
+                    <Badge variant="outline" className="border-emerald-500/30 text-gain">
                       <ShieldCheck className="mr-1 size-3" /> Watching
                     </Badge>
                   )}
@@ -490,7 +490,7 @@ export function PriceAlerts({
                   {isCrypto && (
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">vs purchase</span>
-                      <span className={cn("tnum font-medium", pnlPct != null && pnlPct < 0 ? "text-rose-600" : "text-emerald-700")}>
+                      <span className={cn("tnum font-medium", pnlPct != null && pnlPct < 0 ? "text-rose-600" : "text-gain")}>
                         {pnlPct == null ? "—" : formatPercent(pnlPct)}
                       </span>
                     </div>
@@ -643,7 +643,7 @@ export function PriceAlerts({
                           <div
                             className={cn(
                               "flex items-center justify-end gap-1 text-[11px] font-medium",
-                              quote.changePct >= 0 ? "text-emerald-700" : "text-rose-500"
+                              quote.changePct >= 0 ? "text-gain" : "text-rose-500"
                             )}
                           >
                             {quote.changePct >= 0 ? (

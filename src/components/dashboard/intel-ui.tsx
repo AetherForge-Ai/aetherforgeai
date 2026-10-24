@@ -2,7 +2,7 @@ import { EXCHANGE_META, resolveExchange, type SecurityIntel } from "@/lib/market
 
 /** Colour class for a signed percentage. */
 export function pctClass(v: number): string {
-  return v > 0 ? "text-emerald-700" : v < 0 ? "text-rose-600" : "text-muted-foreground";
+  return v > 0 ? "text-gain" : v < 0 ? "text-rose-600" : "text-muted-foreground";
 }
 
 export function fmtPct(v: number): string {

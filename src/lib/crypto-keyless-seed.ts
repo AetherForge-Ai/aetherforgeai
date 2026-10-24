@@ -741,6 +741,67 @@ export function resetStatDonorCache() {
   statDonorCache = null;
 }
 
+/** b64 TT P2: per-page retries for the DEX sources (429, 5xx, timeout or network error). */
+export const DEX_PAGE_RETRY_DELAYS_MS = [400, 1_200];
+let dexRetryDelays: number[] = DEX_PAGE_RETRY_DELAYS_MS;
+/** Tests shorten the backoff. */
+export function setDexRetryDelaysForTests(delays: number[] | null) {
+  dexRetryDelays = delays ?? DEX_PAGE_RETRY_DELAYS_MS;
+}
+
+function dexRetryableStatus(status: number): boolean {
+  return status === 429 || status === 1015 || status >= 500;
+}
+
+/**
+ * One DEX page with backoff. A page that still fails never sinks the other pages (b63: one thrown
+ * timeout emptied the whole source and /status only said "did not return a list").
+ */
+async function fetchDexPage(
+  url: string,
+  headers: Record<string, string>,
+  parse: (body: unknown) => DexTokenRow[]
+): Promise<{ rows: DexTokenRow[]; failure: string | null }> {
+  let failure: string | null = null;
+  for (let attempt = 0; attempt <= dexRetryDelays.length; attempt++) {
+    if (attempt > 0) await sleep(dexRetryDelays[attempt - 1]);
+    try {
+      const res = await fetchSeed(url, headers);
+      if (!res.ok) {
+        failure = `HTTP ${res.status}`;
+        if (dexRetryableStatus(res.status)) continue;
+        return { rows: [], failure };
+      }
+      const body = await readJson(res);
+      if (!body) {
+        failure = "response was not JSON";
+        continue;
+      }
+      const rows = parse(body);
+      return { rows, failure: rows.length ? null : "empty list" };
+    } catch (err) {
+      const name = err instanceof Error ? err.name : "";
+      failure = name === "TimeoutError" || name === "AbortError" ? "timed out" : "network error";
+    }
+  }
+  return { rows: [], failure };
+}
+
+/** "HTTP 429 on 3 of 5 pages; timed out on 2 of 5 pages". Null when every page returned rows. */
+export function dexSourceReason(failures: (string | null)[]): string | null {
+  const total = failures.length;
+  const counts = new Map<string, number>();
+  for (const f of failures) if (f) counts.set(f, (counts.get(f) || 0) + 1);
+  if (!counts.size) return null;
+  return [...counts.entries()].map(([f, n]) => `${f} on ${n} of ${total} pages`).join("; ");
+}
+
+function noteDexSource(source: string, rows: DexTokenRow[], failures: (string | null)[]) {
+  const reason = dexSourceReason(failures);
+  if (rows.length) noteSeed(source, 200, rows.length, reason ? `partial: ${reason}` : null);
+  else noteSeed(source, null, 0, reason || "no rows");
+}
+
 async function fetchGeckoTerminalRows(): Promise<DexTokenRow[]> {
   const urls = [
     `${GT_BASE}/networks/trending_pools?include=base_token,quote_token,dex,network&page=1`,
@@ -750,44 +811,47 @@ async function fetchGeckoTerminalRows(): Promise<DexTokenRow[]> {
     ),
   ];
   const pages = await Promise.all(
-    urls.map(async (url) => {
-      const res = await fetchSeed(url, { accept: GT_ACCEPT, "user-agent": MARKET_USER_AGENT });
-      if (!res.ok) {
-        noteSeed("geckoterminal", res.status, 0, seedFailureReason("geckoterminal", res.status));
-        return [] as DexTokenRow[];
-      }
-      const body = await readJson(res);
+    urls.map((url) => {
       const network = url.includes("/networks/") && !url.includes("trending_pools") ? url.split("/networks/")[1]?.split("/")[0] || "" : "";
-      return parseMegafilterPage(body, network).filter((row) => dexRowClearsFloor(row) && pegOk(row.symbol, row.price || 0));
+      return fetchDexPage(url, { accept: GT_ACCEPT, "user-agent": MARKET_USER_AGENT }, (body) =>
+        parseMegafilterPage(body, network).filter((row) => dexRowClearsFloor(row) && pegOk(row.symbol, row.price || 0))
+      );
     })
   );
-  const rows = pages.flat();
-  if (rows.length) noteSeed("geckoterminal", 200, rows.length, null);
-  else if (!seedAttempts.has("geckoterminal")) noteSeed("geckoterminal", null, 0, "no rows");
+  const rows = pages.flatMap((page) => page.rows);
+  noteDexSource("geckoterminal", rows, pages.map((page) => page.failure));
   return rows;
 }
 
 async function fetchDexPaprikaRows(): Promise<DexTokenRow[]> {
   const pages = await Promise.all(
-    DEX_NETWORKS.map(async (network) => {
-      const url = `https://api.dexpaprika.com/networks/${network}/pools/search?limit=30&orderBy=volume_usd_24h&sort=desc`;
-      const res = await fetchSeed(url, { accept: "application/json", "user-agent": MARKET_USER_AGENT });
-      if (!res.ok) {
-        noteSeed("dexpaprika", res.status, 0, seedFailureReason("dexpaprika", res.status));
-        return [] as DexTokenRow[];
-      }
-      return dexRowsFromPaprikaPools(await readJson(res));
-    })
+    DEX_NETWORKS.map((network) =>
+      fetchDexPage(
+        `https://api.dexpaprika.com/networks/${network}/pools/search?limit=30&orderBy=volume_usd_24h&sort=desc`,
+        { accept: "application/json", "user-agent": MARKET_USER_AGENT },
+        (body) => dexRowsFromPaprikaPools(body)
+      )
+    )
   );
-  const rows = pages.flat();
-  if (rows.length) noteSeed("dexpaprika", 200, rows.length, null);
-  else if (!seedAttempts.has("dexpaprika")) noteSeed("dexpaprika", null, 0, "no rows");
+  const rows = pages.flatMap((page) => page.rows);
+  noteDexSource("dexpaprika", rows, pages.map((page) => page.failure));
   return rows;
+}
+
+/** b64 TT P2: one line per DEX source for /status and the cron log, e.g. "GeckoTerminal: HTTP 429 on 5 of 5 pages". */
+export function dexSourceSummary(report = lastCryptoSeedReport()): string {
+  const names: Record<string, string> = { geckoterminal: "GeckoTerminal", dexpaprika: "DexPaprika" };
+  return report
+    .filter((row) => row.source in names)
+    .map((row) => `${names[row.source]}: ${row.rows ? `${row.rows} rows${row.reason ? ` (${row.reason})` : ""}` : row.reason || "no rows"}`)
+    .join("; ");
 }
 
 export async function loadKeylessDexMarkets(opts?: { budgetMs?: number }): Promise<{ rows: DexTokenRow[]; sources: string[] }> {
   const budgetMs = opts?.budgetMs ?? KEYLESS_SEED_BUDGET_MS;
   const found: { source: string; rows: DexTokenRow[] }[] = [];
+  seedAttempts.delete("geckoterminal");
+  seedAttempts.delete("dexpaprika");
   await Promise.race([
     Promise.all([
       settle("geckoterminal", fetchGeckoTerminalRows(), [] as DexTokenRow[]).then((rows) => {
@@ -799,6 +863,9 @@ export async function loadKeylessDexMarkets(opts?: { budgetMs?: number }): Promi
     ]),
     sleep(budgetMs),
   ]);
+  for (const source of ["geckoterminal", "dexpaprika"]) {
+    if (!seedAttempts.has(source)) noteSeed(source, null, 0, `no answer within ${Math.round(budgetMs / 1000)} s`);
+  }
   const rows = mergeDexSeedRows(found.map((item) => item.rows));
   const sources = found.filter((item) => item.rows.length).map((item) => item.source);
   return { rows, sources };

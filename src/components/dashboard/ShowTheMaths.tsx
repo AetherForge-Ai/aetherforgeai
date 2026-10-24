@@ -89,9 +89,9 @@ export function FigureReadout({
     <span className={cn("inline-flex flex-col items-end gap-0.5", className)}>
       {/* b6 M-6: one line, tabular digits, and room between a price and its info icon. */}
       <span className="inline-flex flex-nowrap items-center justify-end gap-1.5 whitespace-nowrap">
-        {up && !compact ? <ArrowUp className="size-3 text-emerald-700" aria-hidden /> : null}
+        {up && !compact ? <ArrowUp className="size-3 text-gain" aria-hidden /> : null}
         {down && !compact ? <ArrowDown className="size-3 text-rose-600" aria-hidden /> : null}
-        <span className={cn("tnum whitespace-nowrap tabular-nums", compact && up && "text-emerald-700", compact && down && "text-rose-600")} title={missing ? figure.reason || undefined : undefined}>
+        <span className={cn("tnum whitespace-nowrap tabular-nums", compact && up && "text-gain", compact && down && "text-rose-600")} title={missing ? figure.reason || undefined : undefined}>
           {text}
           {missing && figure.reason ? <span className="sr-only"> {figure.reason}</span> : null}
         </span>

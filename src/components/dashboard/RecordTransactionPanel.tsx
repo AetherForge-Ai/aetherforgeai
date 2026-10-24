@@ -1215,7 +1215,7 @@ export function RecordTransactionPanel({
           ) : livePreview && !movementBlocked ? (
             <p className="text-sm">
               Cash change{" "}
-              <span className={cn("tnum font-semibold", livePreview.cashChangeNzd < 0 ? "text-rose-600" : "text-emerald-700")}>
+              <span className={cn("tnum font-semibold", livePreview.cashChangeNzd < 0 ? "text-rose-600" : "text-gain")}>
                 {formatSignedMoney(livePreview.cashChangeNzd)}
               </span>
               <span className="text-muted-foreground"> · cash after {formatNzd(livePreview.cashAfterNzd)}</span>
