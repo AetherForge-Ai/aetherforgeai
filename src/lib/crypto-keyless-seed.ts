@@ -19,6 +19,17 @@ import {
   parseMegafilterPage,
   type DexTokenRow,
 } from "@/lib/crypto-dex";
+import {
+  COINGECKO_PAGE_SIZE,
+  COINGECKO_PAGES,
+  fillFromLastGood,
+  readPageWithRetry,
+  rememberFullList,
+  resetLastGoodList,
+  retryableStatus,
+  type PageResult,
+} from "@/lib/coingecko-pull";
+import { MARKET_LIST_TARGET } from "@/lib/crypto-coverage";
 import { canonicalCryptoId } from "@/lib/crypto-ids";
 import { coinDisplayName } from "@/lib/crypto-names";
 import { mergeCoinMarketStats, positiveMarketStat, type CoinMarket } from "@/lib/crypto-market";
@@ -94,6 +105,7 @@ export function resetSeedFetch() {
   seedFetchOverride = null;
   seedAttempts.clear();
   lastSeedReport = [];
+  resetLastGoodList();
 }
 
 /** Shown when CoinGecko refuses this runtime. The key is never included. */
@@ -592,20 +604,31 @@ async function readJson(res: Response): Promise<unknown> {
 }
 
 async function fetchCoinGeckoLists(onReady?: (rows: CoinMarket[]) => void): Promise<CoinMarket[]> {
-  const first = await readCoinGeckoPage(1);
-  let coins = coinsFromCoinGeckoMarkets(first);
-  if (coins.length) onReady?.(coins);
-  if (first.length >= 250) {
-    const second = await readCoinGeckoPage(2);
-    coins = coinsFromCoinGeckoMarkets([...first, ...second]);
+  // b63 TT P3: each page retries; a page that still fails is filled from the last good full list.
+  const raw: unknown[] = [];
+  let coins: CoinMarket[] = [];
+  for (let page = 1; page <= COINGECKO_PAGES; page++) {
+    const result = await readPageWithRetry(() => readCoinGeckoPage(page));
+    raw.push(...result.rows);
+    coins = coinsFromCoinGeckoMarkets(raw);
     if (coins.length) onReady?.(coins);
+    if (result.rows.length < COINGECKO_PAGE_SIZE) break;
+  }
+  if (coins.length >= MARKET_LIST_TARGET) rememberFullList(coins);
+  else if (coins.length) {
+    const filled = fillFromLastGood(coins);
+    if (filled.length > coins.length) {
+      console.warn(`[crypto-seed] coingecko short pull ${coins.length}; kept last good list to ${filled.length}`);
+      coins = filled;
+      onReady?.(coins);
+    }
   }
   if (coins.length) noteSeed("coingecko", 200, coins.length, null);
   else if (!seedAttempts.has("coingecko")) noteSeed("coingecko", null, 0, "no rows");
   return coins;
 }
 
-async function readCoinGeckoPage(page: number): Promise<unknown[]> {
+async function readCoinGeckoPage(page: number): Promise<PageResult> {
   const path = `/coins/markets?${CG_QUERY}&page=${page}`;
   const first = coinGeckoEndpoint();
   let res = await fetchSeed(`${first.base}${path}`, first.headers);
@@ -616,10 +639,10 @@ async function readCoinGeckoPage(page: number): Promise<unknown[]> {
   if (!res.ok) {
     console.error(`[crypto-seed] coingecko page ${page} status ${res.status}`);
     noteSeed("coingecko", res.status, 0, seedFailureReason("coingecko", res.status));
-    return [];
+    return { rows: [], status: res.status, retryable: retryableStatus(res.status) };
   }
   const body = await readJson(res);
-  return Array.isArray(body) ? body : [];
+  return { rows: Array.isArray(body) ? body : [], status: res.status, retryable: !Array.isArray(body) };
 }
 
 async function fetchListedSeed(

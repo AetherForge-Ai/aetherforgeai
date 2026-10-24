@@ -37,6 +37,18 @@ export function cryptoCountLine(listCount: number): string {
   return `Showing ${count} of up to ${MARKET_LIST_TARGET}`;
 }
 
+/**
+ * b63 TT P3: the crypto header said "25 coins" beside "Showing 400 of up to 400". With no search the
+ * header uses the same full-list number as the count line; a search says how many rows match.
+ */
+export function cryptoHeaderCount(listCount: number, matchedRows: number, query: string): string {
+  if ((query || "").trim()) {
+    const n = Math.max(0, Math.round(Number(matchedRows) || 0));
+    return `${n} ${n === 1 ? "match" : "matches"}`;
+  }
+  return `${cryptoCoverageCount(listCount)} coins`;
+}
+
 export const SUPPLY_NOT_AVAILABLE = "Not available";
 
 /** Why a list stopped short of 400. Null only when 400 coins are in hand. */
