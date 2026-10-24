@@ -37,7 +37,7 @@ function MoverList({
                 <span className="font-semibold">{row.symbol}</span>
                 <span className="ml-2 text-muted-foreground">{row.name}</span>
               </span>
-              <span className={cn("tnum font-semibold", tone === "up" ? "text-emerald-700" : "text-rose-600")}>
+              <span className={cn("tnum font-semibold", tone === "up" ? "text-gain" : "text-rose-600")}>
                 <span aria-hidden="true">{row.changePct > 0 ? "▲ " : row.changePct < 0 ? "▼ " : ""}</span>
                 {signed(row.changePct)}
               </span>
@@ -103,7 +103,7 @@ export function NzsxMarketBoard() {
               <>
                 <p className="tnum mt-2 font-display text-3xl font-bold">{levelFmt.format(view.level)}</p>
                 {view.changePct != null ? (
-                  <p className={cn("mt-1 text-sm font-semibold", view.changePct >= 0 ? "text-emerald-700" : "text-rose-600")}>
+                  <p className={cn("mt-1 text-sm font-semibold", view.changePct >= 0 ? "text-gain" : "text-rose-600")}>
                     <span aria-hidden="true">{view.changePct > 0 ? "▲ " : view.changePct < 0 ? "▼ " : ""}</span>
                     {signed(view.changePct)}
                   </p>
@@ -117,7 +117,7 @@ export function NzsxMarketBoard() {
             <p className="mt-1 text-sm text-muted-foreground">{view.universeNote}</p>
             {view.breadth ? (
               <p className="mt-2 text-sm">
-                <span className="font-semibold text-emerald-700">{view.breadth.advancers} up</span>
+                <span className="font-semibold text-gain">{view.breadth.advancers} up</span>
                 {" · "}
                 <span className="font-semibold text-rose-600">{view.breadth.decliners} down</span>
                 {" · "}

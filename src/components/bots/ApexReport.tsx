@@ -26,7 +26,7 @@ import type {
 import type { BriefingOutlookRow } from "@/lib/briefing";
 
 function pctTone(v: number): string {
-  return v > 0 ? "text-emerald-700" : v < 0 ? "text-rose-600" : "text-muted-foreground";
+  return v > 0 ? "text-gain" : v < 0 ? "text-rose-600" : "text-muted-foreground";
 }
 
 /** Compact 12-month momentum / continuation line chart (SVG, no deps). */
@@ -171,7 +171,7 @@ function actionTone(action: DirectRecommendation["action"]): string {
     case "BUY":
       return "bg-teal-500/15 text-teal-300 border-teal-500/30";
     case "ACCUMULATE":
-      return "bg-emerald-500/15 text-emerald-700 border-emerald-500/30";
+      return "bg-emerald-500/15 text-gain border-emerald-500/30";
   }
 }
 
@@ -266,7 +266,7 @@ function RegionalNewsSection({ report }: { report: ApexReport }) {
                     variant="outline"
                     className={
                       n.impact === "Bullish"
-                        ? "border-emerald-500/30 text-emerald-700"
+                        ? "border-emerald-500/30 text-gain"
                         : n.impact === "Bearish"
                           ? "border-rose-500/30 text-rose-600"
                           : "border-border/60 text-muted-foreground"
@@ -327,7 +327,7 @@ function DirectRecommendationsSection({ report }: { report: ApexReport }) {
       )}
       {fresh.length > 0 && (
         <>
-          <div className="mt-3 mb-1.5 text-xs font-semibold text-emerald-700">
+          <div className="mt-3 mb-1.5 text-xs font-semibold text-gain">
             New high-conviction opportunities (not yet held)
           </div>
           <ul className="grid gap-1.5">
@@ -391,7 +391,7 @@ function PathwayPlanSection({ report }: { report: ApexReport }) {
 
 function convTone(level: string): string {
   return level === "High"
-    ? "text-emerald-700 border-emerald-500/40 bg-emerald-500/10"
+    ? "text-gain border-emerald-500/40 bg-emerald-500/10"
     : level === "Moderate"
     ? "text-blue-600 border-blue-500/40 bg-blue-500/10"
     : level === "Speculative"
@@ -421,7 +421,7 @@ function OutlookRow({ r }: { r: BriefingOutlookRow }) {
       </td>
       <Cell label="Bear" lo={bear.lowPct} hi={bear.highPct} prob={bear.probability} tone="text-red-600" />
       <Cell label="Base" lo={base.lowPct} hi={base.highPct} prob={base.probability} tone="text-foreground" />
-      <Cell label="Bull" lo={bull.lowPct} hi={bull.highPct} prob={bull.probability} tone="text-emerald-700" />
+      <Cell label="Bull" lo={bull.lowPct} hi={bull.highPct} prob={bull.probability} tone="text-gain" />
     </tr>
   );
 }
@@ -431,13 +431,13 @@ function BriefingSection({ report }: { report: ApexReport }) {
   if (!b) return null;
   const biasTone =
     b.overall.bias === "Constructive"
-      ? "text-emerald-700 border-emerald-500/40 bg-emerald-500/10"
+      ? "text-gain border-emerald-500/40 bg-emerald-500/10"
       : b.overall.bias === "Defensive"
       ? "text-red-600 border-red-500/40 bg-red-500/10"
       : "text-muted-foreground border-border/60 bg-muted/40";
   const sentTone =
     b.sentiment.label === "Bullish"
-      ? "text-emerald-700 border-emerald-500/40 bg-emerald-500/10"
+      ? "text-gain border-emerald-500/40 bg-emerald-500/10"
       : b.sentiment.label === "Bearish"
       ? "text-red-600 border-red-500/40 bg-red-500/10"
       : "text-muted-foreground border-border/60 bg-muted/40";
@@ -578,7 +578,7 @@ export function ApexReportView({ report: source, scrubCopy = false }: { report: 
         </div>
         <Badge
           variant="outline"
-          className={report.isDemo ? "max-w-full min-w-0 shrink whitespace-normal border-amber-500/40 text-amber-700 bg-amber-500/10" : "max-w-full min-w-0 shrink whitespace-normal border-emerald-500/40 text-emerald-700 bg-emerald-500/10"}
+          className={report.isDemo ? "max-w-full min-w-0 shrink whitespace-normal border-amber-500/40 text-amber-700 bg-amber-500/10" : "max-w-full min-w-0 shrink whitespace-normal border-emerald-500/40 text-gain bg-emerald-500/10"}
         >
           {report.generatedLabel}
         </Badge>
@@ -673,7 +673,7 @@ export function ApexReportView({ report: source, scrubCopy = false }: { report: 
                   <span className="text-muted-foreground">
                     <span className="font-medium text-foreground">{g.ticker}</span> · {g.name}
                   </span>
-                  <span className={g.withheld ? "text-muted-foreground" : "text-emerald-700 font-mono"}>
+                  <span className={g.withheld ? "text-muted-foreground" : "text-gain font-mono"}>
                     {g.withheld ? "data under review" : formatPercent(g.changePct)}
                   </span>
                 </li>
@@ -723,7 +723,7 @@ export function ApexReportView({ report: source, scrubCopy = false }: { report: 
                   variant="outline"
                   className={
                     n.impact === "Bullish"
-                      ? "border-emerald-500/30 text-emerald-700"
+                      ? "border-emerald-500/30 text-gain"
                       : n.impact === "Bearish"
                         ? "border-rose-500/30 text-rose-600"
                         : "border-border/60 text-muted-foreground"

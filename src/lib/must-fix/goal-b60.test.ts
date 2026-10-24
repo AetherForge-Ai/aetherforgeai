@@ -1,7 +1,7 @@
 /**
  * b60: date-only values are NZ civil dates. Noon Auckland on 1 Apr NZDT is
  * 2026-03-31T23:00Z; reading the UTC prefix put it in the previous tax year.
- * pull-check:v3-goal-b63-2026-10-24
+ * pull-check:v3-goal-b64-2026-10-24
  */
 import { describe, expect, it } from "vitest";
 import { dateOnlyInstant, lotCivilDay, resolveExecutedInstant } from "@/lib/executed-at";

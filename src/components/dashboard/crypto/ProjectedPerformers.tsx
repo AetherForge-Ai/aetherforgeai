@@ -73,7 +73,7 @@ export function ProjectedPerformers({
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <span className="grid size-9 place-items-center rounded-xl bg-emerald-500/12 text-emerald-700">
+          <span className="grid size-9 place-items-center rounded-xl bg-emerald-500/12 text-gain">
             <TrendingUp className="size-4.5" />
           </span>
           <div>
@@ -167,7 +167,7 @@ export function ProjectedPerformers({
                   }}
                   className="grid w-full grid-cols-[36px_minmax(120px,1.5fr)_repeat(3,minmax(72px,1fr))_110px_100px_36px] items-center gap-2 border-b border-border/40 px-4 py-2 text-sm transition hover:bg-primary/5 sm:px-6"
                 >
-                  <span className="tnum text-xs font-semibold text-emerald-700">{i + 1}</span>
+                  <span className="tnum text-xs font-semibold text-gain">{i + 1}</span>
                   <span className="flex min-w-0 items-center gap-2 text-left">
                     <img
                       src={c.image || GENERIC_COIN_ICON}

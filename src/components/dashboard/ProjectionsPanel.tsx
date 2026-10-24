@@ -49,7 +49,7 @@ function Indicator({
       <p
         className={cn(
           "tnum mt-1 font-display text-base font-bold",
-          tone === "up" && "text-emerald-700",
+          tone === "up" && "text-gain",
           tone === "down" && "text-rose-600"
         )}
       >
@@ -215,7 +215,7 @@ export function ProjectionsPanel({
                   className={cn(
                     "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[0.62rem] font-bold uppercase tracking-wide",
                     sel.projected7dPct >= 0
-                      ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700"
+                      ? "border-emerald-500/30 bg-emerald-500/10 text-gain"
                       : "border-rose-500/30 bg-rose-500/10 text-rose-700"
                   )}
                 >

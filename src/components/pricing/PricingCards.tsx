@@ -163,7 +163,7 @@ export function PricingCards({
             <span
               className={cn(
                 "rounded-full px-2 py-0.5 text-[0.62rem] font-bold",
-                annual ? "bg-primary-foreground/20 text-primary-foreground" : "bg-emerald-500/15 text-emerald-700"
+                annual ? "bg-primary-foreground/20 text-primary-foreground" : "bg-emerald-500/15 text-gain"
               )}
             >
               Save 2 months (≈17%)

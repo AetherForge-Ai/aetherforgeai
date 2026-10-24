@@ -314,7 +314,7 @@ export function SettingsClient({
           >
             <Avatar className="size-20 ring-2 ring-border/70 transition group-hover:ring-primary/50">
               {image ? <AvatarImage src={image} alt={displayName} /> : null}
-              <AvatarFallback className="bg-primary/15 text-lg font-semibold text-emerald-800">
+              <AvatarFallback className="bg-primary/15 text-lg font-semibold text-gain">
                 {initials(displayName || "U")}
               </AvatarFallback>
             </Avatar>
@@ -464,7 +464,7 @@ export function SettingsClient({
             className={cn(
               "rounded-full px-3 py-1 text-xs font-semibold",
               isActive
-                ? "bg-emerald-500/15 text-emerald-700"
+                ? "bg-emerald-500/15 text-gain"
                 : "bg-muted text-muted-foreground"
             )}
           >
@@ -597,7 +597,7 @@ export function SettingsClient({
                         className={cn(
                           "shrink-0 rounded-full px-2 py-0.5 text-[0.62rem] font-semibold uppercase",
                           isUpgrade
-                            ? "bg-emerald-500/15 text-emerald-700"
+                            ? "bg-emerald-500/15 text-gain"
                             : "bg-muted text-muted-foreground"
                         )}
                       >
@@ -617,7 +617,7 @@ export function SettingsClient({
 
                     <ul className="mt-2 space-y-1">
                       <li className="flex items-center gap-1.5 text-[0.72rem] text-muted-foreground">
-                        <Check className="size-3 text-emerald-700" />
+                        <Check className="size-3 text-gain" />
                         {plan.tickerLimit} tickers · {plan.botAccess === "both" ? "both bots" : "one bot"}
                       </li>
                     </ul>

@@ -72,7 +72,7 @@ export function GlobalSearch({
                 value={`${e.ticker} ${e.name}`}
                 onSelect={() => handleSelect("stock", e)}
               >
-                <TrendingUp className="mr-2 size-4 text-emerald-700" />
+                <TrendingUp className="mr-2 size-4 text-gain" />
                 <span className="font-semibold">{e.ticker.replace(/\.(NZ|AX)$/, "")}</span>
                 <span className="ml-2 truncate text-muted-foreground">{e.name}</span>
                 <span className="ml-auto text-[0.62rem] uppercase text-muted-foreground">{e.market}</span>

@@ -496,7 +496,7 @@ export function StockDialog({ open, onOpenChange, editing, onSaved, defaultAsset
               <Label htmlFor="price" className="flex items-center gap-1.5">
                 {copy.priceLabel}
                 {priceLoading && <Loader2 className="size-3 animate-spin text-muted-foreground" />}
-                {priceLocked && !priceLoading && <Lock className="size-3 text-emerald-700" />}
+                {priceLocked && !priceLoading && <Lock className="size-3 text-gain" />}
               </Label>
               <div className="relative">
                 <Input
@@ -515,11 +515,11 @@ export function StockDialog({ open, onOpenChange, editing, onSaved, defaultAsset
                   }}
                   className={cn(
                     priceLocked &&
-                      "cursor-not-allowed border-emerald-500/40 bg-emerald-500/5 pr-8 text-emerald-700"
+                      "cursor-not-allowed border-emerald-500/40 bg-emerald-500/5 pr-8 text-gain"
                   )}
                 />
                 {priceLocked && (
-                  <Lock className="pointer-events-none absolute right-2.5 top-1/2 size-3.5 -translate-y-1/2 text-emerald-700/70" />
+                  <Lock className="pointer-events-none absolute right-2.5 top-1/2 size-3.5 -translate-y-1/2 text-gain/70" />
                 )}
               </div>
             </div>
@@ -531,7 +531,7 @@ export function StockDialog({ open, onOpenChange, editing, onSaved, defaultAsset
               {staleNote}
             </p>
           ) : priceLocked ? (
-            <p className="-mt-1 flex items-start gap-1.5 text-xs leading-relaxed text-emerald-700">
+            <p className="-mt-1 flex items-start gap-1.5 text-xs leading-relaxed text-gain">
               <Lock className="mt-0.5 size-3.5 shrink-0" />
               <span>
                 <strong>Locked to today&apos;s live price.</strong> Because the purchase date is today, this is the
@@ -547,7 +547,7 @@ export function StockDialog({ open, onOpenChange, editing, onSaved, defaultAsset
               </span>
             </p>
           ) : pricePrefilled ? (
-            <p className="-mt-1 flex items-center gap-1.5 text-xs leading-relaxed text-emerald-700">
+            <p className="-mt-1 flex items-center gap-1.5 text-xs leading-relaxed text-gain">
               <Check className="size-3.5" /> Filled with the current live price — edit it if you paid a different amount.
             </p>
           ) : (

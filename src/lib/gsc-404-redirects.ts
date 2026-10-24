@@ -3,7 +3,7 @@
  * Google or our own older pages pointed at. Each is one 308 (permanent) hop.
  * /own-the-bots was removed (the page now lives at /buy-the-bots). The rest are
  * the usual well-known guesses for files that exist under another path.
- * pull-check:v3-goal-b63-2026-10-24
+ * pull-check:v3-goal-b64-2026-10-24
  */
 export const GSC_404_REDIRECTS = [
   { source: "/own-the-bots", destination: "/buy-the-bots" },

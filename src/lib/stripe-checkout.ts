@@ -58,7 +58,7 @@ export async function createPlanCheckout(opts: { user: AppUser; plan: PlanDef; b
       line_items: [
         {
           quantity: 1,
-          price_data: { currency: "nzd", unit_amount: unitAmount, recurring: { interval }, product_data: { name: `AetherForge AI — ${plan.name} (test)` } },
+          price_data: { currency: "nzd", unit_amount: unitAmount, recurring: { interval }, product_data: { name: `AetherForge AI — ${plan.name} (test)`, metadata: { aetherforge_catalog: "test-harness", plan: plan.key } } },
         },
       ],
     });

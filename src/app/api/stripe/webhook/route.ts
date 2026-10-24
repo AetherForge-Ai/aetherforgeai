@@ -25,7 +25,26 @@ import {
   entitlementPatch,
   markProcessed,
   mayAcceptUnsignedEvent,
+  testModePlan,
 } from "@/lib/stripe-entitlement";
+import { testSecretKey } from "@/lib/stripe-mode";
+
+/**
+ * b64 CR-6: read objects back with the client for the event's own mode. A test-mode event
+ * (livemode false) is re-read with the test key, never the live key, so replays and
+ * out-of-order test events resolve to Stripe's current state instead of the stale event copy.
+ */
+let testReader: Stripe | null = null;
+function readerFor(livemode: boolean | undefined): Stripe {
+  if (livemode === false) {
+    const key = testSecretKey();
+    if (key) {
+      if (!testReader) testReader = new Stripe(key, { apiVersion: "2025-09-30.clover", typescript: true, httpClient: Stripe.createFetchHttpClient() });
+      return testReader;
+    }
+  }
+  return stripe;
+}
 
 type SubscriptionPatch = {
   subscription_status?: string;
@@ -87,7 +106,7 @@ function planFromSubscription(subscription: Stripe.Subscription) {
  */
 async function liveSubscription(subscription: Stripe.Subscription): Promise<Stripe.Subscription> {
   try {
-    return await stripe.subscriptions.retrieve(subscription.id);
+    return await readerFor(subscription.livemode).subscriptions.retrieve(subscription.id);
   } catch (err) {
     console.warn("[webhook] live subscription read failed; using event copy", subscription.id, err instanceof Error ? err.message : "error");
     return subscription;
@@ -112,7 +131,7 @@ async function syncSubscription(
   }
 
   // The plan comes from the purchased price id (webhook data only).
-  const planDef = planFromSubscription(subscription);
+  const planDef = planFromSubscription(subscription) ?? testModePlan(subscription, userId);
 
   // Prefer real Stripe billing-period bounds; fall back to plan durationDays.
   const sub = subscription as unknown as { current_period_start?: number; current_period_end?: number };
@@ -150,7 +169,8 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   if (session.mode === "subscription" && session.subscription) {
     const subId = typeof session.subscription === "string" ? session.subscription : session.subscription.id;
     try {
-      let subscription = await stripe.subscriptions.retrieve(subId);
+      const reader = readerFor(session.livemode);
+      let subscription = await reader.subscriptions.retrieve(subId);
 
       // Payment Links create a subscription WITHOUT our identity metadata (the
       // user only rides along on the session's client_reference_id). Stamp it
@@ -168,7 +188,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
           bot_access: botAccess,
         };
         try {
-          subscription = await stripe.subscriptions.update(subId, { metadata: stamped });
+          subscription = await reader.subscriptions.update(subId, { metadata: stamped });
           console.log(`[webhook] Stamped identity on subscription ${subId}:`, stamped);
         } catch (stampErr) {
           // Non-fatal: fall back to the in-memory overrides for this sync.

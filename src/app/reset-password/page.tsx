@@ -73,7 +73,7 @@ function ResetPasswordForm() {
         {done ? (
           <>
             <CardHeader className="space-y-3 text-center pb-6">
-              <div className="mx-auto flex size-14 items-center justify-center rounded-full bg-green-500/10 text-green-500">
+              <div className="mx-auto flex size-14 items-center justify-center rounded-full bg-green-500/10 text-gain">
                 <CheckCircle2 className="size-7" />
               </div>
               <h1 data-slot="card-title" className="text-2xl font-bold tracking-tight leading-none">Password updated</h1>
