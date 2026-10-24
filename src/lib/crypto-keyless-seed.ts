@@ -749,7 +749,7 @@ export function setDexRetryDelaysForTests(delays: number[] | null) {
   dexRetryDelays = delays ?? DEX_PAGE_RETRY_DELAYS_MS;
 }
 
-function retryableStatus(status: number): boolean {
+function dexRetryableStatus(status: number): boolean {
   return status === 429 || status === 1015 || status >= 500;
 }
 
@@ -769,7 +769,7 @@ async function fetchDexPage(
       const res = await fetchSeed(url, headers);
       if (!res.ok) {
         failure = `HTTP ${res.status}`;
-        if (retryableStatus(res.status)) continue;
+        if (dexRetryableStatus(res.status)) continue;
         return { rows: [], failure };
       }
       const body = await readJson(res);
