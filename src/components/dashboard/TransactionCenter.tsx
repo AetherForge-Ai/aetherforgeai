@@ -1,5 +1,6 @@
 "use client";
 
+import { scrollRegionProps } from "@/lib/focus-trap";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Dialog,
@@ -657,7 +658,7 @@ export function TransactionCenter({
           </div>
         ) : (
           <>
-          <div className="overflow-x-auto rounded-2xl border border-border/50">
+          <div className="overflow-x-auto rounded-2xl border border-border/50" {...scrollRegionProps("Transactions")}>
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border/50 bg-background/40 text-left text-xs uppercase tracking-wide text-muted-foreground">

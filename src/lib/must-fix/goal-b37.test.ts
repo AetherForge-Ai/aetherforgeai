@@ -1,4 +1,4 @@
-// pull-check:v3-goal-b64-2026-10-24
+// pull-check:v3-goal-b65-2026-10-24
 import { describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 
@@ -257,7 +257,8 @@ describe("b37 P2: CR-6 hook plan name, M-2 dashboard label, G-14 focus", () => {
   it("G-14: stray focus goes to the field after the last one focused, not to the first field", () => {
     const d = read("src/components/dashboard/TransactionDialog.tsx");
     expect(d).toContain("lastInside");
-    expect(d).toMatch(/items\.indexOf\(lastInside\)/);
+    // b65 G-14: moved into the shared, unit-tested helper (focus-trap.ts; goal-b65.test.ts).
+    expect(d).toMatch(/recoverFocusTarget\(items, lastInside, backwards\)/);
     expect(d).toMatch(/document\.addEventListener\("focusin", onFocusIn\)/);
   });
 });

@@ -13,6 +13,8 @@ import { publicPriceSlot } from "@/lib/public-catalog";
 import { ensurePublicPrice } from "@/lib/ensure-public-price";
 import { totalumSdk } from "@/lib/totalum";
 import { checkoutStripe } from "@/lib/stripe-mode";
+import { HOLDING_CAPS_V2 } from "@/lib/feature-flags";
+import { trialPaymentCollection } from "@/lib/holding-caps";
 
 export const TEST_KEY_MISSING = "Checkout is in Stripe test mode and no test key is configured.";
 
@@ -37,12 +39,15 @@ export async function createPlanCheckout(opts: { user: AppUser; plan: PlanDef; b
     description: `${plan.name} — AetherForge AI paper portfolio and research reports (NZD). Not a broker.`,
   };
   if (selfServe) subscriptionData.trial_period_days = 14;
+  // b65 G-07: no-card trial only behind HOLDING_CAPS_V2 (OFF in prod). OFF keeps "always", as before.
+  const paymentCollection = trialPaymentCollection(HOLDING_CAPS_V2, selfServe);
+  if (paymentCollection === "if_required") subscriptionData.trial_settings = { end_behavior: { missing_payment_method: "cancel" } };
   const common = {
     mode: "subscription" as const,
     client_reference_id: user._id,
     metadata: meta,
     subscription_data: subscriptionData as any,
-    payment_method_collection: "always" as const,
+    payment_method_collection: paymentCollection,
     locale: "en" as const,
     success_url: `${baseUrl}/stripe/success?session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${baseUrl}${opts.cancelPath || "/pricing"}`,

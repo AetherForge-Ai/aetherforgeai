@@ -1,5 +1,6 @@
 "use client";
 
+import { scrollRegionProps } from "@/lib/focus-trap";
 import {
   clearPendingWrite,
   correctFromJournal,
@@ -3295,7 +3296,7 @@ export function PortfolioDashboard({
             </Button>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto" {...scrollRegionProps("Portfolio table")}>
             <table className="w-full min-w-[56rem] text-xs">
               <thead>
                 <tr className="border-b border-border/50 text-left text-xs uppercase tracking-wide text-muted-foreground">

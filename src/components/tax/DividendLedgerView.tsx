@@ -1,5 +1,6 @@
 "use client";
 
+import { scrollRegionProps } from "@/lib/focus-trap";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -441,7 +442,7 @@ export function DividendLedgerView({
           <p className="mt-3 text-sm text-muted-foreground">No dividends recorded.</p>
         ) : (
           <>
-            <div className="mt-3 overflow-x-auto rounded-2xl border border-border/70">
+            <div className="mt-3 overflow-x-auto rounded-2xl border border-border/70" {...scrollRegionProps("Dividend ledger")}>
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border/60 text-left text-xs uppercase tracking-wide text-muted-foreground">

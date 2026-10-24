@@ -6,6 +6,8 @@
  * - KOINS_MODEL_V2 (BL-9): PR #362 calibration. Off until the backtest passes.
  * - HEADMASTER_GOALS (H-11): off until the Totalum `goal` table exists.
  * - ULTIMATE_FEATURES (BL-6): seats, client portfolios and the API. Off.
+ * - HOLDING_CAPS_V2 (G-07, b65): caps grid, no-card trial and refund text on /pricing, and the
+ *   no-card trial at checkout. OFF until Lukas decides K-14/K-21; prices never change with it.
  * - IN_APP_BRIEFS (G-03) and IN_APP_ALERTS_V1 (G-04): in app only, off until K-05/K-12.
  */
 const on = (name: string) => process.env[name] === "1";
@@ -14,6 +16,7 @@ export const LEDGER_ROW_EDIT = process.env.LEDGER_ROW_EDIT !== "0";
 export const KOINS_MODEL_V2 = on("KOINS_MODEL_V2");
 export const HEADMASTER_GOALS = on("HEADMASTER_GOALS");
 export const ULTIMATE_FEATURES = on("ULTIMATE_FEATURES");
+export const HOLDING_CAPS_V2 = on("HOLDING_CAPS_V2");
 export const IN_APP_BRIEFS = on("IN_APP_BRIEFS");
 export const IN_APP_ALERTS_V1 = on("IN_APP_ALERTS_V1");
 export { CSP_ALLOW_TOTALUM_TEST } from "@/lib/security-headers";

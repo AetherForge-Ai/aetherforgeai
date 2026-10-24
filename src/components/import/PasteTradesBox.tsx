@@ -5,6 +5,7 @@ import { api } from "@/lib/api";
 import { readCachedBook } from "@/lib/client-user-state";
 import { useLiveSessionUser } from "@/lib/use-live-session";
 import { withRowDates } from "@/lib/paste-date";
+import { pasteAiNote, readMemberSwitch, writeMemberSwitch } from "@/lib/paste-ai-switch";
 import {
   PASTE_COLUMN_MAP,
   PASTE_IMPORT_AI_ENABLED,
@@ -144,6 +145,16 @@ export function PasteTradesBox({
   const [rows, setRows] = useState<PastedRow[]>([]);
   const [rowDates, setRowDates] = useState<Record<number, string>>({});
   const [rates, setRates] = useState<Rates | null>(null);
+  // b65 G-24: the member's AI-off switch (default OFF, this device only).
+  const [aiSwitch, setAiSwitch] = useState(false);
+  useEffect(() => {
+    setAiSwitch(readMemberSwitch(typeof window === "undefined" ? null : window.localStorage));
+  }, []);
+  function toggleAi() {
+    const next = !aiSwitch;
+    setAiSwitch(next);
+    writeMemberSwitch(typeof window === "undefined" ? null : window.localStorage, next);
+  }
   const bookHeld = useMemo(() => (heldProp !== undefined ? heldProp : heldTickersFromBook(user?.id)), [heldProp, user?.id]);
   // b42 P3: no cached book on this device: fetch the holdings, so a sell you don't hold is flagged here.
   const [fetchedHeld, setFetchedHeld] = useState<Set<string> | null>(null);
@@ -254,11 +265,23 @@ export function PasteTradesBox({
           </button>
         </>
       ) : null}
-      <p className="mt-2 text-xs text-muted-foreground">
-        {PASTE_IMPORT_AI_ENABLED
-          ? "AI reading of PDFs and screenshots is switched on."
-          : "AI reading is off: only pasted text is read, in the app, by fixed rules. PDFs and screenshots are not read."}
-      </p>
+      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs" data-paste-ai>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={PASTE_IMPORT_AI_ENABLED && aiSwitch}
+          aria-describedby={`${idPrefix}-ai-note`}
+          disabled={!PASTE_IMPORT_AI_ENABLED}
+          onClick={toggleAi}
+          className="h-7 rounded-full border px-3 font-semibold disabled:opacity-60"
+          data-paste-ai-switch
+        >
+          AI help: {PASTE_IMPORT_AI_ENABLED && aiSwitch ? "On" : "Off"}
+        </button>
+        <span id={`${idPrefix}-ai-note`} className="text-muted-foreground" data-paste-ai-note>
+          {pasteAiNote(PASTE_IMPORT_AI_ENABLED, aiSwitch)}
+        </span>
+      </div>
     </section>
   );
 }

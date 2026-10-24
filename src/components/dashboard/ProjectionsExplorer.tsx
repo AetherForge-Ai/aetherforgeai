@@ -1,5 +1,6 @@
 "use client";
 
+import { scrollRegionProps } from "@/lib/focus-trap";
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import {
@@ -410,7 +411,7 @@ export function ProjectionsExplorer() {
         </div>
       ) : (
         <div className="overflow-hidden rounded-2xl border border-border/60 bg-card/40">
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto" {...scrollRegionProps("Projections table")}>
             <table className="w-full min-w-[560px] border-collapse">
               <caption className="caption-bottom px-3 py-2 text-left text-[11px] leading-relaxed text-muted-foreground">
                 {PROJECTIONS_FMC_DISCLAIMER}
