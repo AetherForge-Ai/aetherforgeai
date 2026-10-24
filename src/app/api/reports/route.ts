@@ -78,7 +78,7 @@ async function lastReportAt(userId: string, bot: BotKind): Promise<string | null
 
 /**
  * POST /api/reports
- * Generates a full SuperGrok 4.6 ULTRA ADVANCED report for the logged-in user's
+ * Generates a full AI report for the logged-in user's
  * holdings (via the shared report service), emails it with the PDF attached,
  * persists it and returns it for inline dashboard display.
  *

@@ -8,7 +8,7 @@ import type { BotKind } from "@/lib/bot-report";
  *
  * Scheduled 9am (NZ) briefing job. Meant to be called by the Totalum platform
  * scheduler (or any external cron) once a day at 09:00 Pacific/Auckland. It
- * emails each active subscriber their full SuperGrok 4.6 ULTRA ADVANCED report
+ * emails each active subscriber their full AI report
  * according to their plan's schedule:
  *
  *   - Apex Weekly              → Mondays only

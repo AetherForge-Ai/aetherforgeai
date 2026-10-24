@@ -16,7 +16,7 @@ import {
 } from "@/lib/stock-markets";
 import type { PublicMarketIndex } from "@/lib/public-market-types";
 import { BuyDialog, type BuyTarget } from "@/components/dashboard/BuyDialog";
-import { columnHasFigure, cryptoCountLine, dexCoverageLine, dexTabLabel } from "@/lib/crypto-coverage";
+import { columnHasFigure, cryptoCountLine, cryptoHeaderCount, dexCoverageLine, dexTabLabel } from "@/lib/crypto-coverage";
 import { coingeckoSupplied, countLine, stripLastGoodCell } from "@/lib/crypto-board";
 import { sourceLabel } from "@/lib/crypto-price-chain";
 import { DEX_EMPTY_NOTICE } from "@/lib/crypto-dex";
@@ -877,7 +877,9 @@ export function MarketsExplorer({
               ? (isDexTab ? dex.error : isCoinTab ? crypto.error : loadError)
               : hasData || remoteHits.length
               ? isCryptoTab
-                ? countLine(isDexTab ? "DEX tokens" : "coins", rows.length)
+                ? isDexTab
+                  ? countLine("DEX tokens", rows.length)
+                  : cryptoHeaderCount(cryptoFullList, rows.length, query)
                 : `${stockCountLine}${remoteLoading ? " · searching…" : ""}${remoteHits.length && query.trim() ? ` · +${remoteHits.length} market match${remoteHits.length === 1 ? "" : "es"}` : ""}`
               : stockLoading
               ? "Loading the list…"

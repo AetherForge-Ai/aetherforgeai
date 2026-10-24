@@ -61,10 +61,9 @@ export async function aiProviderHealth(
 export function aiProviderStatusLine(h: AiProviderHealth): { body: string; tone?: "amber" } {
   const when = `${formatDisplayDateTime(h.checkedAt)} (NZ time)`;
   const fail = lastGuideFailure();
-  const lastFail = fail ? ` Last guide failure: ${fail.code} (model ${fail.model}) at ${formatDisplayDateTime(fail.at)} (NZ time).` : "";
-  if (h.state === "ok") return { body: `OK${h.model ? ` (model ${h.model})` : ""}, checked ${when}.${lastFail}`, ...(fail ? { tone: "amber" as const } : {}) };
+  const lastFail = fail ? ` Last guide failure: ${fail.code} at ${formatDisplayDateTime(fail.at)} (NZ time).` : "";
+  if (h.state === "ok") return { body: `OK, checked ${when}.${lastFail}`, ...(fail ? { tone: "amber" as const } : {}) };
   if (h.state === "not_configured") return { body: `Not configured, checked ${when}. The guide answers from built-in help.`, tone: "amber" };
-  const where = h.model ? ` from model ${h.model} at ${h.endpoint ?? XAI_CHAT_ENDPOINT}` : "";
-  const provider = (h as { providerCode?: string }).providerCode ? `; provider error code ${(h as { providerCode?: string }).providerCode}` : "";
-  return { body: `Unavailable (${h.code})${where}${provider}, checked ${when}. The guide answers from built-in help until this is fixed.${lastFail}`, tone: "amber" };
+    const provider = (h as { providerCode?: string }).providerCode ? `; provider error code ${(h as { providerCode?: string }).providerCode}` : "";
+  return { body: `Unavailable (${h.code})${provider}, checked ${when}. The guide answers from built-in help until this is fixed.${lastFail}`, tone: "amber" };
 }

@@ -82,7 +82,7 @@ describe("CR-2 guide limit", () => {
     const line = aiProviderStatusLine(h);
     expect(line.body).toContain("Unavailable (http_403)");
     expect(line.body).not.toContain("test-key");
-    expect(read("src/app/status/page.tsx")).toContain("AI guide provider");
+    expect(read("src/app/status/page.tsx")).toContain(`title: "AI guide"`);
   });
 });
 
