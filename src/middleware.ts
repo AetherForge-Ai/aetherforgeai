@@ -6,8 +6,10 @@ import { portfolioAliasRedirect, portfolioAliasStatus } from "@/lib/portfolio-ro
 import {
   filterAnonymousAuthSetCookies,
   isCacheableMarketingPath,
+  isCacheableMarketsPath,
   isCookieFreePath,
   PUBLIC_MARKETING_CACHE_HEADERS,
+  PUBLIC_MARKETS_CACHE_HEADERS,
   shouldClearAnonymousAuthCookies,
 } from "@/lib/private-document";
 import { gsc404Redirect } from "@/lib/gsc-404-redirects";
@@ -92,6 +94,13 @@ function applyPublicMarketingCache(response: NextResponse) {
   return applyHeaderMap(response, PUBLIC_MARKETING_CACHE_HEADERS);
 }
 
+function applyPublicMarketsCache(response: NextResponse) {
+  response.headers.delete("Pragma");
+  response.headers.delete("Expires");
+  response.headers.delete("Surrogate-Control");
+  return applyHeaderMap(response, PUBLIC_MARKETS_CACHE_HEADERS);
+}
+
 const STATIC_FILE = /\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|map|txt|xml|woff2?)$/i;
 
 function applyCachePolicy(response: NextResponse, pathname: string, signedIn = false) {
@@ -111,6 +120,8 @@ function applyCachePolicy(response: NextResponse, pathname: string, signedIn = f
   }
   // M-1: edge-cache marketing pages for visitors only; a session cookie bypasses.
   if (!signedIn && isCacheableMarketingPath(pathname)) return applyPublicMarketingCache(response);
+  // b66 TT P3: signed-out /markets only (short edge TTL + stale-while-revalidate). Signed-in stays no-store.
+  if (!signedIn && isCacheableMarketsPath(pathname)) return applyPublicMarketsCache(response);
   return applyPrivateNoStore(response);
 }
 

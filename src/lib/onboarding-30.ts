@@ -4,6 +4,8 @@
  * The funnel is counted in this browser only (localStorage), and also pushed to
  * the consent-gated Google tag when analytics were accepted.
  */
+import { CONSENT_STORAGE_KEY } from "@/lib/analytics-consent";
+
 export const ONBOARDING_FUNNEL_KEY = "af-onboarding-funnel-v1";
 export const ONBOARDING_DONE_KEY = "af-onboarding-30-done-v1";
 
@@ -61,4 +63,56 @@ export function recordFunnel(step: FunnelStep, detail?: string): void {
   }
   const g = (window as unknown as { gtag?: (...args: unknown[]) => void }).gtag;
   if (typeof g === "function") g("event", `onboarding_${step}`, detail ? { detail } : {});
+  sendFunnelToServer(step, detail);
+}
+
+/** b66 G-28: anonymous funnel id cookie (first-party, 180 days), set only after analytics consent. */
+export const FUNNEL_ANON_COOKIE = "af_funnel_anon";
+const ANON_MAX_AGE_S = 180 * 24 * 60 * 60;
+
+function analyticsGranted(): boolean {
+  try {
+    return window.localStorage.getItem(CONSENT_STORAGE_KEY) === "granted";
+  } catch {
+    return false;
+  }
+}
+
+/** Consent granted: keep (or make) the anon id. Declined or unset: delete it. */
+export function syncFunnelAnonCookie(granted: boolean): void {
+  if (typeof document === "undefined") return;
+  const has = document.cookie.split(/;\s*/).some((c) => c.startsWith(`${FUNNEL_ANON_COOKIE}=`));
+  if (!granted) {
+    if (has) document.cookie = `${FUNNEL_ANON_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax; Secure`;
+    return;
+  }
+  if (has) return;
+  const b = new Uint8Array(18);
+  crypto.getRandomValues(b);
+  const id = btoa(String.fromCharCode(...b)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  document.cookie = `${FUNNEL_ANON_COOKIE}=${id}; Path=/; Max-Age=${ANON_MAX_AGE_S}; SameSite=Lax; Secure`;
+}
+
+/** b66 G-28: the client step name → the server's write-only event (validated again on the server). */
+export function serverFunnelEvent(step: FunnelStep, detail?: string): { event: string; stepKey?: string; planResult?: string } {
+  const key = (detail || "").toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, 40) || undefined;
+  if (step === "task_done") return { event: "checklist_step", stepKey: key };
+  if (step === "quiz_result") return { event: "quiz_result", planResult: key };
+  return { event: step };
+}
+
+function sendFunnelToServer(step: FunnelStep, detail?: string): void {
+  const consent = analyticsGranted();
+  syncFunnelAnonCookie(consent);
+  try {
+    void fetch("/api/onboarding/funnel", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ...serverFunnelEvent(step, detail), consent }),
+      keepalive: true,
+      credentials: "same-origin",
+    }).catch(() => undefined);
+  } catch {
+    /* offline: the local count above still has it */
+  }
 }

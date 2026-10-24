@@ -5,6 +5,8 @@
 
 const PUBLIC_DOCUMENT_ROUTES = [
   "/",
+  // b66 G-27: copy-link invite landing; it asks for sign-in itself so the #token survives (404 while the flag is off).
+  "/share",
   "/about",
   "/contact",
   "/cookies",
@@ -63,6 +65,8 @@ const PUBLIC_DOCUMENT_ROUTES = [
 /** Real member pages. Signed-out visitors go to login. Everything else is a 404. */
 const MEMBER_DOCUMENT_ROUTES = [
   "/settings",
+  // b66 G-27: read-only books shared with this account (page 404s while PORTFOLIO_SHARING is off).
+  "/shared",
   "/account",
   "/profile",
   "/onboarding",
