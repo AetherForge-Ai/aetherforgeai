@@ -1,4 +1,4 @@
-// pull-check:v3-goal-b66-2026-10-24
+// pull-check:v3-h1-b67-2026-10-26
 /** b66 TT P3: the per-source DEX report rides on the saved DEX snapshot (shared by every server). */
 import { afterEach, describe, expect, it, vi } from "vitest";
 

@@ -18,10 +18,11 @@ interface Store {
   loading: boolean;
   error: string | null;
   notice: string | null;
+  printedAt: string | null;
   inflight: Promise<void> | null;
 }
 
-const store: Store = { rows: [], fetchedAt: 0, loading: false, error: null, notice: null, inflight: null };
+const store: Store = { rows: [], fetchedAt: 0, loading: false, error: null, notice: null, printedAt: null, inflight: null };
 const subscribers = new Set<() => void>();
 
 function notify() {
@@ -47,6 +48,7 @@ async function load(force = false): Promise<void> {
         store.fetchedAt = Date.now();
         store.error = null;
         store.notice = typeof res.notice === "string" ? res.notice : null;
+        store.printedAt = typeof res.printedAt === "string" ? res.printedAt : null;
       } else if (store.rows.length > 0) {
         store.error = null;
       } else {
@@ -71,6 +73,8 @@ export interface UseDexMarkets {
   loading: boolean;
   error: string | null;
   notice: string | null;
+  /** b67 H-1: when the DEX list was printed (ISO). */
+  printedAt: string | null;
   refresh: () => void;
 }
 
@@ -107,6 +111,7 @@ export function useDexMarkets(active = true): UseDexMarkets {
     loading: dexListLoading({ active, loading: store.loading, fetchedAt: store.fetchedAt, error: store.error, rows: store.rows.length }),
     error: store.error,
     notice: store.notice,
+    printedAt: store.printedAt,
     refresh,
   };
 }

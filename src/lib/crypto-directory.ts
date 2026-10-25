@@ -9,6 +9,8 @@ export const CRYPTO_DIRECTORY = [
   { ticker: "DOGE", name: "Dogecoin", price: 0.38 },
   { ticker: "AVAX", name: "Avalanche", price: 41.2 },
   { ticker: "DOT", name: "Polkadot", price: 8.15 },
-  { ticker: "MATIC", name: "Polygon", price: 0.62 },
+  { ticker: "POL", name: "Polygon (POL, was MATIC)", price: 0.62 },
+  // b67 H-1: MATIC was renamed POL. Kept so old alerts and holdings resolve; marked stale.
+  { ticker: "MATIC", name: "Polygon (old ticker, now POL · stale)", price: 0.62 },
   { ticker: "JUP", name: "Jupiter", price: 0.85 },
 ];

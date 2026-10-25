@@ -90,7 +90,7 @@ export function marketsBody(coins: unknown[] | null | undefined, notice: string 
 
 export function dexBody(
   rows: unknown[] | null | undefined,
-  opts?: { collecting?: boolean; notice?: string | null }
+  opts?: { collecting?: boolean; notice?: string | null; printedAt?: string | null }
 ) {
   const list = Array.isArray(rows) ? rows : [];
   if (list.length === 0 && !opts?.collecting) {
@@ -105,5 +105,7 @@ export function dexBody(
     data: list,
     total: list.length,
     notice,
+    // b67 H-1: when the shown DEX list was printed, for the DEX tab stamp.
+    printedAt: opts?.printedAt ?? null,
   };
 }

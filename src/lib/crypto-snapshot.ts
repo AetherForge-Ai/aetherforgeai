@@ -26,7 +26,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { gzipSync, gunzipSync } from "node:zlib";
 import { recordCryptoAttempt, registerDurableAttemptStore } from "@/lib/crypto-attempts";
-import { DEX_REQUEST_FRESH_MS, dexSnapshotComplete, snapshotIsStale } from "@/lib/crypto-board";
+import { dexSnapshotComplete, keepFullDexOnPartial } from "@/lib/crypto-board";
 import type { DexTokenRow } from "@/lib/crypto-dex";
 import { resolvableCoinId, type CoinMarket } from "@/lib/crypto-market";
 import { publicSourceAllowed } from "@/lib/swyftx-display";
@@ -1243,14 +1243,14 @@ export async function persistDexSnapshot(
   sources: string[] = [],
   report: DexSourceNote[] = []
 ): Promise<void> {
-  const live = rows.filter((row) => dexLooksSaved(row) && !!resolvableCoinId(row.detailId)).slice(0, 400);
+  let live = rows.filter((row) => dexLooksSaved(row) && !!resolvableCoinId(row.detailId)).slice(0, 400);
   if (!live.length) return;
   const existing = memoryDex ?? (await readDexSnapshot());
   const existingLive = existing ? existing.rows.filter((row) => !!resolvableCoinId(row.detailId)) : [];
-  const existingStale = !existing?.at || snapshotIsStale(existing.at, Date.now(), DEX_REQUEST_FRESH_MS);
-  // A fresh seed of at least 15 rows may replace a longer stale list so the clock moves.
+  // A fresh seed of at least 15 rows may update a longer stale list so the clock moves.
+  // b67 H-1: a partial pull merges into the last full list (fresh prices win) instead of replacing it.
   if (existing && existingLive.length > live.length && !dexSnapshotComplete(live)) {
-    if (!(existingStale && live.length >= 15)) return;
+    live = keepFullDexOnPartial(existingLive, live);
   }
   const body = encodeDex(live, at, sources.length ? sources : existing?.sources || [], report, report.length ? at : null);
   const parsed = parseDex(body);

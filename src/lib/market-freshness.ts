@@ -98,6 +98,34 @@ export function formatSessionDate(iso: string): string {
   return formatDisplayDate(iso);
 }
 
+/**
+ * b67 H-1: one shut-market label for every surface (tape, watchlist, quote, drawer).
+ * Reads "Close 23 Oct 2026": the last session date, never the weekend fetch day.
+ * When the quote itself is older than that session, the older quote date is shown (honest).
+ */
+export function closeLabelFor(
+  venue: EquityVenue,
+  quotedAt: string | number | Date | null | undefined,
+  now = new Date()
+): string {
+  const session = equitySessionDate(venue, now);
+  const quoted = parseQuoteTime(quotedAt ?? null);
+  let iso = session;
+  if (quoted) {
+    const quotedIso = zonedParts(quoted, ZONE[venue]).iso;
+    if (quotedIso < session) iso = quotedIso;
+  }
+  const date = formatDisplayDate(iso);
+  return date === "—" ? "Close unavailable" : `Close ${date}`;
+}
+
+/** b67 H-1: DEX tab print time, e.g. "DEX prices printed 26 Oct 2026, 9:05 am". */
+export function dexPrintedLabel(at: string | null | undefined): string | null {
+  if (!at) return null;
+  const wall = formatDisplayDateTime(at);
+  return wall === "—" ? null : `DEX prices printed ${wall}`;
+}
+
 export type TapeVenue = "NZX" | "ASX" | "CRYPTO";
 
 /** Home tape stamp. A shut equity session is the previous close, not a raw timestamp. */
@@ -108,10 +136,7 @@ export function tapeUpdatedPhrase(
 ): string {
   if (!quotedAt) return "last updated unavailable";
   if (venue === "NZX" || venue === "ASX") {
-    if (!equitySessionOpen(venue, now)) {
-      const date = formatDisplayDate(quotedAt);
-      return date === "—" ? "Close unavailable" : `Close ${date}`;
-    }
+    if (!equitySessionOpen(venue, now)) return closeLabelFor(venue, quotedAt, now);
   }
   const wall = formatDisplayDateTime(quotedAt);
   return wall === "—" ? "last updated unavailable" : `last updated ${wall}`;

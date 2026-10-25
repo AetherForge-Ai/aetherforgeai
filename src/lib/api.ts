@@ -28,6 +28,8 @@ export interface ApiResponse<T = unknown> {
   userId?: string;
   total?: number;
   notice?: string | null;
+  /** b67 H-1: DEX list print time. */
+  printedAt?: string | null;
   error?: any;
   status?: number;
   /** True when the request was aborted because the active account changed. */

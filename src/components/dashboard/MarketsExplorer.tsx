@@ -34,6 +34,7 @@ import {
   stalePriceReason,
 } from "@/lib/crypto-market";
 import { coinDisplayName } from "@/lib/crypto-names";
+import { dexPrintedLabel } from "@/lib/market-freshness";
 import { formatDisplayClock, formatFxInput, formatUnitPrice, usdToNzd } from "@/lib/currency";
 import { cn } from "@/lib/utils";
 import {
@@ -941,6 +942,9 @@ export function MarketsExplorer({
         </div>
       </div>
 
+      {isDexTab && dexPrintedLabel(dex.printedAt) ? (
+        <p className="px-1 pb-1 text-xs text-muted-foreground" data-testid="dex-printed-at">{dexPrintedLabel(dex.printedAt)}</p>
+      ) : null}
       {isCryptoTab && (isDexTab ? dex.notice || seedDexAsOf : crypto.notice || seedCryptoAsOf) ? (
         <p className="px-1 pb-2 text-xs text-muted-foreground">{isDexTab ? dex.notice || seedDexAsOf : crypto.notice || seedCryptoAsOf}</p>
       ) : null}
