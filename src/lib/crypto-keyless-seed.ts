@@ -103,6 +103,7 @@ export function installSeedFetch(fetcher: SeedFetch | null) {
 
 export function resetSeedFetch() {
   seedFetchOverride = null;
+  resetGeckoTerminalBackoffForTests();
   seedAttempts.clear();
   lastSeedReport = [];
   resetLastGoodList();
@@ -749,6 +750,8 @@ export function setDexRetryDelaysForTests(delays: number[] | null) {
   dexRetryDelays = delays ?? DEX_PAGE_RETRY_DELAYS_MS;
 }
 
+let lastRetryAfter: string | null = null;
+
 function dexRetryableStatus(status: number): boolean {
   return status === 429 || status === 1015 || status >= 500;
 }
@@ -769,6 +772,7 @@ async function fetchDexPage(
       const res = await fetchSeed(url, headers);
       if (!res.ok) {
         failure = `HTTP ${res.status}`;
+        if (res.status === 429) lastRetryAfter = res.headers?.get?.("retry-after") ?? null;
         if (dexRetryableStatus(res.status)) continue;
         return { rows: [], failure };
       }
@@ -802,6 +806,41 @@ function noteDexSource(source: string, rows: DexTokenRow[], failures: (string | 
   else noteSeed(source, null, 0, reason || "no rows");
 }
 
+/**
+ * b67 H-1: GeckoTerminal 429 handling. Pages run two at a time (not all at once). After a 429 the
+ * source backs off (Retry-After, at least 60 s), and each page that fails or is skipped is served
+ * from its last good copy (up to 30 min old), so a rate limit never shrinks the DEX list.
+ */
+export const GT_BACKOFF_MS = 60_000;
+export const GT_PAGE_CACHE_MAX_MS = 30 * 60_000;
+const GT_CONCURRENCY = 2;
+const gtPageCache = new Map<string, { rows: DexTokenRow[]; at: number }>();
+let gtBackoffUntil = 0;
+
+export function resetGeckoTerminalBackoffForTests() {
+  gtPageCache.clear();
+  gtBackoffUntil = 0;
+}
+
+/** Retry-After header (seconds or HTTP date) as ms, floored at GT_BACKOFF_MS and capped at 10 min. */
+export function gtBackoffMs(retryAfter: string | null | undefined, now = Date.now()): number {
+  let ms = 0;
+  const raw = (retryAfter || "").trim();
+  if (/^\d+$/.test(raw)) ms = Number(raw) * 1000;
+  else if (raw) {
+    const when = Date.parse(raw);
+    if (Number.isFinite(when)) ms = when - now;
+  }
+  return Math.min(10 * 60_000, Math.max(GT_BACKOFF_MS, ms));
+}
+
+/** Last good copy of a page, or null when none is younger than GT_PAGE_CACHE_MAX_MS. */
+export function gtCachedPage(url: string, now = Date.now()): DexTokenRow[] | null {
+  const hit = gtPageCache.get(url);
+  if (!hit || now - hit.at > GT_PAGE_CACHE_MAX_MS) return null;
+  return hit.rows;
+}
+
 async function fetchGeckoTerminalRows(): Promise<DexTokenRow[]> {
   const urls = [
     `${GT_BASE}/networks/trending_pools?include=base_token,quote_token,dex,network&page=1`,
@@ -810,14 +849,32 @@ async function fetchGeckoTerminalRows(): Promise<DexTokenRow[]> {
         `${GT_BASE}/networks/${network}/pools?include=base_token,quote_token,dex,network&sort=h24_volume_usd_desc&page=1`
     ),
   ];
-  const pages = await Promise.all(
-    urls.map((url) => {
+  const pages: { rows: DexTokenRow[]; failure: string | null }[] = new Array(urls.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < urls.length) {
+      const i = next++;
+      const url = urls[i];
+      if (Date.now() < gtBackoffUntil) {
+        const cached = gtCachedPage(url);
+        pages[i] = { rows: cached ?? [], failure: cached ? null : "backing off after HTTP 429" };
+        continue;
+      }
       const network = url.includes("/networks/") && !url.includes("trending_pools") ? url.split("/networks/")[1]?.split("/")[0] || "" : "";
-      return fetchDexPage(url, { accept: GT_ACCEPT, "user-agent": MARKET_USER_AGENT }, (body) =>
+      const page = await fetchDexPage(url, { accept: GT_ACCEPT, "user-agent": MARKET_USER_AGENT }, (body) =>
         parseMegafilterPage(body, network).filter((row) => dexRowClearsFloor(row) && pegOk(row.symbol, row.price || 0))
       );
-    })
-  );
+      if (page.rows.length) {
+        gtPageCache.set(url, { rows: page.rows, at: Date.now() });
+        pages[i] = page;
+        continue;
+      }
+      if (page.failure === "HTTP 429" || page.failure === "HTTP 1015") gtBackoffUntil = Date.now() + gtBackoffMs(lastRetryAfter);
+      const cached = gtCachedPage(url);
+      pages[i] = cached ? { rows: cached, failure: null } : page;
+    }
+  };
+  await Promise.all(Array.from({ length: GT_CONCURRENCY }, () => worker()));
   const rows = pages.flatMap((page) => page.rows);
   noteDexSource("geckoterminal", rows, pages.map((page) => page.failure));
   return rows;

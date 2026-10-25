@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
 import { fetchYahooQuote } from "@/lib/yahoo-finance";
 import { fetchLiveQuotes } from "@/lib/market-data";
-import { equitySessionOpen } from "@/lib/market-freshness";
+import { closeLabelFor, equitySessionOpen, equityVenue } from "@/lib/market-freshness";
 import type { Exchange } from "@/lib/market-intel";
 import { fetchCryptoQuotes } from "@/lib/market-data";
 import { getMetalsSpot } from "@/lib/metals";
 import { CANONICAL_CRYPTO_IDS } from "@/lib/crypto-ids";
 import { lookupCryptoId } from "@/lib/crypto-id-registry";
 import { dexQuoteRows } from "@/lib/crypto-coingecko";
-import { formatDisplayDate, normaliseUnitPrice } from "@/lib/currency";
+import { normaliseUnitPrice } from "@/lib/currency";
 import { dexPriceForSymbol } from "@/lib/reviewed-book";
 import { listedCryptoIsStrict, pickListedCryptoPrice } from "@/lib/crypto-quote";
 import { sourceLabel } from "@/lib/crypto-price-chain";
@@ -178,9 +178,8 @@ export async function GET(req: Request) {
       ? quotedAt
         ? `Latest price ${formatDisplayDateTime(quotedAt)}`
         : "Latest price"
-      : quotedAt
-        ? `Last close ${formatDisplayDate(quotedAt)}`
-        : "Last close";
+      : // b67 H-1: same "Close <last session date>" wording as the tape; a Saturday reads Friday's date.
+        closeLabelFor(equityVenue(exchange), quotedAt, new Date());
     console.log(`[api/tickers/quote] ${symbol} → ${price ? `$${price}` : "no quote"} ${session}`);
     return NextResponse.json({
       ok: true,

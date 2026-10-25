@@ -1,4 +1,4 @@
-// pull-check:v3-goal-b66-2026-10-24
+// pull-check:v3-h1-b67-2026-10-26
 import { describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 
