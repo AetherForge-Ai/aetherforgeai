@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     const page = await readSharedDexBoard({ revalidate: true });
-    return NextResponse.json(dexBody(page.rows, { notice: page.notice }), {
+    return NextResponse.json(dexBody(page.rows, { notice: page.notice, printedAt: page.at ?? null }), {
       headers: { "cache-control": dexResponseCacheControl(page.rows.length) },
     });
   } catch (err: unknown) {

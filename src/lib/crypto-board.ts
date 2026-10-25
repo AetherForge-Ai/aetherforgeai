@@ -571,3 +571,28 @@ export function pageRangeLine(pageIndex: number, pageSize: number, total: number
   const end = Math.min(count, (pageIndex + 1) * pageSize);
   return `Showing ${start}–${end} of ${count}`;
 }
+
+/**
+ * b67 H-1: a partial DEX pull (some pages 429'd or timed out) never shrinks the board.
+ * Fresh rows win; rows from the last full list that the partial pull did not reach are kept,
+ * so the DEX tab stays at its full length. A complete pull replaces the list outright.
+ */
+export function keepFullDexOnPartial(existing: DexTokenRow[], fresh: DexTokenRow[], limit = 400): DexTokenRow[] {
+  if (!existing.length || dexSnapshotComplete(fresh) || fresh.length >= existing.length) return fresh.slice(0, limit);
+  const seen = new Set<string>();
+  const out: DexTokenRow[] = [];
+  for (const row of fresh) {
+    const key = dexIdentityKey(row) || `${row.network}:${row.symbol}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(row);
+  }
+  for (const row of existing) {
+    if (out.length >= limit) break;
+    const key = dexIdentityKey(row) || `${row.network}:${row.symbol}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(row);
+  }
+  return out;
+}

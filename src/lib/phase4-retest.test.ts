@@ -52,7 +52,7 @@ describe("phase 4 retest", () => {
     expect(route).toContain("fetchLiveQuotes");
     expect(route).toContain("equitySessionOpen");
     expect(route).toContain("Latest price");
-    expect(route).toContain("Last close");
+    expect(route).toContain("closeLabelFor");
   });
 
   it("fits the holdings table, opens the chart, and unclips delete", () => {

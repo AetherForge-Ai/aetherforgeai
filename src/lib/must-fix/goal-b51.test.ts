@@ -46,6 +46,6 @@ describe("b51 BS-01: cron watchdog", () => {
 
 describe("b51 build marker", () => {
   it("pins the build", () => {
-    expect(read("public/build-version.txt")).toContain("v3-goal-b66-2026-10-24");
+    expect(read("public/build-version.txt")).toContain("v3-h1-b67-2026-10-26");
   });
 });
