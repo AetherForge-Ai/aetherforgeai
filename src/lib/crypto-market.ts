@@ -13,7 +13,7 @@
 import { adaptiveFractionDigits, formatDisplayDate, formatDisplayDateTime } from "@/lib/currency";
 import { listedMarketNotice } from "@/lib/crypto-coverage";
 import { coinDisplayName } from "@/lib/crypto-names";
-import { isStablecoinSymbol } from "@/lib/crypto-vendors";
+import { isStablecoinSymbol, TICKER_ALIASES } from "@/lib/crypto-vendors";
 
 /* -------------------------------- Types --------------------------------- */
 
@@ -832,4 +832,47 @@ export function dailyAxisTicks(minT: number, maxT: number, maxTicks = 6): number
   const ticks: number[] = [];
   for (let t = first; t <= maxT; t += step) ticks.push(t);
   return ticks;
+}
+
+
+/**
+ * b69 (TT b68 P2): one row per coin id. Run after the symbol rename step (MATIC -> POL).
+ * A CoinGecko row owns its own id (its id and symbol come from the same record). Otherwise the
+ * higher-ranked row (lower market-cap rank number, then larger market cap) wins. Symbols are never
+ * mapped to ids by name here; a duplicate is dropped, not renamed.
+ */
+export function dedupeCoinsById<T extends { id?: string | null; symbol?: string | null; rank?: number | null; marketCap?: number | null; source?: string | null }>(coins: T[]): T[] {
+  const best = new Map<string, T>();
+  const order: string[] = [];
+  const owns = (c: T) => ((c.source || "coingecko").toLowerCase() === "coingecko" ? 1 : 0);
+  const beats = (a: T, b: T) => {
+    if (owns(a) !== owns(b)) return owns(a) > owns(b);
+    const ra = a.rank ?? 999999;
+    const rb = b.rank ?? 999999;
+    if (ra !== rb) return ra < rb;
+    return (a.marketCap || 0) > (b.marketCap || 0);
+  };
+  const loose: T[] = [];
+  for (const coin of coins) {
+    const id = String(coin.id || "").trim().toLowerCase();
+    if (!id) {
+      loose.push(coin);
+      continue;
+    }
+    const prev = best.get(id);
+    if (!prev) {
+      best.set(id, coin);
+      order.push(id);
+    } else if (beats(coin, prev)) {
+      best.set(id, coin);
+    }
+  }
+  const kept = new Set(best.values());
+  return coins.filter((coin) => kept.has(coin) || loose.includes(coin));
+}
+
+/** b69: the listed symbol after the rename step (MATIC is listed as POL). */
+export function renamedCoinSymbol(symbol: string | null | undefined): string {
+  const code = String(symbol || "").trim().toUpperCase();
+  return TICKER_ALIASES[code] ?? code;
 }

@@ -9,6 +9,7 @@ import { coinMetricsSourceLine, depthMissingReason } from "@/lib/coin-depth";
 import { tickerForCoingeckoId } from "@/lib/crypto-ids";
 import { coinsFromCoinGeckoMarkets, coinsFromCoinPaprika } from "@/lib/crypto-keyless-seed";
 import {
+  dedupeCoinsById,
   detailFromMarket,
   fmtCompactNum,
   fmtCompactUsd,
@@ -247,8 +248,8 @@ export function retainDepthCoins(next: CoinMarket[], previous: CoinMarket[], lim
     if (!Number.isFinite(quoted) || now - quoted > RETAIN_MAX_AGE_MS) return false;
     return marketDepthComplete(coin);
   });
-  if (!kept.length) return next.slice(0, Math.max(0, limit));
-  return [...next, ...kept]
+  if (!kept.length) return dedupeCoinsById(next).slice(0, Math.max(0, limit));
+  return dedupeCoinsById([...next, ...kept])
     .sort((a, b) => (b.marketCap || 0) - (a.marketCap || 0) || (a.rank ?? 999999) - (b.rank ?? 999999))
     .slice(0, Math.max(0, limit));
 }

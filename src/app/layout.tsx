@@ -14,6 +14,7 @@ import { DevOnlyTools } from "@/components/DevOnlyTools";
 import { GlobalErrorCatcher } from "@/components/GlobalErrorCatcher";
 import { GoogleTag } from "@/components/GoogleTag";
 import { CONSENT_DEFAULT_DENIED_SNIPPET } from "@/lib/analytics-consent";
+import { CHUNK_RETRY_SNIPPET } from "@/lib/chunk-retry";
 import { AnalyticsNotice } from "@/components/AnalyticsNotice";
 import { SiteFooter } from "@/components/SiteFooter";
 import { LazyToaster as Toaster } from "@/components/ui/LazyToaster";
@@ -127,6 +128,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         />
         <DocumentSessionProvider mode={sessionMode}>
           {/* Consent Mode v2 starts denied. This script does not load gtag.js. */}
+          <Script id="chunk-retry" strategy="beforeInteractive" nonce={nonce}>
+            {CHUNK_RETRY_SNIPPET}
+          </Script>
           <Script id="gtag-consent-default" strategy="beforeInteractive" nonce={nonce}>
             {CONSENT_DEFAULT_DENIED_SNIPPET}
           </Script>

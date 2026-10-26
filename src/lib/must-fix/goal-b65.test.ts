@@ -1,4 +1,4 @@
-// pull-check:v3-g24-b68-2026-10-27
+// pull-check:v3-dedupe-b69-2026-10-27
 /** Goal b65 = Batch S2 (G-07, G-14, G-22, G-24). Locked text: BACKLOG.md "Re-rank Sat 24 Oct 2026". */
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
@@ -28,7 +28,7 @@ const read = (p: string) => readFileSync(p, "utf8");
 const $ = (c: bigint) => formatNzd(c);
 
 describe("b65 build", () => {
-  it("build version", () => expect(read("public/build-version.txt").trim()).toBe("v3-g24-b68-2026-10-27"));
+  it("build version", () => expect(read("public/build-version.txt").trim()).toBe("v3-dedupe-b69-2026-10-27"));
 });
 
 describe("G-07 holding caps meter, no-card trial, refund text (flag OFF in prod)", () => {

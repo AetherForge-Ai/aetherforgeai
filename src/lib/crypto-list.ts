@@ -9,7 +9,7 @@
  */
 
 import { MARKET_LIST_TARGET } from "@/lib/crypto-coverage";
-import { coinHasLivePrice, type CoinMarket } from "@/lib/crypto-market";
+import { coinHasLivePrice, dedupeCoinsById, renamedCoinSymbol, type CoinMarket } from "@/lib/crypto-market";
 import { CRYPTO_SANITY_RATIO } from "@/lib/crypto-tape";
 
 /** True when two positive prices stay within CRYPTO_SANITY_RATIO of each other. */
@@ -87,7 +87,7 @@ export function mergeRankedCoins(lists: CoinMarket[][], limit = MARKET_LIST_TARG
 
   const absorb = (coin: CoinMarket) => {
     if (!coin || !coinHasLivePrice(coin)) return;
-    const symbol = (coin.symbol || "").trim().toUpperCase();
+    const symbol = renamedCoinSymbol(coin.symbol);
     if (!symbol) return;
     const contracts = contractList(coin);
     let target = symbol;
@@ -112,7 +112,7 @@ export function mergeRankedCoins(lists: CoinMarket[][], limit = MARKET_LIST_TARG
     for (const coin of list || []) absorb(coin);
   }
 
-  return [...rows.values()]
+  return dedupeCoinsById([...rows.values()])
     .sort((a, b) => {
       const cap = capOf(b) - capOf(a);
       if (cap !== 0) return cap;
