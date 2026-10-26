@@ -88,6 +88,7 @@ import {
   clearPortfolioSnapshotCache,
   paintConfirmedSnapshot,
   withLedgerLine,
+  unpaintDeletedTrade,
   withCashDelta,
   readPortfolioSnapshotCache,
   snapshotAsReturnSplit,
@@ -146,7 +147,7 @@ import {
   type BookedGuard,
   type BookedTrade,
 } from "@/lib/apply-booked-trade";
-import { beginHoldingsRequest, holdingsActionAfterDialogClose, holdingsGeneration, holdingsRequestIsCurrent, holdingsResponseIsStale } from "@/lib/holdings-generation";
+import { beginHoldingsRequest, bumpHoldingsGeneration, holdingsActionAfterDialogClose, holdingsGeneration, holdingsRequestIsCurrent, holdingsResponseIsStale } from "@/lib/holdings-generation";
 import { resumeCryptoLivePoll, useLiveCryptoQuotes } from "@/hooks/useLiveCryptoQuotes";
 import { useCryptoMarkets } from "@/hooks/useCryptoMarkets";
 import { HoldingsOwnedTable } from "@/components/dashboard/HoldingsOwnedTable";
@@ -1408,6 +1409,10 @@ export function PortfolioDashboard({
           optimisticBaseRef.current = { stocks: allStocksRef.current, cash: mutationCashRef.current ?? cashBalance, snapshot: bookSnapshotRef.current };
         }
         if (typeof updated.cashBalance === "number") applyKnownCash(updated.cashBalance);
+        // b70 G-10: a read already in flight was taken before this trade. Mark the change now
+        // (not when the server answers), so that read can't overwrite the painted holding row.
+        bumpHoldingsGeneration();
+        lastMutationAtRef.current = Date.now();
         const guess = updated.lastTransaction;
         if (guess) {
           setAllStocks((rows) => applyBookedTradeToHoldings(rows, guess));
@@ -2075,12 +2080,15 @@ export function PortfolioDashboard({
     // the rest of the ledger stays rendered. The server's cash figure then replaces the estimate.
     // A refusal puts the row and cash back with a visible error.
     lastMutationAtRef.current = Date.now();
+    // b70 G-10: a snapshot read already in flight still holds the deleted trade; drop it.
+    bumpHoldingsGeneration();
     deletedLedgerRef.current.set(line.id, Date.now());
     const before = bookSnapshotRef.current;
     const optimisticDelta = Number.isFinite(line.cashNzd) ? -line.cashNzd : 0;
     setBookSnapshot((current) => {
       if (!current) return current;
-      const trimmed = { ...current, ledger: current.ledger.filter((row) => row.id !== line.id) };
+      // b70 G-10: the holding leaves with the ledger row, not on the next read.
+      const trimmed = unpaintDeletedTrade({ ...current, ledger: current.ledger.filter((row) => row.id !== line.id) }, line);
       return optimisticDelta ? withCashDelta(trimmed, optimisticDelta) : trimmed;
     });
     // b38 G-10: journal the delete before sending, so a reload mid-request keeps the row hidden

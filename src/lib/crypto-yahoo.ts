@@ -17,7 +17,7 @@ const YAHOO_CHART = "https://query1.finance.yahoo.com/v8/finance/chart";
 /** Major-coin list used when the earlier feeds are short. Kept at 100 so the Crypto tab is not a handful of names. */
 export const YAHOO_MAJOR: string[] = [
   "BTC", "ETH", "USDT", "BNB", "SOL", "XRP", "USDC", "DOGE", "ADA", "TRX",
-  "AVAX", "TON", "SHIB", "DOT", "LINK", "BCH", "SUI", "HBAR", "XLM", "LTC",
+  "AVAX", "GRAM", "SHIB", "DOT", "LINK", "BCH", "SUI", "HBAR", "XLM", "LTC",
   "UNI", "PEPE", "NEAR", "APT", "ICP", "ETC", "ATOM", "VET", "RENDER", "FIL",
   "ARB", "OP", "IMX", "INJ", "STX", "AAVE", "MKR", "GRT", "ALGO", "RUNE",
   "THETA", "EGLD", "FLOW", "XTZ", "AXS", "EOS", "SAND", "MANA", "QNT", "LDO",

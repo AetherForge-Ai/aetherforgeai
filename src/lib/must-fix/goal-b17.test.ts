@@ -25,7 +25,7 @@ const fixture = (weekOf: string) => ({
 });
 
 describe("goal b17", () => {
-  it("pins the build", () => expect(read("public/build-version.txt").trim()).toMatch(/^v3-(?:goal|h1|g24|dedupe)-b(1[7-9]|[2-9][0-9])[a-z]?-/));
+  it("pins the build", () => expect(read("public/build-version.txt").trim()).toMatch(/^v3-(?:goal|h1|g24|dedupe|g10)-b(1[7-9]|[2-9][0-9])[a-z]?-/));
 
   it("G-03: 7 briefs each cite 3+ dated sources; 0 unsupported numbers across 100+ sentences; no buy/sell/hold", () => {
     let sentences = 0;

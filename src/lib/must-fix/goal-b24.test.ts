@@ -7,7 +7,7 @@ const lock = JSON.parse(readFileSync("package-lock.json", "utf8"));
 const all = { ...pkg.dependencies, ...pkg.devDependencies } as Record<string, string>;
 
 describe("goal b24 hotfix: exact deploy toolchain pins", () => {
-  it("pins the build", () => expect(readFileSync("public/build-version.txt", "utf8").trim()).toMatch(/^v3-(?:goal|h1|g24|dedupe)-b\d+[a-z]?-2026-10-\d\d$/));
+  it("pins the build", () => expect(readFileSync("public/build-version.txt", "utf8").trim()).toMatch(/^v3-(?:goal|h1|g24|dedupe|g10)-b\d+[a-z]?-2026-10-\d\d$/));
   it("next, opennext and wrangler are exact (no ^ or ~) and match the lockfile", () => {
     for (const [name, want] of [["next", "16.4.2"], ["eslint-config-next", "16.4.2"], ["@opennextjs/cloudflare", "1.20.12"], ["wrangler", "4.151.0"]]) {
       expect(all[name]).toBe(want);
