@@ -27,6 +27,7 @@ import {
   mayAcceptUnsignedEvent,
   testModePlan,
   testSecretEventAllowed,
+  testEventUserAllowed,
 } from "@/lib/stripe-entitlement";
 import { testSecretKey } from "@/lib/stripe-mode";
 
@@ -315,6 +316,18 @@ export async function POST(req: Request) {
     } else {
       console.error("[webhook] No signing secret configured in production; event refused");
       return NextResponse.json({ error: "Webhook signing secret is not configured" }, { status: 500 });
+    }
+
+    // b80 CR-6b: a test-mode event for anyone but an allow-listed test account is acknowledged and ignored.
+    if (event.livemode === false) {
+      const obj = (event.data?.object || {}) as { metadata?: Record<string, string> | null; client_reference_id?: string | null; customer?: unknown };
+      const customerId = typeof obj.customer === "string" ? obj.customer : (obj.customer as { id?: string } | null)?.id ?? null;
+      const testUserId =
+        (obj.metadata?.userId as string) || parsePaymentLinkRef(obj.client_reference_id ?? null).userId || (await findUserIdByCustomer(customerId));
+      if (!testEventUserAllowed(false, testUserId)) {
+        console.warn("[webhook] ignored: test-mode event for a non-test account", event.id);
+        return NextResponse.json({ received: true, ignored: "test_mode_not_allowed" });
+      }
     }
 
     if (event.id && alreadyProcessed(event.id)) {
