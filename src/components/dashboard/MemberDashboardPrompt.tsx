@@ -36,10 +36,10 @@ export function MemberDashboardDialog({
         </DialogHeader>
         <p className="text-sm leading-relaxed text-foreground sm:text-base">{MEMBER_DASHBOARD_COPY}</p>
         <div className="flex flex-wrap gap-3">
-          <Button asChild className="font-semibold">
+          <Button asChild className="min-h-11 font-semibold md:min-h-9">
             <Link href={MEMBER_SIGNUP_HREF}>Sign up free</Link>
           </Button>
-          <Button asChild variant="outline" className="font-semibold">
+          <Button asChild variant="outline" className="min-h-11 font-semibold md:min-h-9">
             <Link href={MEMBER_SIGNIN_HREF}>Sign in</Link>
           </Button>
         </div>
