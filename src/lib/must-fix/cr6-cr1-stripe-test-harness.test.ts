@@ -69,6 +69,9 @@ let subId = "";
 let customerId = "";
 
 beforeAll(async () => {
+  // b80 CR-6b: test-mode events only change plans for allow-listed test accounts.
+  process.env.GOAL_TEST_HOOKS = "1";
+  process.env.GOAL_TEST_HOOK_USER_IDS = USER;
   vi.stubEnv("STRIPE_SECRET_KEY", "");
   vi.stubEnv("NODE_ENV", "test");
   resetProcessedEvents();

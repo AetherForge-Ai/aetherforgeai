@@ -46,11 +46,25 @@ export function checkoutModeFor(
   return stripeKeyType(env.STRIPE_TEST_SECRET_KEY) === "test" ? "test" : "live";
 }
 
+/**
+ * b80 CR-6b (safety): with STRIPE_CHECKOUT_MODE absent the site is in TEST mode. Then ONLY an allow-listed
+ * test account (GOAL_TEST_HOOKS=1 + id in GOAL_TEST_HOOK_USER_IDS) may create a checkout session; everyone
+ * else is refused before any Stripe call, so a 4242 card can never buy a plan. Live mode is unchanged.
+ */
+export function checkoutAllowedFor(
+  userId: string | null | undefined,
+  env: Record<string, string | undefined> = process.env
+): boolean {
+  if (checkoutMode(env) === "live") return true;
+  return Boolean(userId) && testHooksAllowedFor({ _id: userId }, env);
+}
+
 let testClient: Stripe | null = null;
 
 /** Stripe client for checkout in the current mode, or null when test mode has no test key. */
-export function checkoutStripe(userId?: string | null): { mode: CheckoutMode; client: Stripe | null } {
+export function checkoutStripe(userId?: string | null): { mode: CheckoutMode; client: Stripe | null; blocked?: true } {
   const mode = checkoutModeFor(userId);
+  if (!checkoutAllowedFor(userId)) return { mode, client: null, blocked: true };
   if (mode === "live") return { mode, client: getStripe() };
   const key = testSecretKey();
   if (!key) return { mode, client: null };

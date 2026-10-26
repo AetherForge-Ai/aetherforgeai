@@ -115,6 +115,19 @@ export function testSecretEventAllowed(viaTestSecret: boolean, livemode: boolean
   return !viaTestSecret || livemode === false;
 }
 
+/**
+ * b80 CR-6b (safety): a test-mode event (livemode false) may change a plan only when it maps to an
+ * allow-listed test account (GOAL_TEST_HOOKS=1 + id in GOAL_TEST_HOOK_USER_IDS). Live events are unaffected.
+ */
+export function testEventUserAllowed(
+  livemode: boolean | undefined,
+  userId: string | null | undefined,
+  env: Record<string, string | undefined> = process.env
+): boolean {
+  if (livemode !== false) return true;
+  return Boolean(userId) && testHooksAllowedFor({ _id: userId }, env);
+}
+
 /** Unsigned events are refused in production. Dev without a secret may parse the body. */
 export function mayAcceptUnsignedEvent(nodeEnv = process.env.NODE_ENV): boolean {
   return nodeEnv !== "production";
