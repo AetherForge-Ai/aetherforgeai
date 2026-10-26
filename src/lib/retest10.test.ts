@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
@@ -126,7 +126,16 @@ function dexRow(symbol: string, detailId: string | null): DexTokenRow {
   };
 }
 
-afterEach(() => {
+// CI-TESTS: a read in one test (e.g. the tape test) can start a detached DEX refresh. With no seed
+// fetch installed it called live DexPaprika/GeckoTerminal, and the next test's refresh joined that
+// in-flight job: a 5 s timeout on a slow network, then live rows landing in the following test.
+// Every test starts with an offline seed fetch, and no refresh outlives its test.
+beforeEach(() => {
+  installSeedFetch(async () => jsonResponse({ data: [] }));
+});
+
+afterEach(async () => {
+  await dexRefreshSettled();
   resetCryptoSnapshotsForTests();
   resetSnapshotUpgradeBackoff();
   resetSeedFetch();
@@ -139,7 +148,7 @@ afterEach(() => {
 describe("pull-check:v3-retest10-2026-10-13", () => {
   it("is marked on the public copy and the build version", () => {
     expect(read("src/lib/public-copy.ts")).toContain("pull-check:v3-retest10-2026-10-13");
-    expect(read("public/build-version.txt").trim()).toBe("v3-fix-b72-2026-10-27");
+    expect(read("public/build-version.txt").trim()).toBe("v3-g10-b73-2026-10-28");
     expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-retest10-2026-10-13");
     expect(read("src/lib/crypto-board-store.ts")).toContain("Never seed when a snapshot exists");
     expect(read("src/lib/crypto-source.ts")).toContain("readSharedCryptoBoard({ seed: false })");

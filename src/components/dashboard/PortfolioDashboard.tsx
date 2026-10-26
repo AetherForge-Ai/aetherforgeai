@@ -1439,7 +1439,10 @@ export function PortfolioDashboard({
         // (not when the server answers), so that read can't overwrite the painted holding row.
         bumpHoldingsGeneration();
         lastMutationAtRef.current = Date.now();
-        const guess = updated.lastTransaction;
+        const rawGuess = updated.lastTransaction;
+        // b73: carry the last close we already hold for this ticker, so the price cell fills even without a fill price.
+        const heldClose = rawGuess ? Number(allStocksRef.current.find((r) => String(r.ticker || "").toUpperCase() === String(rawGuess.ticker || "").toUpperCase())?.current_price) : Number.NaN;
+        const guess = rawGuess ? { ...rawGuess, last_close: Number.isFinite(heldClose) && heldClose > 0 ? heldClose : null } : rawGuess;
         if (guess) {
           setAllStocks((rows) => applyBookedTradeToHoldings(rows, guess));
           if (typeof updated.cashBalance === "number") {
