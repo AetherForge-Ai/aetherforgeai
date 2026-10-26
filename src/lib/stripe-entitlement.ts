@@ -110,6 +110,11 @@ export function resetProcessedEvents(): void {
   processed.clear();
 }
 
+/** b78 CR-6: an event verified by STRIPE_TEST_WEBHOOK_SECRET is accepted only when it is a test-mode event. */
+export function testSecretEventAllowed(viaTestSecret: boolean, livemode: boolean | undefined): boolean {
+  return !viaTestSecret || livemode === false;
+}
+
 /** Unsigned events are refused in production. Dev without a secret may parse the body. */
 export function mayAcceptUnsignedEvent(nodeEnv = process.env.NODE_ENV): boolean {
   return nodeEnv !== "production";

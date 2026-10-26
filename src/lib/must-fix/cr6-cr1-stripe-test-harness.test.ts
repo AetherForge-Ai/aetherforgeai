@@ -48,7 +48,7 @@ vi.mock("@/lib/stripe", async () => {
     },
     webhooks: S.webhooks,
   };
-  return { stripe: reader, STRIPE_WEBHOOK_SECRETS: ["whsec_b64_harness_local_only"], cryptoProvider: S.createSubtleCryptoProvider() };
+  return { stripe: reader, STRIPE_WEBHOOK_SECRETS: ["whsec_b64_harness_local_only"], STRIPE_TEST_WEBHOOK_SECRETS: [], cryptoProvider: S.createSubtleCryptoProvider() };
 });
 
 import { POST as webhook } from "@/app/api/stripe/webhook/route";
