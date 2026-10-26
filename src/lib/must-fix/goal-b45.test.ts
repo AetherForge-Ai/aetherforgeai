@@ -22,7 +22,10 @@ describe("b45 G-23-TAXLABEL: NZ tax content carries the tax label", () => {
     expect(withGuideDisclaimer("Your largest holding is 30% of the book.")).not.toContain(TAX_INDICATIVE_LABEL);
   });
   it("chat route wraps model replies", () => {
-    expect(read("src/app/api/chat/route.ts")).toMatch(/withAssistantDisclaimer\(\s*await createGrokChatCompletion/);
+    // b80 G-19: the raw completion is kept for the working check, then every model reply is wrapped.
+    const src = read("src/app/api/chat/route.ts");
+    expect(src).toMatch(/const raw = refused\s*\? null\s*: await createGrokChatCompletion/);
+    expect(src).toMatch(/: withAssistantDisclaimer\(raw\)/);
   });
   it("learn guides, compare pages, income tax panel and FIF setting show the label", () => {
     expect(read("src/app/learn/[slug]/page.tsx")).toContain("Indicative, not tax advice.");
