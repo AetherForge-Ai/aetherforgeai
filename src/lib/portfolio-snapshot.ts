@@ -378,6 +378,19 @@ function assetClassOf(row: SnapshotLedgerRow, ticker: string): Exclude<SnapshotC
   return "shares";
 }
 
+/**
+ * b73 G-10: the trade's currency when the row did not store one. NZX (.NZ) is NZD, ASX (.AX) is AUD,
+ * and a rate of exactly 1 means the fill was in NZD. Anything else stays unknown (no guess).
+ */
+export function inferTradeCurrency(ticker: string, _assetType?: unknown, fxRate?: unknown): string | null {
+  const t = String(ticker || "").toUpperCase();
+  if (t.endsWith(".NZ")) return "NZD";
+  if (t.endsWith(".AX")) return "AUD";
+  const fx = num(fxRate);
+  if (fx === 1) return "NZD";
+  return null;
+}
+
 function tradeFx(currency: string, fxRate: unknown): number | null {
   if (currency === "NZD") return 1;
   const fx = num(fxRate);
@@ -1748,7 +1761,13 @@ export function paintConfirmedSnapshot(
   const ticker = String(trade.ticker || "").trim().toUpperCase();
   const qty = Number(trade.quantity);
   const fill = Number(trade.fill_price) > 0 ? Number(trade.fill_price) : Number(trade.price);
-  const currency = String(trade.currency || "").toUpperCase();
+  // b73 G-10 (trace bc-47cf729a): the optimistic row and some confirm answers carry no currency, so the
+  // unit price stayed null and the row read "1 × —" until the server snapshot. Take it from the trade,
+  // else from the open position, else from the ticker's market; never guessed beyond that.
+  const heldCurrency = ticker
+    ? next.groups.flatMap((g) => g.positions).find((p) => p.ticker.toUpperCase() === ticker && !p.closed)?.currency
+    : undefined;
+  const currency = String(trade.currency || heldCurrency || inferTradeCurrency(ticker, trade.asset_type, trade.fx_rate) || "").toUpperCase();
   const fx = currency ? tradeFx(currency, trade.fx_rate) : null;
   const tradable = (type === "buy" || type === "sell") && !!ticker && qty > 0;
 
@@ -1851,6 +1870,11 @@ export function paintConfirmedSnapshot(
         if (position.lots.length === 0 && position.quantity > 1e-9 && position.costBase.value != null && oldQty > 0) {
           position.costBase = repaintFigure(position.costBase, position.costBase.value * (position.quantity / oldQty), null);
         }
+      }
+      // b73 G-10: seed the price cell from the confirmed fill until the server snapshot replaces the book.
+      if (fill > 0 && type === "buy" && position.marketPriceLocal == null) {
+        position.marketPriceLocal = fill;
+        if (!position.priceSource) position.priceSource = "Confirmed fill";
       }
       position.closed = position.quantity <= 1e-9;
       const openLots = position.lots.filter((lot) => lot.quantity > 1e-9);
