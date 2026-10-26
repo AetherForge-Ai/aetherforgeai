@@ -13,7 +13,7 @@ const read = (p: string) => readFileSync(p, "utf8");
 
 describe("b12 pins", () => {
   it("build version", () => {
-    expect(read("public/build-version.txt").trim()).toMatch(/^v3-(?:goal|h1|g24|dedupe|g10|del404)-b(1[2-9]|[2-9][0-9])[a-z]?-/);
+    expect(read("public/build-version.txt").trim()).toMatch(/^v3-(?:goal|h1|g24|dedupe|g10|del404|fix)-b(1[2-9]|[2-9][0-9])[a-z]?-/);
     expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-goal-b12-2026-10-18");
   });
 });

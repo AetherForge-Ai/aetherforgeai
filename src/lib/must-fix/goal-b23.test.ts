@@ -6,7 +6,7 @@ import { performanceReport, type PerformanceInput } from "@/lib/performance-math
 const read = (f: string) => readFileSync(f, "utf8");
 
 describe("goal b23", () => {
-  it("pins the build", () => expect(read("public/build-version.txt").trim()).toMatch(/^v3-(?:goal|h1|g24|dedupe|g10|del404)-b\d+[a-z]?-2026-10-\d\d$/));
+  it("pins the build", () => expect(read("public/build-version.txt").trim()).toMatch(/^v3-(?:goal|h1|g24|dedupe|g10|del404|fix)-b\d+[a-z]?-2026-10-\d\d$/));
 
   it("H-10 fixtures: CommSec uses a trade-date AUD rate inside the 5% band; Hatch never sells a holding it did not buy", () => {
     const commsec = read("src/lib/fixtures/broker-import/commsec.csv");

@@ -74,7 +74,7 @@ export function dedupedDelete<R extends DeleteResult>(id: string, send: () => Pr
       const res = await send();
       if (deleteSucceeded(id, res)) {
         markDeleteConfirmed(id, s);
-        if (!res.ok) return gone;
+        if (!res.ok || res.status === 204) return gone;
       }
       return res;
     } finally {

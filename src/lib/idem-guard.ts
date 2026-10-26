@@ -64,6 +64,11 @@ export async function withKeyLock<T>(lockKey: string, fn: (waited: boolean) => P
 
 /* ------------------------------ tombstones ------------------------------ */
 
+/** b72: tombstone key for "this user deleted ledger row <id>" (per user, so ownership holds). */
+export function deletedIdKey(id: string): string {
+  return `del:${id}`;
+}
+
 export const IDEM_TOMBSTONE_TTL_S = 7 * 24 * 60 * 60;
 const memTomb = new Map<string, number>();
 const tombUrl = (userId: string, key: string) => `https://af-internal.invalid/idem-tomb/${encodeURIComponent(userId)}/${encodeURIComponent(key)}`;
