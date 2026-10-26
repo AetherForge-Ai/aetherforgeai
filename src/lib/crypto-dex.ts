@@ -605,3 +605,43 @@ export function dexResponseCacheControl(rowCount: number): string {
   if (rowCount > 0) return "public, max-age=15, s-maxage=30, stale-while-revalidate=300";
   return "public, max-age=0, s-maxage=15, stale-while-revalidate=60";
 }
+
+function contractKey(raw: string): string {
+  const id = raw.trim();
+  return id.startsWith("0x") ? id.toLowerCase() : id;
+}
+
+/** b75 H-1: CoinGecko platforms (coin id -> chain -> contract) as contract -> coin id. Ambiguous contracts are skipped. */
+export function contractIndexFromPlatforms(platforms: Map<string, Record<string, string>>): Map<string, string> {
+  const out = new Map<string, string>();
+  const clash = new Set<string>();
+  for (const [id, chains] of platforms) {
+    const coin = resolvableCoinId(id);
+    if (!coin) continue;
+    for (const value of Object.values(chains || {})) {
+      const key = contractKey(String(value || ""));
+      if (key.length < 20) continue;
+      const prior = out.get(key);
+      if (prior && prior !== coin) clash.add(key);
+      else out.set(key, coin);
+    }
+  }
+  for (const key of clash) out.delete(key);
+  return out;
+}
+
+/**
+ * b75 H-1: a DEX row with no CoinGecko id (most DexPaprika rows and many GeckoTerminal rows) was dropped
+ * before saving, so the DEX tab showed ~41 of ~124 fetched rows. Fill the id from the token's contract.
+ */
+export function fillDexDetailIds(rows: DexTokenRow[], index: Map<string, string> | null): DexTokenRow[] {
+  if (!index || !index.size) return rows;
+  return rows.map((row) => {
+    if (resolvableCoinId(row.detailId)) return row;
+    const raw = String(row.address || "");
+    const cut = raw.indexOf("_");
+    const address = cut >= 0 ? raw.slice(cut + 1) : raw;
+    const id = address ? index.get(contractKey(address)) : undefined;
+    return id ? { ...row, detailId: id } : row;
+  });
+}
