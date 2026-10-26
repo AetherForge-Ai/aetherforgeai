@@ -1,5 +1,6 @@
 "use client";
 
+import { dedupedDelete } from "@/lib/delete-dedupe";
 import { scrollRegionProps } from "@/lib/focus-trap";
 import {
   clearPendingWrite,
@@ -1372,7 +1373,7 @@ export function PortfolioDashboard({
       (payload) => api.post("/api/transactions", payload),
       undefined,
       Date.now(),
-      (id, idem) => api.delete(`/api/transactions?id=${encodeURIComponent(id)}${idem ? `&idem=${encodeURIComponent(idem)}` : ""}`)
+      (id, idem) => dedupedDelete(id, () => api.delete(`/api/transactions?id=${encodeURIComponent(id)}${idem ? `&idem=${encodeURIComponent(idem)}` : ""}`))
     ).then((out) => {
       if (out.saved.length) toast.success(out.saved.length === 1 ? "1 entry recorded." : `${out.saved.length} entries recorded.`, { id: toastId });
       else if (out.refused.length) toast.error(`Not recorded: ${out.refused[0].error}`, { id: toastId });
@@ -2100,7 +2101,10 @@ export function PortfolioDashboard({
     if (userId) journalPendingWrite({ key: deleteKey, userId, method: "DELETE", payload: {}, deleteId: line.id, idem: line.idem, at: Date.now() });
     const idemQuery = line.idem ? `&idem=${encodeURIComponent(line.idem)}` : "";
     const res = await withWriteTimeout(
-      api.delete<{ cash?: { after?: number }; alreadyRemoved?: boolean }>(`/api/transactions?id=${encodeURIComponent(line.id)}${idemQuery}`),
+      // b71 (TT b70 P3): one DELETE per id; a repeat or an already-removed id sends nothing.
+      dedupedDelete(line.id, () =>
+        api.delete<{ cash?: { after?: number }; alreadyRemoved?: boolean }>(`/api/transactions?id=${encodeURIComponent(line.id)}${idemQuery}`)
+      ),
       WRITE_TIMEOUT_MS
     );
     if (res.ok || isDefiniteRefusal(res.status)) clearPendingWrite(deleteKey);

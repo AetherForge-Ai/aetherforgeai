@@ -1,5 +1,6 @@
 "use client";
 
+import { dedupedDelete } from "@/lib/delete-dedupe";
 import { scrollRegionProps } from "@/lib/focus-trap";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -223,7 +224,7 @@ export function DividendLedgerView({
     // Goal b20 G-10: authoritative delete. The row shows "Removing…" until the
     // server confirms, then leaves; cash is painted from the server's figure.
     try {
-      const res = await api.delete<{ cash?: { after?: number } }>(`/api/transactions?id=${encodeURIComponent(id)}`);
+      const res = await dedupedDelete(id, () => api.delete<{ cash?: { after?: number } }>(`/api/transactions?id=${encodeURIComponent(id)}`));
       console.log(`[write] delete dividend id=${id} status=${res.status ?? "?"} ok=${res.ok}`);
       if (!res.ok) {
         const why = typeof res.error === "string" ? res.error : "That dividend was not removed.";
