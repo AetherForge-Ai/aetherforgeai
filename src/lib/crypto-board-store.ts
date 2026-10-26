@@ -68,7 +68,7 @@ import {
   lastCryptoSeedReport,
 } from "@/lib/crypto-keyless-seed";
 import { coinDisplayName } from "@/lib/crypto-names";
-import { resolvableCoinId, type CoinMarket } from "@/lib/crypto-market";
+import { dedupeCoinsById, renamedCoinSymbol, resolvableCoinId, type CoinMarket } from "@/lib/crypto-market";
 import { persistCryptoSnapshot, persistDexReport, persistDexSnapshot, readCryptoSnapshot, readDexSnapshot } from "@/lib/crypto-snapshot";
 import { publicSourceAllowed } from "@/lib/swyftx-display";
 
@@ -421,6 +421,7 @@ async function runCryptoSeed(): Promise<{ cryptoReplaced: boolean; cryptoRows: n
     const { retainDepthCoins } = await import("@/lib/crypto-depth-record");
     coins = retainDepthCoins(coins, previousCoins);
   }
+  coins = dedupeCoinsById(coins);
   await persistCryptoSnapshot(coins, at);
   const saved = await readCryptoSnapshot();
   const replaced = saved?.at === at;
@@ -596,7 +597,12 @@ export function refreshMarketSnapshotsNow(): Promise<RefreshResult> {
 }
 
 function gateCoins(coins: CoinMarket[]): CoinMarket[] {
-  return coins.filter((coin) => coin.price > 0 && publicSourceAllowed(coin.source));
+  // b69 (TT b68 P2): a snapshot saved before the dedupe can still hold a second row for one id.
+  const renamed = coins.map((coin) => {
+    const symbol = renamedCoinSymbol(coin.symbol);
+    return symbol && symbol !== coin.symbol ? { ...coin, symbol } : coin;
+  });
+  return dedupeCoinsById(renamed.filter((coin) => coin.price > 0 && publicSourceAllowed(coin.source)));
 }
 
 /** Goal b13 G-17: crypto older than this is shown as stale and refreshed in the request. */

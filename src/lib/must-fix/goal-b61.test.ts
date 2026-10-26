@@ -24,6 +24,6 @@ describe("b61: /ledger single redirect", () => {
   });
 
   it("pins the build", () => {
-    expect(read("public/build-version.txt")).toContain("v3-g24-b68-2026-10-27");
+    expect(read("public/build-version.txt")).toContain("v3-dedupe-b69-2026-10-27");
   });
 });
