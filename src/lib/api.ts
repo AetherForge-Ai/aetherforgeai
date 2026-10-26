@@ -129,6 +129,8 @@ async function request<T>(
         return { ok: false, status: 401, error: "Unauthorized" };
       }
     }
+    // b72: 204 No Content (e.g. DELETE of an id this user already removed) is a success with no body.
+    if (res.status === 204) return { ok: true, status: 204, data: {} as T };
     const parsed = parseApiBody(url, res.headers.get("content-type"), await res.text(), res.status);
     if (parsed.ok === false) {
       return { ok: false, status: res.status, error: parsed.error };

@@ -53,7 +53,7 @@ describe("pull-check:v3-retest9-2026-10-12", () => {
   it("records the marker and the build", () => {
     expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-retest9-2026-10-12");
     expect(read("src/lib/public-copy.ts")).toContain("pull-check:v3-retest9-2026-10-12");
-    expect(read("public/build-version.txt").trim()).toBe("v3-del404-b71-2026-10-27");
+    expect(read("public/build-version.txt").trim()).toBe("v3-fix-b72-2026-10-27");
     expect(read("src/lib/changelog-entries.ts")).toContain("12 Oct 2026 — Shared prices, coin pages and cash");
     expect(read("src/lib/changelog-entries.ts")).not.toMatch(/GPT|Claude|Gemini|OpenAI|Anthropic/);
   });

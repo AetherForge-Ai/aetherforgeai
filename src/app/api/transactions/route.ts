@@ -12,7 +12,7 @@ import { tradeSchema } from "@/lib/trade-schema";
 import { hasForeignOwner, requestClaimsOtherUser } from "@/lib/account-guard";
 import { accountMismatchResponse, privateJson } from "@/lib/account-response";
 import { writeMarkHeaders } from "@/lib/write-integrity";
-import { configureDurableTombstones, guardedIdemWrite, idemKeyFromNotes, idemNotesRegex, isIdemTombstoned, markIdemTombstone, pickIdemWinner, type IdemRow } from "@/lib/idem-guard";
+import { configureDurableTombstones, guardedIdemWrite, idemKeyFromNotes, idemNotesRegex, deletedIdKey, isIdemTombstoned, markIdemTombstone, pickIdemWinner, type IdemRow } from "@/lib/idem-guard";
 import { entityTypeOf, tombstoneTableEnabled } from "@/lib/ledger-tombstone";
 import { totalumTombstoneStore } from "@/lib/ledger-tombstone.server";
 
@@ -353,6 +353,12 @@ export async function DELETE(req: Request) {
     }
     const row = (loaded as { data?: { _id?: string; type?: string; user?: string | { _id?: string } } } | null)?.data;
     if (!row?._id) {
+      // b72 (TT b71 P2): an id this user deleted earlier (a replay after a reload that dropped the first
+      // answer) is 204: already done, nothing to log. Ids that never existed, or that another user
+      // deleted, are not tombstoned for this user and still answer 404 (b40).
+      if (await isIdemTombstoned(user._id, deletedIdKey(id))) {
+        return new NextResponse(null, { status: 204, headers: writeMarkHeaders() });
+      }
       const goneKey = new URL(req.url).searchParams.get("idem")?.trim() || "";
       if (goneKey) await markIdemTombstone(user._id, goneKey);
       invalidateBookCache(user._id);
@@ -392,6 +398,8 @@ export async function DELETE(req: Request) {
     // b39 G-10: tombstone the row's idempotency key so a late journal replay can't recreate it.
     const deletedKey = idemKeyFromNotes((row as { notes?: string }).notes) || new URL(req.url).searchParams.get("idem")?.trim() || "";
     if (deletedKey) await markIdemTombstone(user._id, deletedKey, Date.now(), { entityType: entityTypeOf(type), entityId: id, op: "delete" });
+    // b72: remember this user deleted this id, so a replayed DELETE answers 204 instead of 404.
+    await markIdemTombstone(user._id, deletedIdKey(id), Date.now(), { entityType: entityTypeOf(type), entityId: id, op: "delete" });
     console.info("[write]", JSON.stringify({ action: "delete", id, status: 200, cashAfter: (result as { cash?: { after?: number } })?.cash?.after ?? null }));
     ledgerAudit("delete", user._id, row, result);
     invalidateBookCache(user._id);

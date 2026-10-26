@@ -259,6 +259,8 @@ export async function replayPendingWrites(
       continue;
     }
     if (w.method === "DELETE") {
+      // b72: an earlier entry for the same id already settled and cleared this one.
+      if (!listPendingWrites(userId, s).some((x) => x.key === w.key)) continue;
       if (!w.deleteId || !del) {
         out.kept += 1;
         continue;
@@ -271,8 +273,9 @@ export async function replayPendingWrites(
         continue;
       }
       // DELETE is idempotent on the server (alreadyRemoved), so a replay is always safe.
-      if (dres.ok || dres.status === 404) {
+      if (dres.ok || dres.status === 404 || dres.status === 204) {
         clearPendingWrite(w.key, s);
+        clearPendingDeletesFor(userId, w.deleteId, s);
         noteWrite(userId, { deletedId: w.deleteId }, s, now);
         out.saved.push(w.deleteId);
       } else if (isDefiniteRefusal(dres.status)) {
@@ -340,4 +343,26 @@ export function clearCancelledWriteKey(writeKey: string, s: StorageLike | null =
   } catch {
     /* blocked storage */
   }
+}
+
+/** b72 (TT b71 P2): drop every queued DELETE for this id (a 200, 204 or 404 means it is done). */
+export function clearPendingDeletesFor(userId: string | null | undefined, id: string, s: StorageLike | null = store()): number {
+  if (!id) return 0;
+  const hits = listPendingWrites(userId, s).filter((w) => w.method === "DELETE" && w.deleteId === id);
+  for (const w of hits) clearPendingWrite(w.key, s);
+  return hits.length;
+}
+
+/**
+ * b72 (TT b71 P2): on load, a queued DELETE whose id is not in a fresh /api/transactions list already
+ * happened (the reload dropped its 200). Drop it instead of replaying it. Returns the ids dropped.
+ */
+export function pruneSettledDeletes(userId: string | null | undefined, liveIds: ReadonlySet<string>, s: StorageLike | null = store()): string[] {
+  const dropped: string[] = [];
+  for (const w of listPendingWrites(userId, s)) {
+    if (w.method !== "DELETE" || !w.deleteId || liveIds.has(w.deleteId)) continue;
+    clearPendingWrite(w.key, s);
+    dropped.push(w.deleteId);
+  }
+  return dropped;
 }
