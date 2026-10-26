@@ -78,7 +78,9 @@ describe("b48 /api/ticker replies carry the headers (simulated store)", () => {
     if (res.status === 503) {
       const reason = res.headers.get("x-af-503-reason") || "";
       expect(reason).toMatch(/ms=\d+$/);
-      expect(reason).toMatch(/durable=(miss|timeout)/);
+      // CI-TESTS: since b49 a durable miss names its class (no-row, empty, parse, torn-*, error-*).
+      // This branch only runs when the live seed fails, so the stale pattern failed at random on CI.
+      expect(reason).toMatch(/durable=(miss|timeout|no-row|empty|parse|torn-[a-z]+|error-[a-z0-9-]+)\b/);
       expect(reason).not.toMatch(/@|cookie|token/i);
     } else {
       // A live seed may answer in some environments; then it must still self-report.
