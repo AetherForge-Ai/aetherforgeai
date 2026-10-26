@@ -1,5 +1,6 @@
 "use client";
 
+import { dedupedDelete } from "@/lib/delete-dedupe";
 import { noteWrite, WRITE_TIMEOUT_CODE, WRITE_TIMEOUT_MESSAGE, WRITE_TIMEOUT_MS, clearCancelledWriteKey, clearPendingWrite, isCancelledWriteKey, isDefiniteRefusal, journalPendingWrite, newWriteKey, withWriteTimeout } from "@/lib/write-journal";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -804,7 +805,7 @@ export function RecordTransactionPanel({
       // b40 G-10 (TT b39 P1): the member deleted the row while it was saving. Delete it on arrival.
       if (isCancelledWriteKey(String(payload.idempotency_key))) {
         const key = String(payload.idempotency_key);
-        const del = await api.delete(`/api/transactions?id=${encodeURIComponent(savedId)}&idem=${encodeURIComponent(key)}`);
+        const del = await dedupedDelete(savedId, () => api.delete(`/api/transactions?id=${encodeURIComponent(savedId)}&idem=${encodeURIComponent(key)}`));
         if (del.ok || del.status === 404) {
           clearCancelledWriteKey(key);
           reviewKey.current = "";
