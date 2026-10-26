@@ -214,7 +214,7 @@ export function KpiHeader({
       )}
 
       <Collapsible open={chartOpen} onOpenChange={setChartOpen} className="mt-3" data-chart-open={chartOpen ? "true" : "false"}>
-        <CollapsibleTrigger className="inline-flex items-center gap-1 text-sm font-semibold text-foreground focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none">
+        <CollapsibleTrigger className="inline-flex min-h-11 items-center gap-1 md:min-h-6 text-sm font-semibold text-foreground focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none">
           <ChevronRight className={cn("size-4 transition-transform", chartOpen && "rotate-90")} aria-hidden />
           Chart
         </CollapsibleTrigger>
@@ -279,7 +279,7 @@ function CashByCurrency({ lines, warning }: { lines: SnapshotCashLine[]; warning
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs">
+        <Button type="button" variant="ghost" size="sm" className="h-11 px-2 text-xs md:h-7">
           By currency
         </Button>
       </PopoverTrigger>

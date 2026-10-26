@@ -10,10 +10,14 @@ import { toast } from "sonner";
 export function AnalysisPanel({
   holdingsCount,
   scope = "equity",
+  nested = false,
 }: {
   holdingsCount: number;
   scope?: "equity" | "crypto";
+  /** DASH-CLEAN: inside a CollapsibleSection that already renders the "AI research report" heading. */
+  nested?: boolean;
 }) {
+  const Title = nested ? "p" : "h2";
   const [report, setReport] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -42,7 +46,7 @@ export function AnalysisPanel({
             <FileText className="size-5" />
           </span>
           <div>
-            <h2 className="font-display text-lg font-bold">AI research report</h2>
+            <Title className="font-display text-lg font-bold">AI research report</Title>
             <p className="text-xs text-muted-foreground">
               A grounded analysis of your current holdings.
             </p>
