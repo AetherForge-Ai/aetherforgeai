@@ -53,7 +53,6 @@ export const TICKER_TAPE: { nzx: TapeSymbol[]; asx: TapeSymbol[]; crypto: TapeSy
     { symbol: "LINK", name: "Chainlink", currency: "USD" },
     { symbol: "DOT", name: "Polkadot", currency: "USD" },
     { symbol: "LTC", name: "Litecoin", currency: "USD" },
-    { symbol: "POL", name: "Polygon (POL, was MATIC)", currency: "USD" },
   ],
 };
 

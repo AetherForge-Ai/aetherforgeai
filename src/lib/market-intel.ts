@@ -590,7 +590,7 @@ export const CRYPTO_UNIVERSE: UniverseEntry[] = [
   { ticker: "DOGE", name: "Dogecoin", sector: "Meme", market: "CRYPTO", basePrice: 0.38 },
   { ticker: "LINK", name: "Chainlink", sector: "Oracle", market: "CRYPTO", basePrice: 24.7 },
   { ticker: "DOT", name: "Polkadot", sector: "Interoperability", market: "CRYPTO", basePrice: 8.15 },
-  { ticker: "MATIC", name: "Polygon", sector: "Layer 2", market: "CRYPTO", basePrice: 0.62 },
+  { ticker: "POL", name: "Polygon (POL, was MATIC)", sector: "Layer 2", market: "CRYPTO", basePrice: 0.62 },
   { ticker: "LTC", name: "Litecoin", sector: "Payments", market: "CRYPTO", basePrice: 108.5 },
   { ticker: "UNI", name: "Uniswap", sector: "DeFi", market: "CRYPTO", basePrice: 13.4 },
   { ticker: "ATOM", name: "Cosmos", sector: "Interoperability", market: "CRYPTO", basePrice: 7.9 },

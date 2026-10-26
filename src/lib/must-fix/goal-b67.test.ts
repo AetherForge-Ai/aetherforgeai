@@ -96,8 +96,8 @@ describe("H-1 DEX print time on the DEX tab", () => {
 });
 
 describe("H-1 MATIC renamed POL", () => {
-  it("ticker shows POL; MATIC is kept only as a stale alias", () => {
-    expect(read("src/lib/ticker-feed.ts")).toContain('symbol: "POL"');
+  // b68 P3 (Lukas via Chief, 27 Oct 2026): the ticker crypto row stays at 11 coins, so POL is not on the tape.
+  it("ticker has no MATIC row; MATIC is kept only as a stale alias", () => {
     expect(read("src/lib/ticker-feed.ts")).not.toContain('symbol: "MATIC"');
     expect(read("src/lib/crypto-directory.ts")).toMatch(/MATIC.*stale/);
   });
