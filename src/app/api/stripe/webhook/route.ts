@@ -30,6 +30,7 @@ import {
   testEventUserAllowed,
 } from "@/lib/stripe-entitlement";
 import { testSecretKey } from "@/lib/stripe-mode";
+import { withTimeout, userIdFromEventObject, WEBHOOK_IO_TIMEOUT_MS } from "@/lib/stripe-webhook-util";
 
 /**
  * b64 CR-6: read objects back with the client for the event's own mode. A test-mode event
@@ -67,10 +68,10 @@ function unixToIso(unix?: number | null): string | undefined {
 async function findUserIdByCustomer(customerId: string | null): Promise<string | null> {
   if (!customerId) return null;
   try {
-    const res = await totalumSdk.crud.query("user", {
+    const res = await withTimeout(totalumSdk.crud.query("user", {
       _filter: { stripe_customer_id: customerId },
       _limit: 1,
-    });
+    }), WEBHOOK_IO_TIMEOUT_MS, "customer lookup");
     const rows = (res?.data as any[]) || [];
     return rows[0]?._id ?? null;
   } catch (err) {
@@ -81,7 +82,7 @@ async function findUserIdByCustomer(customerId: string | null): Promise<string |
 
 async function updateUserSubscription(userId: string, patch: SubscriptionPatch) {
   try {
-    await totalumSdk.crud.editRecordById("user", userId, patch);
+    await withTimeout(totalumSdk.crud.editRecordById("user", userId, patch), WEBHOOK_IO_TIMEOUT_MS, "user update");
     console.log(`[webhook] Updated user ${userId} subscription:`, patch);
   } catch (err) {
     console.error(`[webhook] Failed to update user ${userId}:`, err);
@@ -108,7 +109,7 @@ function planFromSubscription(subscription: Stripe.Subscription) {
  */
 async function liveSubscription(subscription: Stripe.Subscription): Promise<Stripe.Subscription> {
   try {
-    return await readerFor(subscription.livemode).subscriptions.retrieve(subscription.id);
+    return await withTimeout(readerFor(subscription.livemode).subscriptions.retrieve(subscription.id), WEBHOOK_IO_TIMEOUT_MS, "subscription read");
   } catch (err) {
     console.warn("[webhook] live subscription read failed; using event copy", subscription.id, err instanceof Error ? err.message : "error");
     return subscription;
@@ -322,8 +323,7 @@ export async function POST(req: Request) {
     if (event.livemode === false) {
       const obj = (event.data?.object || {}) as { metadata?: Record<string, string> | null; client_reference_id?: string | null; customer?: unknown };
       const customerId = typeof obj.customer === "string" ? obj.customer : (obj.customer as { id?: string } | null)?.id ?? null;
-      const testUserId =
-        (obj.metadata?.userId as string) || parsePaymentLinkRef(obj.client_reference_id ?? null).userId || (await findUserIdByCustomer(customerId));
+      const testUserId = userIdFromEventObject(obj) || (await findUserIdByCustomer(customerId));
       if (!testEventUserAllowed(false, testUserId)) {
         console.warn("[webhook] ignored: test-mode event for a non-test account", event.id);
         return NextResponse.json({ received: true, ignored: "test_mode_not_allowed" });

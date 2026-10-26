@@ -164,10 +164,10 @@ export function WatchlistPanel({
           placeholder={bot === "crypto" ? "Add coin (e.g. SOL)" : "Add ticker (e.g. TSLA)"}
           value={ticker}
           onChange={(e) => setTicker(e.target.value.toUpperCase())}
-          className="min-w-0 uppercase placeholder:normal-case"
+          className="min-h-11 min-w-0 uppercase placeholder:normal-case md:min-h-9"
           autoComplete="off"
         />
-        <Button type="submit" disabled={adding} className="shrink-0 bg-[#047857] font-semibold text-white hover:bg-[#065f46]" aria-label="Add to watchlist">
+        <Button type="submit" disabled={adding} className="size-11 shrink-0 bg-[#047857] font-semibold text-white hover:bg-[#065f46] md:size-9" aria-label="Add to watchlist">
           {adding ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
         </Button>
       </form>

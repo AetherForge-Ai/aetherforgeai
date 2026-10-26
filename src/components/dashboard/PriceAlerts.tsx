@@ -411,7 +411,7 @@ export function PriceAlerts({
           </div>
         </div>
         {canCreate ? (
-        <Button onClick={openAdd} className={bare ? "bg-[#047857] font-semibold text-white hover:bg-[#065f46]" : "font-semibold"}>
+        <Button onClick={openAdd} className={cn("min-h-11 md:min-h-9", bare ? "bg-[#047857] font-semibold text-white hover:bg-[#065f46]" : "font-semibold")}>
           <Plus className="mr-1 size-4" /> New alert
         </Button>
         ) : (

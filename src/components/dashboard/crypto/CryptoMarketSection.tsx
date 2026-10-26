@@ -54,7 +54,7 @@ export function CryptoMarketSection({ showProjected = true }: { showProjected?: 
             </p>
           </div>
         </div>
-        <Button size="lg" className="gap-2 font-semibold shadow-glow" onClick={() => setMarketOpen(true)}>
+        <Button size="lg" className="min-h-11 gap-2 font-semibold shadow-glow" onClick={() => setMarketOpen(true)}>
           <LineChart className="size-5" />
           Crypto Market
         </Button>

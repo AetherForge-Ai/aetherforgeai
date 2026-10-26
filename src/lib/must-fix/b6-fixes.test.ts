@@ -159,7 +159,7 @@ describe("UI fixes (source checks)", () => {
     expect(read("src/components/portfolio-coach/PortfolioCoach.tsx")).toContain("2xl:block");
   });
   it("build version", () => {
-    expect(read("public/build-version.txt").trim()).toBe("v3-cr6b-b80-2026-10-27");
+    expect(read("public/build-version.txt").trim()).toBe("v3-dashclean-b81-2026-10-27");
     expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-must-fix-b6-2026-10-17");
   });
 });

@@ -11,7 +11,7 @@ import {
 import { ANALYTICS_NOTICE } from "@/lib/public-copy";
 
 const choiceClass =
-  "min-w-[7.5rem] rounded-md border border-border bg-background px-3 py-1.5 text-sm font-semibold text-foreground hover:bg-muted";
+  "min-h-11 min-w-[7.5rem] rounded-md border border-border bg-background px-3 py-1.5 text-sm font-semibold text-foreground hover:bg-muted";
 
 /**
  * Equal-weight Accept and Decline. The tag stays off until Accept.

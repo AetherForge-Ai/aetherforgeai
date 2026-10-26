@@ -260,7 +260,7 @@ function AccountMenu({
           aria-expanded={open}
           aria-haspopup="menu"
           aria-label={`${initials(user.name)} account menu`}
-          className="flex items-center gap-2 rounded-full border border-border/70 bg-card/60 py-1 pl-1 pr-2 transition-colors hover:border-primary/50"
+          className="flex min-h-11 items-center gap-2 rounded-full border border-border/70 bg-card/60 py-1 pl-1 pr-2 transition-colors hover:border-primary/50"
         >
           <Avatar className="size-8">
             {user.image ? <AvatarImage src={user.image} alt="" /> : null}
@@ -348,7 +348,7 @@ function MobileDrawer({
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
-        <Button variant="outline" size="icon" className="lg:hidden" aria-label="Open menu">
+        <Button variant="outline" size="icon" className="size-11 lg:hidden" aria-label="Open menu">
           <Menu className="size-5" />
         </Button>
       </SheetTrigger>
@@ -495,7 +495,7 @@ export function TopNav() {
             pending={pending}
             onDashboardClick={memberDashboard.onDashboardClick}
           />
-          <Link href={loggedIn ? "/dashboard" : "/"} className="transition-opacity hover:opacity-90">
+          <Link href={loggedIn ? "/dashboard" : "/"} className="inline-flex min-h-11 items-center transition-opacity hover:opacity-90">
             <BrandLogo />
           </Link>
         </div>
@@ -508,7 +508,7 @@ export function TopNav() {
           {loggedIn ? (
             <Button
               size="sm"
-              className="font-semibold shadow-glow"
+              className="min-h-11 font-semibold shadow-glow md:min-h-8"
               onClick={() => openRecordTransaction({ mode: "buy" })}
             >
               <Plus className="mr-1.5 size-4" /> Add
@@ -523,7 +523,7 @@ export function TopNav() {
               <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
                 <Link href="/login">Log in</Link>
               </Button>
-              <Button asChild size="sm" className="font-semibold shadow-glow">
+              <Button asChild size="sm" className="min-h-11 font-semibold shadow-glow md:min-h-8">
                 <Link href="/register">Get started free</Link>
               </Button>
             </>
