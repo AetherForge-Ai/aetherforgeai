@@ -23,9 +23,9 @@ describe("crypto tape", () => {
       { ticker: "TON", price: 1.48, origin: "coingecko", history: [0.0004, 0.0003] },
     ]);
     expect(board.quotes).toEqual({});
-    expect(board.hidden[0]?.ticker).toBe("TON");
+    expect(board.hidden[0]?.ticker).toBe("GRAM");
     expect(board.hidden[0]?.reason).toMatch(/do not agree/);
-    expect(warn).toHaveBeenCalledWith(expect.stringMatching(/^\[crypto-sanity\] TON:/));
+    expect(warn).toHaveBeenCalledWith(expect.stringMatching(/^\[crypto-sanity\] GRAM:/));
     warn.mockRestore();
   });
 
