@@ -23,7 +23,8 @@ import {
 import { useCryptoMarkets } from "@/hooks/useCryptoMarkets";
 import { api } from "@/lib/api";
 import { dexRowToCoin, type DexTokenRow } from "@/lib/crypto-dex";
-import { coinLogo, fmtPrice, fmtPct, pctColor, GENERIC_COIN_ICON, type CoinMarket } from "@/lib/crypto-market";
+import { coinLogo, fmtPrice, fmtPct, GENERIC_COIN_ICON, type CoinMarket } from "@/lib/crypto-market";
+import { CRYPTO_SEARCH_TEXT, cryptoSearchPctClass } from "@/lib/crypto-search-colors";
 
 export function CryptoSearch({
   value,
@@ -235,11 +236,11 @@ export function CryptoSearch({
                     }}
                   />
                   <span className="font-display text-sm font-bold">{c.symbol}</span>
-                  <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">{c.name}</span>
+                  <span className={cn("min-w-0 flex-1 truncate text-sm", CRYPTO_SEARCH_TEXT.flat.className)}>{c.name}</span>
                   <span className="tnum shrink-0 text-right text-sm font-semibold">
                     {c.priceUnavailable || !(c.price > 0) ? "Unavailable" : fmtPrice(c.price)}
                   </span>
-                  <span className={cn("tnum w-14 shrink-0 text-right text-[0.68rem] font-medium", pctColor(c.change24h))}>
+                  <span className={cn("tnum w-14 shrink-0 text-right text-[0.68rem] font-medium", cryptoSearchPctClass(c.change24h))}>
                     {fmtPct(c.change24h)}
                   </span>
                 </div>
