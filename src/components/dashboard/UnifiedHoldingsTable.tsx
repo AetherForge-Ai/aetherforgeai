@@ -126,7 +126,7 @@ export function UnifiedHoldingsTable({
             placeholder="Name or ticker"
             aria-label="Search holdings"
             disabled={loading}
-            className="mt-1 w-full rounded-md border border-border/70 bg-background px-2 py-1.5 text-sm text-foreground"
+            className="mt-1 min-h-11 w-full rounded-md border border-border/70 bg-background px-2 py-1.5 text-sm text-foreground md:min-h-9"
           />
         </label>
         <div className="inline-flex flex-wrap gap-1" role="group" aria-label="Asset class">
@@ -138,7 +138,7 @@ export function UnifiedHoldingsTable({
               disabled={loading}
               onClick={() => patch({ assetClass: id })}
               className={cn(
-                "rounded-md border px-2.5 py-1 text-xs font-semibold",
+                "min-h-11 min-w-11 rounded-md border px-2.5 py-1 text-xs font-semibold md:min-h-8 md:min-w-0",
                 query.assetClass === id ? "border-primary bg-primary text-primary-foreground" : "border-border/70 text-muted-foreground"
               )}
             >
@@ -146,10 +146,10 @@ export function UnifiedHoldingsTable({
             </button>
           ))}
         </div>
-        <Button type="button" variant="outline" size="sm" disabled={loading} aria-expanded={filtersOpen} onClick={() => setFiltersOpen((open) => !open)}>
+        <Button type="button" variant="outline" size="sm" className="min-h-11 md:min-h-8" disabled={loading} aria-expanded={filtersOpen} onClick={() => setFiltersOpen((open) => !open)}>
           Filters
         </Button>
-        <Button type="button" variant="outline" size="sm" disabled={loading} aria-expanded={columnsOpen} onClick={() => setColumnsOpen((open) => !open)}>
+        <Button type="button" variant="outline" size="sm" className="min-h-11 md:min-h-8" disabled={loading} aria-expanded={columnsOpen} onClick={() => setColumnsOpen((open) => !open)}>
           Columns
         </Button>
         {filtersOpen ? (
@@ -228,7 +228,7 @@ export function UnifiedHoldingsTable({
         <fieldset className="mt-2 flex flex-wrap gap-2 text-xs">
           <legend className="text-xs font-semibold text-foreground">Columns. Asset stays pinned.</legend>
           {CUSTOM_COLUMN_CHOICES.map((id) => (
-            <label key={id} className="inline-flex items-center gap-1">
+            <label key={id} className="inline-flex min-h-11 items-center gap-1 md:min-h-6">
               <input
                 type="checkbox"
                 checked={columnSet === "custom" ? customColumns.includes(id) : columns.includes(id)}
@@ -266,11 +266,11 @@ export function UnifiedHoldingsTable({
                 {rows.map((row) => (
                   <article key={row.id} className="rounded-2xl border border-border/70 bg-card/50 p-3">
                     <AssetCell row={row} onOpen={() => onInspect(row)} />
-                    <dl className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                    <dl className="mt-3 divide-y divide-border/40 text-sm">
                       {columns.filter((column) => column !== "asset" && column !== "actions").map((column) => (
-                        <div key={column}>
-                          <dt className="text-xs text-muted-foreground">{COLUMN_LABEL[column]}</dt>
-                          <dd><CellView cell={row.cells[column]} label={`${row.ticker} ${COLUMN_LABEL[column]}`} signed={SIGNED.has(column)} /></dd>
+                        <div key={column} className="flex items-start justify-between gap-4 py-2">
+                          <dt className="shrink-0 pt-0.5 text-xs text-muted-foreground">{COLUMN_LABEL[column]}</dt>
+                          <dd className="tnum min-w-0 text-right tabular-nums"><CellView cell={row.cells[column]} label={`${row.ticker} ${COLUMN_LABEL[column]}`} signed={SIGNED.has(column)} /></dd>
                         </div>
                       ))}
                     </dl>
@@ -319,7 +319,7 @@ export function UnifiedHoldingsTable({
                       {sortable ? (
                         <button
                           type="button"
-                          className="inline-flex items-center gap-1 font-medium focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none"
+                          className="inline-flex min-h-6 items-center gap-1 font-medium focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none"
                           onClick={() =>
                             patch({
                               sortKey: column,
@@ -424,7 +424,7 @@ export function UnifiedHoldingsTable({
   );
 }
 
-const selectClass = "mt-1 rounded-md border border-border/70 bg-background px-2 py-1.5 text-sm text-foreground";
+const selectClass = "mt-1 min-h-11 md:min-h-9 rounded-md border border-border/70 bg-background px-2 py-1.5 text-sm text-foreground";
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -442,7 +442,7 @@ function AssetCell({ row, onOpen, folded = false }: { row: HoldingsRowModel; onO
     <span className="flex items-start gap-2">
       <button
         type="button"
-        className="mt-0.5 inline-flex size-6 items-center justify-center rounded-md text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none"
+        className="-m-2.5 inline-flex size-11 shrink-0 items-center md:m-0 md:mt-0.5 md:size-6 justify-center rounded-md text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none"
         aria-label={`Open ${row.name}`}
         onClick={onOpen}
       >
@@ -537,7 +537,7 @@ function RowActions({
     return (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button type="button" size="sm" variant="outline" className="text-foreground opacity-100" aria-label="Actions for Cash" data-cash-actions>
+          <Button type="button" size="sm" variant="outline" className="size-11 text-foreground opacity-100 md:size-8" aria-label="Actions for Cash" data-cash-actions>
             <MoreHorizontal className="size-4" />
           </Button>
         </DropdownMenuTrigger>
@@ -564,7 +564,7 @@ function RowActions({
     <span className="flex justify-end">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button type="button" size="sm" variant="outline" aria-label={`Actions for ${row.ticker || row.name}`} data-row-actions>
+          <Button type="button" size="sm" variant="outline" className="size-11 md:size-8" aria-label={`Actions for ${row.ticker || row.name}`} data-row-actions>
             <MoreHorizontal className="size-4" />
           </Button>
         </DropdownMenuTrigger>

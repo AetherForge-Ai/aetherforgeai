@@ -103,7 +103,7 @@ export function TransactionsTab({
             One ledger. Cost method is FIFO.
           </p>
         </div>
-        <Button type="button" onClick={onRecord}>
+        <Button type="button" className="min-h-11 md:min-h-9" onClick={onRecord}>
           Record a transaction
         </Button>
       </div>
@@ -131,7 +131,7 @@ export function TransactionsTab({
             }}
             aria-label="Search transactions"
             placeholder="Ticker or type"
-            className="mt-1 w-full rounded-md border border-border/70 bg-background px-2 py-1.5 text-sm text-foreground"
+            className="mt-1 min-h-11 w-full rounded-md border border-border/70 bg-background px-2 py-1.5 text-sm text-foreground md:min-h-9"
           />
         </label>
         <label className="text-xs text-muted-foreground">
@@ -143,7 +143,7 @@ export function TransactionsTab({
               setType(event.target.value);
               setPage(1);
             }}
-            className="mt-1 rounded-md border border-border/70 bg-background px-2 py-1.5 text-sm text-foreground"
+            className="mt-1 min-h-11 rounded-md border border-border/70 bg-background px-2 py-1.5 text-sm text-foreground md:min-h-9"
           >
             <option value="all">All</option>
             {types.map((id) => (
@@ -168,7 +168,7 @@ export function TransactionsTab({
               setPageSize(Number(next) as (typeof PAGE_SIZES)[number]);
               setPage(1);
             }}
-            className="mt-1 rounded-md border border-border/70 bg-background px-2 py-1.5 text-sm text-foreground"
+            className="mt-1 min-h-11 rounded-md border border-border/70 bg-background px-2 py-1.5 text-sm text-foreground md:min-h-9"
           >
             {PAGE_SIZES.map((size) => (
               <option key={size} value={size}>
@@ -198,9 +198,9 @@ export function TransactionsTab({
             ))}
           </div>
         ) : (
-          <table className="w-full min-w-[36rem] border-collapse text-sm md:min-w-0 md:table-fixed">
+          <table className="w-full border-collapse text-sm max-md:block md:table-fixed" data-stack-below-md>
             <caption className="sr-only">Ledger from the portfolio snapshot</caption>
-            <thead>
+            <thead className="max-md:sr-only">
               <tr className="border-b border-border/60 text-left text-xs uppercase tracking-wide text-muted-foreground">
                 <th scope="col" className="px-3 py-3 font-medium">Type</th>
                 <th scope="col" className="px-3 py-3 font-medium">Asset</th>
@@ -213,7 +213,7 @@ export function TransactionsTab({
                 <th scope="col" className="w-[5.75rem] px-2 py-3 text-right font-medium">Actions</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="max-md:block">
               {paged.rows.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="px-4 py-10 text-center text-muted-foreground">
@@ -224,24 +224,25 @@ export function TransactionsTab({
                 paged.rows.map((line) => {
                   const qtyPrice = formatLedgerQtyPrice(line);
                   return (
-                  <tr key={line.id} className="border-t border-border/40">
-                    <td className="px-3 py-3 capitalize">{line.type}</td>
-                    <td className="px-3 py-3">{line.ticker || "Cash"}</td>
-                    <td className="tnum px-3 py-3 text-right" title={qtyPrice.reason || undefined}>
+                  <tr key={line.id} className="border-t border-border/40 max-md:block max-md:px-1 max-md:py-2">
+                    <td data-label="Type" className="px-3 py-3 capitalize max-md:flex max-md:items-center max-md:justify-between max-md:gap-3 max-md:py-1.5 max-md:text-right max-md:before:text-xs max-md:before:font-medium max-md:before:text-muted-foreground max-md:before:content-[attr(data-label)] max-md:font-semibold">{line.type}</td>
+                    <td data-label="Asset" className="px-3 py-3 max-md:flex max-md:items-center max-md:justify-between max-md:gap-3 max-md:py-1.5 max-md:text-right max-md:before:text-xs max-md:before:font-medium max-md:before:text-muted-foreground max-md:before:content-[attr(data-label)]">{line.ticker || "Cash"}</td>
+                    <td data-label="Qty × Price" className="tnum px-3 py-3 text-right max-md:flex max-md:items-center max-md:justify-between max-md:gap-3 max-md:py-1.5 max-md:text-right max-md:before:text-xs max-md:before:font-medium max-md:before:text-muted-foreground max-md:before:content-[attr(data-label)]" title={qtyPrice.reason || undefined}>
                       {qtyPrice.text}
                       {qtyPrice.reason ? <span className="sr-only"> {qtyPrice.reason}</span> : null}
                     </td>
-                    <td className="tnum px-3 py-3 text-right">{line.feesNzd == null ? MISSING_MARK : formatNzd(line.feesNzd)}</td>
-                    <td className="tnum px-3 py-3 text-right">{line.fxDisplay}</td>
-                    <td className="tnum px-3 py-3 text-right">{formatNzd(line.cashNzd)}</td>
-                    <td className="tnum px-3 py-3 text-right">{line.realisedNzd == null ? MISSING_MARK : formatNzd(line.realisedNzd)}</td>
-                    <td className="whitespace-nowrap px-3 py-3 text-right">{line.whenLabel}</td>
-                    <td className="px-2 py-3 text-right">
-                      <span className="flex flex-col items-stretch gap-1">
+                    <td data-label="Fees" className="tnum px-3 py-3 text-right max-md:flex max-md:items-center max-md:justify-between max-md:gap-3 max-md:py-1.5 max-md:text-right max-md:before:text-xs max-md:before:font-medium max-md:before:text-muted-foreground max-md:before:content-[attr(data-label)]">{line.feesNzd == null ? MISSING_MARK : formatNzd(line.feesNzd)}</td>
+                    <td data-label="FX" className="tnum px-3 py-3 text-right max-md:flex max-md:items-center max-md:justify-between max-md:gap-3 max-md:py-1.5 max-md:text-right max-md:before:text-xs max-md:before:font-medium max-md:before:text-muted-foreground max-md:before:content-[attr(data-label)]">{line.fxDisplay}</td>
+                    <td data-label="Cash impact" className="tnum px-3 py-3 text-right max-md:flex max-md:items-center max-md:justify-between max-md:gap-3 max-md:py-1.5 max-md:text-right max-md:before:text-xs max-md:before:font-medium max-md:before:text-muted-foreground max-md:before:content-[attr(data-label)]">{formatNzd(line.cashNzd)}</td>
+                    <td data-label="Realised" className="tnum px-3 py-3 text-right max-md:flex max-md:items-center max-md:justify-between max-md:gap-3 max-md:py-1.5 max-md:text-right max-md:before:text-xs max-md:before:font-medium max-md:before:text-muted-foreground max-md:before:content-[attr(data-label)]">{line.realisedNzd == null ? MISSING_MARK : formatNzd(line.realisedNzd)}</td>
+                    <td data-label="Date" className="tnum whitespace-nowrap px-3 py-3 text-right max-md:flex max-md:items-center max-md:justify-between max-md:gap-3 max-md:py-1.5 max-md:text-right max-md:before:text-xs max-md:before:font-medium max-md:before:text-muted-foreground max-md:before:content-[attr(data-label)]">{line.whenLabel}</td>
+                    <td className="px-2 py-3 text-right max-md:block max-md:py-2">
+                      <span className="flex flex-col items-stretch gap-1 max-md:flex-row max-md:justify-end max-md:gap-2">
                         <Button
                           type="button"
                           size="sm"
                           variant="outline"
+                          className="min-h-11 max-md:min-w-20 md:min-h-8"
                           aria-label={`Edit ${line.type} ${line.ticker}`}
                           onClick={() => {
                             if (onEditTrade && isTradeLine(line)) {
@@ -257,6 +258,7 @@ export function TransactionsTab({
                             type="button"
                             size="sm"
                             variant="outline"
+                            className="min-h-11 max-md:min-w-20 md:min-h-8"
                             aria-label={`Delete ${line.type} ${line.ticker}`}
                             // b40 G-10 (TT b39 P1): a row still saving has no server id yet; Delete waits for it.
                             disabled={isOptimisticId(line.id)}
@@ -266,7 +268,7 @@ export function TransactionsTab({
                             Delete
                           </Button>
                         ) : (
-                          <Button type="button" size="sm" variant="outline" disabled title="This row cannot be removed from this list. Opening balances and holding edits are changed from Cash or the holding instead.">
+                          <Button type="button" size="sm" variant="outline" className="min-h-11 max-md:min-w-20 md:min-h-8" disabled title="This row cannot be removed from this list. Opening balances and holding edits are changed from Cash or the holding instead.">
                             Delete
                           </Button>
                         )}
@@ -283,16 +285,17 @@ export function TransactionsTab({
       {snapshot ? (
         <p className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           <span>{paged.label}</span>
-          <Button type="button" size="sm" variant="outline" disabled={showAll || paged.page <= 1} onClick={() => setPage(paged.page - 1)}>
+          <Button type="button" size="sm" variant="outline" className="min-h-11 md:min-h-8" disabled={showAll || paged.page <= 1} onClick={() => setPage(paged.page - 1)}>
             Previous
           </Button>
-          <Button type="button" size="sm" variant="outline" disabled={showAll || paged.page >= paged.pageCount} onClick={() => setPage(paged.page + 1)}>
+          <Button type="button" size="sm" variant="outline" className="min-h-11 md:min-h-8" disabled={showAll || paged.page >= paged.pageCount} onClick={() => setPage(paged.page + 1)}>
             Next
           </Button>
           <Button
             type="button"
             size="sm"
             variant="outline"
+            className="min-h-11 md:min-h-8"
             onClick={() => {
               setShowAll((current) => !current);
               setPage(1);
