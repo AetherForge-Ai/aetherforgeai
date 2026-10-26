@@ -28,7 +28,7 @@ export type CheckoutResult =
 
 export async function createPlanCheckout(opts: { user: AppUser; plan: PlanDef; bot?: "stock" | "crypto"; baseUrl: string; cancelPath?: string }): Promise<CheckoutResult> {
   const { user, plan, baseUrl } = opts;
-  const { mode, client } = checkoutStripe();
+  const { mode, client } = checkoutStripe(user._id);
   if (!client) return { ok: false, status: 503, error: TEST_KEY_MISSING };
 
   const selfServe = isSelfServeCheckoutPlan(plan);

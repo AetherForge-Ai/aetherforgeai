@@ -1,4 +1,4 @@
-// pull-check:v3-fix-b77-2026-10-27
+// pull-check:v3-cr6-b78-2026-10-27
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { contractIndexFromPlatforms, fillDexDetailIds, type DexTokenRow } from "@/lib/crypto-dex";

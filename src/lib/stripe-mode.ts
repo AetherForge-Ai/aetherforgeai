@@ -7,6 +7,7 @@
 import "server-only";
 import Stripe from "stripe";
 import { getStripe } from "@/lib/stripe";
+import { testHooksAllowedFor } from "@/lib/test-hooks";
 
 export type CheckoutMode = "test" | "live";
 export type StripeKeyType = "live" | "test" | "unset" | "unknown";
@@ -29,11 +30,27 @@ export function testSecretKey(env: Record<string, string | undefined> = process.
   return null;
 }
 
+/**
+ * b78 CR-6 / STRIPE-TEST (Lukas approved 27 Oct 2026): with live checkout on, an allow-listed test account
+ * (GOAL_TEST_HOOKS=1 and its id in GOAL_TEST_HOOK_USER_IDS) checks out in Stripe TEST mode, but only when
+ * STRIPE_TEST_SECRET_KEY holds a real sk_test_/rk_test_ key. Everyone else, and an allow-listed account
+ * without that key, stays on the unchanged live path. Server-side only; the key is never returned or logged.
+ */
+export function checkoutModeFor(
+  userId: string | null | undefined,
+  env: Record<string, string | undefined> = process.env
+): CheckoutMode {
+  const base = checkoutMode(env);
+  if (base !== "live") return base;
+  if (!userId || !testHooksAllowedFor({ _id: userId }, env)) return "live";
+  return stripeKeyType(env.STRIPE_TEST_SECRET_KEY) === "test" ? "test" : "live";
+}
+
 let testClient: Stripe | null = null;
 
 /** Stripe client for checkout in the current mode, or null when test mode has no test key. */
-export function checkoutStripe(): { mode: CheckoutMode; client: Stripe | null } {
-  const mode = checkoutMode();
+export function checkoutStripe(userId?: string | null): { mode: CheckoutMode; client: Stripe | null } {
+  const mode = checkoutModeFor(userId);
   if (mode === "live") return { mode, client: getStripe() };
   const key = testSecretKey();
   if (!key) return { mode, client: null };
@@ -44,8 +61,10 @@ export function checkoutStripe(): { mode: CheckoutMode; client: Stripe | null } 
 }
 
 /** Safe summary for /api/stripe/mode and the batch report. No key material. */
-export function stripeModeSummary(env: Record<string, string | undefined> = process.env) {
+export function stripeModeSummary(env: Record<string, string | undefined> = process.env, userId?: string | null) {
   return {
+    /** b78: true only for an allow-listed test account whose checkout runs in Stripe test mode. */
+    userTestCheckout: checkoutMode(env) === "live" && checkoutModeFor(userId, env) === "test",
     checkoutMode: checkoutMode(env),
     defaultKeyType: stripeKeyType(env.STRIPE_SECRET_KEY),
     testKeyConfigured: testSecretKey(env) != null,

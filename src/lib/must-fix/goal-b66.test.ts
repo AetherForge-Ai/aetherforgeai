@@ -1,4 +1,4 @@
-// pull-check:v3-fix-b77-2026-10-27
+// pull-check:v3-cr6-b78-2026-10-27
 /** Goal b66 = Batch S3 (G-27, G-28, G-29) + TT b64 P3s (DEX per-source report on the snapshot, /markets edge cache). */
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
@@ -30,7 +30,7 @@ const read = (p: string) => readFileSync(p, "utf8");
 const NOW = Date.parse("2026-10-24T06:00:00Z");
 
 describe("b66 build", () => {
-  it("build version", () => expect(read("public/build-version.txt").trim()).toBe("v3-fix-b77-2026-10-27"));
+  it("build version", () => expect(read("public/build-version.txt").trim()).toBe("v3-cr6-b78-2026-10-27"));
 });
 
 describe("G-27 read-only share", () => {

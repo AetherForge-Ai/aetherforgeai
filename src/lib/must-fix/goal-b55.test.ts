@@ -1,4 +1,4 @@
-// pull-check:v3-fix-b77-2026-10-27
+// pull-check:v3-cr6-b78-2026-10-27
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
@@ -15,6 +15,6 @@ describe("b54 REG-1: signed-out /markets first byte", () => {
     expect(read("src/app/markets/page.tsx")).toMatch(/withDeadline\(ensureCryptoTab\(built\), 400, built\)/);
   });
   it("build string", () => {
-    expect(read("public/build-version.txt").trim()).toBe("v3-fix-b77-2026-10-27");
+    expect(read("public/build-version.txt").trim()).toBe("v3-cr6-b78-2026-10-27");
   });
 });
