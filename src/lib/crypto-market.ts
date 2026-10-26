@@ -619,10 +619,14 @@ export function fmtPct(n: number | null | undefined, decimals = 2): string {
   return `${sign}${n.toFixed(decimals)}%`;
 }
 
-/** Tailwind colour class for a delta (green up / red down / muted flat). */
+/**
+ * Tailwind colour class for a delta (green up / red down / muted flat).
+ * b74 M-7: the one text green (text-gain, AA on light and dark surfaces) and an AA red on the light
+ * sheet; emerald-400 / rose-400 were under 3:1 on white.
+ */
 export function pctColor(n: number | null | undefined): string {
   if (n == null || !isFinite(n) || n === 0) return "text-muted-foreground";
-  return n > 0 ? "text-emerald-400" : "text-rose-400";
+  return n > 0 ? "text-gain" : "text-rose-600";
 }
 
 /**

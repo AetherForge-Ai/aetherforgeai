@@ -103,7 +103,7 @@ function TickerCell({
       <span
         className={cn(
           "tnum inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[0.7rem] font-semibold",
-          !hasChange || flat ? "bg-zinc-800 text-zinc-300" : up ? "bg-emerald-500/20 text-emerald-300" : "bg-rose-500/20 text-rose-300"
+          !hasChange || flat ? "bg-zinc-800 text-zinc-300" : up ? "bg-emerald-500/20 text-gain" : "bg-rose-500/20 text-rose-300"
         )}
       >
         <span aria-hidden="true">{!hasChange || flat ? "·" : up ? "▲" : "▼"}</span>
