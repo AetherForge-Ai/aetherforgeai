@@ -495,7 +495,7 @@ export function TopNav() {
             pending={pending}
             onDashboardClick={memberDashboard.onDashboardClick}
           />
-          <Link href={loggedIn ? "/dashboard" : "/"} className="transition-opacity hover:opacity-90">
+          <Link href={loggedIn ? "/dashboard" : "/"} className="inline-flex min-h-11 items-center transition-opacity hover:opacity-90">
             <BrandLogo />
           </Link>
         </div>
@@ -523,7 +523,7 @@ export function TopNav() {
               <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
                 <Link href="/login">Log in</Link>
               </Button>
-              <Button asChild size="sm" className="font-semibold shadow-glow">
+              <Button asChild size="sm" className="min-h-11 font-semibold shadow-glow md:min-h-8">
                 <Link href="/register">Get started free</Link>
               </Button>
             </>
