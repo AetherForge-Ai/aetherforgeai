@@ -11,7 +11,7 @@ import { FIXTURE_500_LABEL, fixture500Rows, fixture500Snapshot } from "@/lib/fix
 const read = (p: string) => readFileSync(p, "utf8");
 
 describe("goal b18", () => {
-  it("pins the build", () => expect(read("public/build-version.txt").trim()).toMatch(/^v3-(?:goal|h1|g24|dedupe|g10|del404|fix|m7|cr6)-b(1[89]|[2-9][0-9])[a-z]?-/));
+  it("pins the build", () => expect(read("public/build-version.txt").trim()).toMatch(/^v3-(?:goal|h1|g24|dedupe|g10|del404|fix|m7|cr6|g18)-b(1[89]|[2-9][0-9])[a-z]?-/));
 
   it("G-10: optimistic cash moves cash, net worth and grand to 2dp", () => {
     const snap = fixture500Snapshot();

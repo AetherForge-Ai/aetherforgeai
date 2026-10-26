@@ -1,4 +1,4 @@
-// pull-check:v3-cr6-b78-2026-10-27
+// pull-check:v3-g18-b79-2026-10-27
 /** b68 (Chief, 27 Oct 2026): G-24 paste samples, G-07 caps meter behind HOLDING_CAPS_V2, b67 P3 POL symbol, noindex audit. */
 import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";

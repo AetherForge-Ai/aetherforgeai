@@ -7,7 +7,7 @@ const read = (p: string) => readFileSync(p, "utf8");
 
 describe("b64 pins", () => {
   it("build version", () => {
-    expect(read("public/build-version.txt").trim()).toMatch(/^v3-(goal|h1|g24|dedupe|g10|del404|fix|m7|cr6)-b(6[4-9]|7[0-9])-2026-10-2\d$/);
+    expect(read("public/build-version.txt").trim()).toMatch(/^v3-(goal|h1|g24|dedupe|g10|del404|fix|m7|cr6|g18)-b(6[4-9]|7[0-9])-2026-10-2\d$/);
   });
   it("M-7: one text-green token, no #059669 text", () => {
     const css = read("src/app/globals.css");
