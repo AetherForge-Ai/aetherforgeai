@@ -32,7 +32,7 @@ import {
 import { MARKET_LIST_TARGET } from "@/lib/crypto-coverage";
 import { canonicalCryptoId } from "@/lib/crypto-ids";
 import { coinDisplayName } from "@/lib/crypto-names";
-import { mergeCoinMarketStats, positiveMarketStat, type CoinMarket } from "@/lib/crypto-market";
+import { dedupeCoinsById, mergeCoinMarketStats, positiveMarketStat, renamedCoinSymbol, type CoinMarket } from "@/lib/crypto-market";
 import { sourceLabel } from "@/lib/crypto-price-chain";
 import { CRYPTO_SANITY_RATIO, isStablecoinTicker } from "@/lib/crypto-tape";
 import { publicSourceAllowed } from "@/lib/swyftx-display";
@@ -259,7 +259,7 @@ export function mergeVerifiedSeedLists(lists: CoinMarket[][], limit = LIST_CAP):
   for (const list of lists) {
     for (const coin of list || []) {
       if (!coin || !(coin.price > 0) || !Number.isFinite(coin.price)) continue;
-      const symbol = (coin.symbol || "").trim().toUpperCase();
+      const symbol = renamedCoinSymbol(coin.symbol);
       if (!symbol) continue;
       const source = (coin.source || "coingecko").toLowerCase();
       if (!publicSourceAllowed(source)) continue;
@@ -277,7 +277,8 @@ export function mergeVerifiedSeedLists(lists: CoinMarket[][], limit = LIST_CAP):
     chosen.push(blankCoin({ ...pick, symbol, source: pick.source || "coingecko" }));
   }
 
-  return chosen
+  // b69: dedupe by id after the rename, before the cap, so the list tops back up to 400 unique ids.
+  return dedupeCoinsById(chosen)
     .sort((a, b) => {
       const cap = (b.marketCap || 0) - (a.marketCap || 0);
       if (cap !== 0) return cap;

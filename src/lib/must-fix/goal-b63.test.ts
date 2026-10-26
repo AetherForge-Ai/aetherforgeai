@@ -1,4 +1,4 @@
-// pull-check:v3-g24-b68-2026-10-27
+// pull-check:v3-dedupe-b69-2026-10-27
 import { vi, afterEach, describe, expect, it } from "vitest";
 vi.mock("server-only", () => ({}));
 import { fillFromLastGood, readPageWithRetry, rememberFullList, resetLastGoodList, LAST_GOOD_MAX_AGE_MS } from "@/lib/coingecko-pull";

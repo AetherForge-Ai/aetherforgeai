@@ -1,6 +1,6 @@
 /**
  * b62 (23 Oct 2026): GSC-404 redirects, TT P2 DEX last-good list + /status DEX row, TT P3 crypto count line.
- * pull-check:v3-g24-b68-2026-10-27
+ * pull-check:v3-dedupe-b69-2026-10-27
  */
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -89,6 +89,6 @@ describe("b62 TT P2: /status DEX row", () => {
     expect(wf).not.toMatch(/echo.*\$\{?CRON_SECRET/);
   });
   it("pins the build", () => {
-    expect(read("public/build-version.txt")).toContain("v3-g24-b68-2026-10-27");
+    expect(read("public/build-version.txt")).toContain("v3-dedupe-b69-2026-10-27");
   });
 });
