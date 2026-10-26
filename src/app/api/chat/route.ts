@@ -9,6 +9,7 @@ import { createGrokChatCompletion, type GrokMessage } from "@/lib/grok";
 import { ASSISTANT_SHARE_PICK_REPLY, isSharePickRequest, withAssistantDisclaimer, withGuideDisclaimer } from "@/lib/guide-safety";
 import { assistantCompletionMessages } from "@/lib/ai-request-payload";
 import type { Stock } from "@/lib/portfolio";
+import { aiShowWorkingEnabled, latestAsOf, showWorking } from "@/lib/ai-working";
 
 const postSchema = z.object({
   message: z.string().min(1, "Message is required").max(2000),
@@ -131,16 +132,18 @@ export async function POST(req: Request) {
     const refused = isSharePickRequest(userMessage);
     if (refused) console.info(`[api/chat] share-pick refusal for user ${user._id}`);
     else console.log(`[api/chat] Generating Grok reply for user ${user._id}`);
-    const reply = refused
-      ? withGuideDisclaimer(ASSISTANT_SHARE_PICK_REPLY)
-      : // b45 G-23-TAXLABEL: model replies end with the AI line, plus the tax label when NZ tax is discussed.
-        withAssistantDisclaimer(
-          await createGrokChatCompletion({
-            messages,
-            maxTokens: 1000,
-            temperature: 0.7,
-          })
-        );
+    const raw = refused
+      ? null
+      : await createGrokChatCompletion({
+          messages,
+          maxTokens: 1000,
+          temperature: 0.7,
+        });
+    // b45 G-23-TAXLABEL: model replies end with the AI line, plus the tax label when NZ tax is discussed.
+    const reply = raw == null ? withGuideDisclaimer(ASSISTANT_SHARE_PICK_REPLY) : withAssistantDisclaimer(raw);
+    // b80 G-19: checked against the same context the model was given (before the disclaimer is added).
+    const working =
+      raw != null && aiShowWorkingEnabled() ? showWorking(raw, bookLine, { asOf: latestAsOf(stocks as any) ?? new Date() }) : undefined;
 
     // Persist the assistant reply
     const saved = await totalumSdk.crud.createRecord("chat_message", {
@@ -159,6 +162,7 @@ export async function POST(req: Request) {
         remaining: queryLimit == null || usedAfter == null ? null : Math.max(0, queryLimit - usedAfter),
         used: usedAfter,
         limit: queryLimit,
+        ...(working ? { working } : {}),
       },
     });
   } catch (err: any) {

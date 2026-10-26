@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Markdown } from "@/components/Markdown";
 import { cn } from "@/lib/utils";
+import { CHALLENGE_PROMPT, type AiWorking } from "@/lib/ai-working";
 import { toast } from "sonner";
 import { Bot, Send, Loader2, Sparkles, Trash2, User } from "lucide-react";
 
@@ -16,6 +17,7 @@ interface ChatMessage {
   role: "user" | "assistant";
   content: string;
   pending?: boolean;
+  working?: AiWorking;
 }
 
 const SUGGESTIONS = [
@@ -68,13 +70,13 @@ export function ChatAssistant() {
     setSending(true);
     console.log("[chat] Sending message:", content);
 
-    const res = await api.post<{ reply: string; remaining?: number | null; limit?: number | null }>("/api/chat", {
+    const res = await api.post<{ reply: string; working?: AiWorking; remaining?: number | null; limit?: number | null }>("/api/chat", {
       message: content,
     });
     setSending(false);
 
     if (res.ok && res.data?.reply) {
-      setMessages((prev) => [...prev, { role: "assistant", content: res.data!.reply }]);
+      setMessages((prev) => [...prev, { role: "assistant", content: res.data!.reply, working: res.data!.working }]);
       if (typeof res.data.remaining === "number") setRemaining(res.data.remaining);
       if (typeof res.data.limit === "number" && typeof res.data.remaining === "number") {
         window.dispatchEvent(new CustomEvent(ASSISTANT_QUOTA_EVENT, { detail: { used: Math.max(0, res.data.limit - res.data.remaining), limit: res.data.limit } }));
@@ -189,6 +191,7 @@ export function ChatAssistant() {
                       AI-written note
                     </p>
                     <Markdown content={m.content} className="[&>*:first-child]:mt-0 [&>*:last-child]:mb-0" />
+                    {m.working ? <WorkingStrip working={m.working} onChallenge={() => send(CHALLENGE_PROMPT)} disabled={sending} /> : null}
                   </>
                 ) : (
                   <p className="whitespace-pre-wrap leading-relaxed">{m.content}</p>
@@ -252,6 +255,31 @@ export function ChatAssistant() {
           AI responses are informational only and not financial advice.
         </p>
       </div>
+    </div>
+  );
+}
+
+/** b80 G-19: source chips, as-of, confidence and a "Challenge this" follow-up. Shown only when the server sends it. */
+function WorkingStrip({ working, onChallenge, disabled }: { working: AiWorking; onChallenge: () => void; disabled: boolean }) {
+  return (
+    <div className="mt-3 border-t border-border/60 pt-2 text-xs text-muted-foreground" data-af-ai-working>
+      <div className="flex flex-wrap items-center gap-1.5">
+        {working.sources.map((s) => (
+          <span key={s.label} className="rounded-full border border-border/70 px-2 py-0.5">
+            Source: {s.label}
+            {s.asOf ? `, as of ${s.asOf}` : ""}
+          </span>
+        ))}
+        <span className="rounded-full border border-border/70 px-2 py-0.5">Confidence: {working.confidence}</span>
+        <button type="button" onClick={onChallenge} disabled={disabled} className="rounded-full border border-primary/60 px-2 py-0.5 font-semibold text-primary disabled:opacity-50">
+          Challenge this
+        </button>
+      </div>
+      {working.unsupported.length > 0 ? (
+        <p className="mt-1.5">Not found in your data: {working.unsupported.join(", ")}. Treat these as unchecked.</p>
+      ) : working.checkedNumbers > 0 ? (
+        <p className="mt-1.5">All {working.checkedNumbers} figures match your portfolio data.</p>
+      ) : null}
     </div>
   );
 }
