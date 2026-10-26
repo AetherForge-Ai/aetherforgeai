@@ -2,7 +2,7 @@ import { LegalShell, LegalSection } from "@/components/legal/LegalShell";
 import { FmcStatement } from "@/components/legal/DisclaimerNotice";
 import { EmailAddress } from "@/components/EmailAddress";
 import { publicPageMetadata } from "@/lib/reviewed-book";
-import { AI_PROVIDER_API_SENTENCE } from "@/lib/ai-provider-disclosure";
+import { AI_DISCLAIMER_DATA_SENTENCE, AI_PROVIDER_API_SENTENCE } from "@/lib/ai-provider-disclosure";
 import { ENGINE_PARAGRAPH, LEGAL_UPDATED, ONE_LINE_DISCLAIMER } from "@/lib/public-copy";
 
 export const metadata = publicPageMetadata("/ai-disclaimer", {
@@ -54,7 +54,7 @@ export default function AiDisclaimer() {
 
       <LegalSection heading="3. How our AI works and its limitations">
         <p>
-          {ENGINE_PARAGRAPH} {AI_PROVIDER_API_SENTENCE} AI notes have important limitations you must
+          {ENGINE_PARAGRAPH} {AI_PROVIDER_API_SENTENCE} {AI_DISCLAIMER_DATA_SENTENCE} AI notes have important limitations you must
           understand:
         </p>
         <ul className="list-disc space-y-1.5 pl-5">
