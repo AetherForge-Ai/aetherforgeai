@@ -1,0 +1,63 @@
+{
+  "note": "b68 G-24: 20 synthetic paste-anything samples (multi-row). All names, references and amounts are made up for testing. Nothing here is a real account or trade.",
+  "samples": [
+    { "id": 1, "kind": "email", "text": "Hi there,\nYour order has been filled.\nYou bought 10 shares of AAPL at US$228.40 on 2 Oct 2026. Brokerage: US$3.00. Order #A10001\n\nThanks for trading.",
+      "rows": [{ "type": "Buy", "ticker": "AAPL", "quantity": 10, "price": 228.4, "currency": "USD", "date": "2026-10-02", "fees": 3, "tax": null }] },
+    { "id": 2, "kind": "contract-note", "text": "Contract note CN-20031\nTrade date: 05/10/2026\nBought 250 FPH.NZ @ $31.20\nBrokerage $29.90",
+      "rows": [{ "type": "Buy", "ticker": "FPH.NZ", "quantity": 250, "price": 31.2, "currency": "NZD", "date": "2026-10-05", "fees": 29.9, "tax": null }] },
+    { "id": 3, "kind": "email-two-trades", "text": "Trade confirmation\nOn 6 Oct 2026 you bought 5 MSFT @ US$410.10, fee US$2.00.\nOn 7 Oct 2026 you sold 3 NVDA @ US$131.55, fee US$2.00.",
+      "rows": [
+        { "type": "Buy", "ticker": "MSFT", "quantity": 5, "price": 410.1, "currency": "USD", "date": "2026-10-06", "fees": 2, "tax": null },
+        { "type": "Sell", "ticker": "NVDA", "quantity": 3, "price": 131.55, "currency": "USD", "date": "2026-10-07", "fees": 2, "tax": null }] },
+    { "id": 4, "kind": "asx-note", "text": "Confirmation 2026-10-08\nBuy 100 BHP.AX at A$44.12 brokerage A$9.50 ref 88120\nBuy 40 CSL.AX at A$281.00 brokerage A$9.50 ref 88121",
+      "rows": [
+        { "type": "Buy", "ticker": "BHP.AX", "quantity": 100, "price": 44.12, "currency": "AUD", "date": "2026-10-08", "fees": 9.5, "tax": null },
+        { "type": "Buy", "ticker": "CSL.AX", "quantity": 40, "price": 281, "currency": "AUD", "date": "2026-10-08", "fees": 9.5, "tax": null }] },
+    { "id": 5, "kind": "dividend", "text": "Dividend paid AAPL US$2.50 on 14 Aug 2026 (withholding US$0.38)",
+      "rows": [{ "type": "Dividend", "ticker": "AAPL", "quantity": 0, "price": 2.5, "currency": "USD", "date": "2026-08-14", "fees": null, "tax": 0.38 }] },
+    { "id": 6, "kind": "crypto", "text": "Order filled 2026-10-09\nYou bought 0.015 BTC at NZ$105,250.00. Fee NZ$4.21",
+      "rows": [{ "type": "Buy", "ticker": "BTC", "quantity": 0.015, "price": 105250, "currency": "NZD", "date": "2026-10-09", "fees": 4.21, "tax": null }] },
+    { "id": 7, "kind": "us-date-words", "text": "October 12, 2026\nSold 20 TSLA at an average price of $251.75 USD. Commission: $1.00",
+      "rows": [{ "type": "Sell", "ticker": "TSLA", "quantity": 20, "price": 251.75, "currency": "USD", "date": "2026-10-12", "fees": 1, "tax": null }] },
+    { "id": 8, "kind": "nzx-three", "text": "Trades on 2026-10-13\nBought 500 AIR.NZ @ $0.64\nBought 120 MEL.NZ @ $5.48\nSold 60 SPK.NZ @ $2.71",
+      "rows": [
+        { "type": "Buy", "ticker": "AIR.NZ", "quantity": 500, "price": 0.64, "currency": "NZD", "date": "2026-10-13", "fees": null, "tax": null },
+        { "type": "Buy", "ticker": "MEL.NZ", "quantity": 120, "price": 5.48, "currency": "NZD", "date": "2026-10-13", "fees": null, "tax": null },
+        { "type": "Sell", "ticker": "SPK.NZ", "quantity": 60, "price": 2.71, "currency": "NZD", "date": "2026-10-13", "fees": null, "tax": null }] },
+    { "id": 9, "kind": "etf", "text": "Purchase confirmation\nDate: 15-10-2026\nPurchased 8 units of VOO at US$552.30\nFees: US$0.00",
+      "rows": [{ "type": "Buy", "ticker": "VOO", "quantity": 8, "price": 552.3, "currency": "USD", "date": "2026-10-15", "fees": 0, "tax": null }] },
+    { "id": 10, "kind": "nz-dividend", "text": "Dividend received FPH.NZ NZ$41.25 on 3 Oct 2026 (tax NZ$9.00)",
+      "rows": [{ "type": "Dividend", "ticker": "FPH.NZ", "quantity": 0, "price": 41.25, "currency": "NZD", "date": "2026-10-03", "fees": null, "tax": 9 }] },
+    { "id": 11, "kind": "mixed-block", "text": "Weekly summary 16 Oct 2026\nYou bought 12 QQQ @ US$498.20 fee US$1.50\nYou sold 4 AMZN @ US$186.90 fee US$1.50\nDividend paid MSFT US$3.32 on 16 Oct 2026",
+      "rows": [
+        { "type": "Buy", "ticker": "QQQ", "quantity": 12, "price": 498.2, "currency": "USD", "date": "2026-10-16", "fees": 1.5, "tax": null },
+        { "type": "Sell", "ticker": "AMZN", "quantity": 4, "price": 186.9, "currency": "USD", "date": "2026-10-16", "fees": 1.5, "tax": null },
+        { "type": "Dividend", "ticker": "MSFT", "quantity": 0, "price": 3.32, "currency": "USD", "date": "2026-10-16", "fees": null, "tax": null }] },
+    { "id": 12, "kind": "eth", "text": "Sold 0.5 ETH @ NZ$7,120.50 on 17/10/2026. Fee NZ$3.56. Reference TX-5512",
+      "rows": [{ "type": "Sell", "ticker": "ETH", "quantity": 0.5, "price": 7120.5, "currency": "NZD", "date": "2026-10-17", "fees": 3.56, "tax": null }] },
+    { "id": 13, "kind": "gold", "text": "19 Oct 2026: bought 1 oz gold (XAU) @ NZ$4,410.00, fee NZ$15.00",
+      "rows": [{ "type": "Buy", "ticker": "XAU", "quantity": 1, "price": 4410, "currency": "NZD", "date": "2026-10-19", "fees": 15, "tax": null }] },
+    { "id": 14, "kind": "two-blocks", "text": "Contract note 70011\nTrade date: 20 Oct 2026\nBought 30 GOOGL @ US$166.25\nBrokerage US$2.50\n\nContract note 70012\nTrade date: 21 Oct 2026\nSold 15 META @ US$590.10\nBrokerage US$2.50",
+      "rows": [
+        { "type": "Buy", "ticker": "GOOGL", "quantity": 30, "price": 166.25, "currency": "USD", "date": "2026-10-20", "fees": 2.5, "tax": null },
+        { "type": "Sell", "ticker": "META", "quantity": 15, "price": 590.1, "currency": "USD", "date": "2026-10-21", "fees": 2.5, "tax": null }] },
+    { "id": 15, "kind": "sol-xrp", "text": "Trades 22 Oct 2026\nBought 3 SOL @ US$172.40\nBought 200 XRP @ US$0.5321",
+      "rows": [
+        { "type": "Buy", "ticker": "SOL", "quantity": 3, "price": 172.4, "currency": "USD", "date": "2026-10-22", "fees": null, "tax": null },
+        { "type": "Buy", "ticker": "XRP", "quantity": 200, "price": 0.5321, "currency": "USD", "date": "2026-10-22", "fees": null, "tax": null }] },
+    { "id": 16, "kind": "undated", "text": "You bought 7 IVV @ US$601.10 fee US$1.00",
+      "rows": [{ "type": "Buy", "ticker": "IVV", "quantity": 7, "price": 601.1, "currency": "USD", "date": null, "fees": 1, "tax": null }] },
+    { "id": 17, "kind": "large-qty", "text": "Contract note 9-44120\nTrade date: 23/10/2026\nSold 1,250 AIR.NZ @ $0.66 Brokerage $15.00",
+      "rows": [{ "type": "Sell", "ticker": "AIR.NZ", "quantity": 1250, "price": 0.66, "currency": "NZD", "date": "2026-10-23", "fees": 15, "tax": null }] },
+    { "id": 18, "kind": "asx-dividend", "text": "Distribution paid CBA.AX A$58.80 on 29 Sep 2026",
+      "rows": [{ "type": "Dividend", "ticker": "CBA.AX", "quantity": 0, "price": 58.8, "currency": "AUD", "date": "2026-09-29", "fees": null, "tax": null }] },
+    { "id": 19, "kind": "noise", "text": "Hello Alex,\nThanks for being a customer. Market update: shares rose today.\nYou sold 9 NFLX @ US$742.00 on 24 Oct 2026, fee US$2.00.\nRegards, The Team",
+      "rows": [{ "type": "Sell", "ticker": "NFLX", "quantity": 9, "price": 742, "currency": "USD", "date": "2026-10-24", "fees": 2, "tax": null }] },
+    { "id": 20, "kind": "four-mixed", "text": "Statement 2026-10-25\nBought 2 SPY @ US$575.50 fee US$1.00\nBought 10 AMD @ US$156.80 fee US$1.00\nSold 1 BRK.B @ US$455.20 fee US$1.00\nDividend paid VOO US$6.70 on 25 Oct 2026 (withholding US$1.01)",
+      "rows": [
+        { "type": "Buy", "ticker": "SPY", "quantity": 2, "price": 575.5, "currency": "USD", "date": "2026-10-25", "fees": 1, "tax": null },
+        { "type": "Buy", "ticker": "AMD", "quantity": 10, "price": 156.8, "currency": "USD", "date": "2026-10-25", "fees": 1, "tax": null },
+        { "type": "Sell", "ticker": "BRK.B", "quantity": 1, "price": 455.2, "currency": "USD", "date": "2026-10-25", "fees": 1, "tax": null },
+        { "type": "Dividend", "ticker": "VOO", "quantity": 0, "price": 6.7, "currency": "USD", "date": "2026-10-25", "fees": null, "tax": 1.01 }] }
+  ]
+}

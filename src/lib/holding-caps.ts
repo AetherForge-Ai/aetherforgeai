@@ -58,3 +58,31 @@ export const REFUND_TEXT = `${MONTHLY_CANCEL_RULE} ${ANNUAL_REFUND_RULE}`;
 export function trialPaymentCollection(flagOn: boolean, trialPlan: boolean): "always" | "if_required" {
   return flagOn && trialPlan ? "if_required" : "always";
 }
+
+/** b68 G-07: meter state for the dashboard caps meter (behind HOLDING_CAPS_V2, OFF in prod). */
+export type HoldingsMeterLevel = "ok" | "near" | "full" | "unlimited";
+export interface HoldingsMeterState {
+  text: string;
+  percent: number;
+  level: HoldingsMeterLevel;
+  hint: string | null;
+}
+/** At or above this share of the cap, the meter warns. */
+export const HOLDINGS_NEAR_SHARE = 0.8;
+
+export function holdingsMeterState(used: number, limit: number | null): HoldingsMeterState {
+  const u = Math.max(0, Math.floor(Number.isFinite(used) ? used : 0));
+  if (limit == null || !Number.isFinite(limit) || limit >= UNLIMITED_FROM) {
+    return { text: holdingsMeterText(u, null), percent: 0, level: "unlimited", hint: null };
+  }
+  const cap = Math.max(0, Math.floor(limit));
+  const percent = cap > 0 ? Math.min(100, Math.round((Math.min(u, cap) / cap) * 100)) : 100;
+  const left = Math.max(0, cap - u);
+  if (u >= cap) {
+    return { text: holdingsMeterText(u, cap), percent: 100, level: "full", hint: "You have reached your plan's holdings limit. See Pricing to add more." };
+  }
+  if (u >= Math.ceil(cap * HOLDINGS_NEAR_SHARE)) {
+    return { text: holdingsMeterText(u, cap), percent, level: "near", hint: `${left} holding${left === 1 ? "" : "s"} left on your plan.` };
+  }
+  return { text: holdingsMeterText(u, cap), percent, level: "ok", hint: null };
+}
