@@ -7,6 +7,9 @@ import { RedirectSignedOut } from "@/components/auth/RedirectSignedOut";
 import { resolveDisplayName } from "@/lib/user-display";
 import { getFxSnapshot } from "@/lib/fx";
 import type { FxRatesToNZD } from "@/lib/currency";
+import { AiPrivacySetting } from "@/components/settings/AiPrivacySetting";
+import { aiPrivacyModeEnabled } from "@/lib/ai-privacy";
+import { readAiPrivacyMode } from "@/lib/ai-privacy.server";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +29,8 @@ export default async function SettingsPage() {
   } catch {
     initialFx = null;
   }
+
+  const aiMode = aiPrivacyModeEnabled() ? await readAiPrivacyMode(user._id) : null;
 
   return (
     <RedirectSignedOut redirectTo="/settings">
@@ -59,6 +64,7 @@ export default async function SettingsPage() {
           }}
           initialFx={initialFx}
         />
+        {aiMode ? <AiPrivacySetting initial={aiMode} /> : null}
       </AppShell>
     </RedirectSignedOut>
   );

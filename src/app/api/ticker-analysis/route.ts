@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/session";
+import { AI_OFF_REPLY, applyAiPrivacy } from "@/lib/ai-privacy";
+import { readAiPrivacyMode } from "@/lib/ai-privacy.server";
 import { ANALYST_SYSTEM_PROMPT } from "@/lib/ai-context";
 import { createGrokChatCompletion, type GrokMessage } from "@/lib/grok";
 import { tickerNoteCompletionMessages } from "@/lib/ai-request-payload";
@@ -62,8 +64,11 @@ export async function POST(req: Request) {
       question,
     });
 
+    // b81 G-26: off → fixed reply, no provider call.
+    const sendMessages = applyAiPrivacy(messages, await readAiPrivacyMode(user._id));
+    if (sendMessages == null) return NextResponse.json({ ok: true, data: { reply: AI_OFF_REPLY, aiOff: true } });
     console.log(`[api/ticker-analysis] Grok analysis for ${symbol} (user ${user._id})`);
-    const reply = await createGrokChatCompletion({ messages, maxTokens: 700, temperature: 0.6 });
+    const reply = await createGrokChatCompletion({ messages: sendMessages, maxTokens: 700, temperature: 0.6 });
     if (typeof reply !== "string" || !reply.trim()) {
       return NextResponse.json({ ok: false, error: "No projection was returned for this name." }, { status: 502 });
     }
