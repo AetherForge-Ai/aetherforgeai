@@ -263,8 +263,8 @@ export function DashboardCalculator({
               aria-selected={tab === id}
               className={
                 tab === id
-                  ? "shrink-0 whitespace-nowrap border-b-2 border-primary px-3 py-2 text-sm font-semibold text-foreground"
-                  : "shrink-0 whitespace-nowrap px-3 py-2 text-sm font-medium text-muted-foreground"
+                  ? "min-h-11 shrink-0 whitespace-nowrap border-b-2 border-primary px-3 py-2 text-sm font-semibold text-foreground"
+                  : "min-h-11 shrink-0 whitespace-nowrap px-3 py-2 text-sm font-medium text-muted-foreground"
               }
               onClick={() => setTab(id)}
             >
@@ -299,6 +299,7 @@ export function DashboardCalculator({
       </div>
       <div className={showRail ? RAIL_GRID_CLASS : "mt-4 min-w-0"}>
         <div className="min-w-0">
+          {tab === "holdings" ? <h2 className="mb-3 font-display text-lg font-bold">Holdings</h2> : null}
           {tab === "holdings" ? (
             <UnifiedHoldingsTable
               model={pending ? null : table}
@@ -399,9 +400,9 @@ function DetailActions({
   if (row.kind === "cash") {
     return (
       <>
-        <Button type="button" size="sm" variant="outline" onClick={() => onCash("deposit")}>Deposit</Button>
-        <Button type="button" size="sm" variant="outline" onClick={() => onCash("withdraw")}>Withdraw</Button>
-        <Button type="button" size="sm" variant="outline" disabled title="FX convert is not on this table yet.">Convert</Button>
+        <Button type="button" size="sm" variant="outline" className="min-h-11 md:min-h-8" onClick={() => onCash("deposit")}>Deposit</Button>
+        <Button type="button" size="sm" variant="outline" className="min-h-11 md:min-h-8" onClick={() => onCash("withdraw")}>Withdraw</Button>
+        <Button type="button" size="sm" variant="outline" className="min-h-11 md:min-h-8" disabled title="FX convert is not on this table yet.">Convert</Button>
       </>
     );
   }
@@ -417,7 +418,7 @@ function DetailActions({
       <Button type="button" size="sm" variant="outline" className="h-11 min-h-11 px-4" onClick={() => onTrade(row, "sell")}>Sell</Button>
       {metal ? null : <Button type="button" size="sm" variant="outline" className="h-11 min-h-11 px-4" onClick={() => onTrade(row, "dividend")}>Dividend</Button>}
       <Button type="button" size="sm" variant="outline" className="h-11 min-h-11 px-4" onClick={() => onTrade(row, "edit")}>Edit</Button>
-      <Button type="button" size="sm" variant="outline" onClick={() => onTrade(row, "delete")}>Delete</Button>
+      <Button type="button" size="sm" variant="outline" className="min-h-11 md:min-h-8" onClick={() => onTrade(row, "delete")}>Delete</Button>
       {reportKind ? (
         <Button
           type="button"
@@ -433,8 +434,8 @@ function DetailActions({
       ) : null}
       {metal ? null : (
         <>
-          <Button type="button" size="sm" variant="outline" onClick={() => onAlert(row)}>Set alert</Button>
-          <Button type="button" size="sm" variant="outline" onClick={() => onWatch(row)}>Add to watchlist</Button>
+          <Button type="button" size="sm" variant="outline" className="min-h-11 md:min-h-8" onClick={() => onAlert(row)}>Set alert</Button>
+          <Button type="button" size="sm" variant="outline" className="min-h-11 md:min-h-8" onClick={() => onWatch(row)}>Add to watchlist</Button>
         </>
       )}
     </>

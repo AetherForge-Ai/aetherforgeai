@@ -2426,13 +2426,12 @@ export function PortfolioDashboard({
               <ArrowLeft className="size-4" /> Back to Dashboard
             </Link>
           ) : null}
-          {isHome ? null : (
-          <h1 className="mt-2 font-grift-black text-2xl uppercase tracking-wide text-amber-400 sm:text-3xl lg:text-4xl">
+          {/* DASH-CLEAN: every dashboard view, home included, has one visible H1. */}
+          <h1 className={isHome ? "mt-1 font-display text-2xl font-bold tracking-tight sm:text-3xl" : "mt-2 font-grift-black text-2xl uppercase tracking-wide text-amber-400 sm:text-3xl lg:text-4xl"}>
             {pageTitle}
           </h1>
-          )}
           {isHome && !preview ? (
-            <Link href="/tax" className="mt-2 inline-flex text-sm font-semibold text-primary hover:underline">
+            <Link href="/tax" className="mt-1 inline-flex min-h-11 items-center text-sm md:min-h-6 font-semibold text-primary hover:underline">
               Tax papers
             </Link>
           ) : null}
@@ -2449,6 +2448,7 @@ export function PortfolioDashboard({
             <GlobalSearch onPick={handleSearchPick} />
             <Button
               variant="outline"
+              className="min-h-11 md:min-h-9"
               onClick={handleRefreshPrices}
               disabled={refreshing || stocks.length === 0}
             >
@@ -2531,7 +2531,7 @@ export function PortfolioDashboard({
             void loadPortfolioSnapshot({ force: true });
           }}
           emptyActions={
-            <Button type="button" size="sm" onClick={openAdd}>Add your first holding</Button>
+            <Button type="button" size="sm" className="min-h-11 md:min-h-8" onClick={openAdd}>Add your first holding</Button>
           }
           actions={
             <div className="mt-4 flex w-full min-w-0 max-w-full flex-wrap items-center gap-2" data-header-actions>

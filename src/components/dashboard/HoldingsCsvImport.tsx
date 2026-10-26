@@ -73,6 +73,7 @@ export function HoldingsCsvImport({
         type="button"
         variant="outline"
         size="sm"
+        className="min-h-11 md:min-h-8"
         disabled={busy}
         onClick={() => setOpen(true)}
       >
