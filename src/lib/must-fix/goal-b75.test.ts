@@ -36,3 +36,10 @@ describe("b75 H-1: DEX rows without a CoinGecko id are matched by contract", () 
     expect(src).not.toMatch(/A dividend id is required|: "That dividend was not removed\."/);
   });
 });
+
+describe("b75 (TT b73 P3): a delete of a row already gone says so on screen", () => {
+  it("shows the not-found text for 8 s", () => {
+    const src = readFileSync("src/components/dashboard/PortfolioDashboard.tsx", "utf8");
+    expect(src).toMatch(/It was already removed, so nothing changed\.`, \{ duration: 8000 \}/);
+  });
+});
