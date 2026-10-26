@@ -116,13 +116,16 @@ export const LEDGER_EXPORT_LINE =
  * routes that post it. Retention at the service is not stated here.
  */
 export const AI_REQUEST_LINES = [
-  "Scores and projected ranges are calculated by a rules-based engine. A third-party AI service writes the plain-English note on a ticker and the replies in the assistant, the Portfolio Notes Assistant, and the Headmaster chat. Those notes are labelled “AI-written note”. A stored member report for Stox, Koins or Headmaster marks its summary as not AI-enhanced, because that summary is built from the calculated figures.",
+  "Scores and projected ranges are calculated by a rules-based engine. A third-party AI service writes the plain-English note on a ticker, the replies in the assistant, the Portfolio Notes Assistant, the Headmaster chat and the site guide, the portfolio analysis report, and the summary in a free-trial briefing. We do not use any other AI provider. Those notes are labelled “AI-written note”. A stored member report for Stox, Koins or Headmaster marks its summary as not AI-enhanced, because that summary is built from the calculated figures.",
   "The assistant can send the question you typed, and recent messages in that chat. When the paper book has holdings, it can also send the holding count, the total market value, the total cost, the total unrealised profit or loss, the best and worst performer, the sector weights, and for each holding the ticker, the name, the sector, the share count, the average price, the current price, the value, the profit or loss, and the weight.",
   "The Portfolio Notes Assistant can send your question, and recent messages in that chat. When a Headmaster book is available it can also send the cash balance, the total value, the profit or loss, the diversification score and its label, and the allocation weights and values in NZ$, including cash. It can send the top eight positions with name, asset class, weight and value, the latest Stox and Koins findings, and the Headmaster ideas for names in the book. It can send a plan you typed and report text you attached.",
   "The Headmaster chat can send your question, and recent messages in that chat. It can send the total value, the total cost, the profit or loss, the cash balance, the cash weight, the retained-cash target, the illustrated cash reallocation, and the working that produces that reallocation. It can send each asset class with its weight, its value in NZ$ and its position count, the top eight positions with name, asset class, weight, value and profit or loss, concentration-risk notes, stress-test impacts in NZ$ and percent, and the bull, base and bear scenario pathways. When the book is invested it can send the diversification score and HHI. It can send a calculated yearly return and volatility for the mix. It can send the latest Stox and Koins findings, and the Headmaster ideas block. Names outside the book are included only when you ask for a watchlist.",
   "A ticker note can send the ticker, the question you typed, and the quote used for that note. If you leave the question blank, the request still includes a short default question.",
+  "The portfolio analysis report can send the same paper-book summary as the assistant: the holding count, the total market value, the total cost, the total unrealised profit or loss, the best and worst performer, the sector weights, and for each holding the ticker, the name, the sector, the share count, the average price, the current price, the value, the profit or loss, and the weight.",
+  "A free-trial briefing can send the tickers you picked, their market figures (price, recent changes, momentum and indicators), and the market's top movers. It does not send your name or your holdings.",
+  "The site guide, which needs no login, can send the message you type and recent messages in that chat.",
   "A weekly projections email, when that email is enabled, can send the market-wide indicative 7-day projections already on the projections page: the ticker, the name, the market, the indicative percent, and the as-of label. It does not send a person's holdings, values, cash, profit or loss, or allocation. It does not send the email address. It does not use a report allowance. One note is written for the week and reused for each recipient.",
-  "The request does not include a card number. Our code does not write the text of these requests to its logs. Messages in the assistant chat are saved to your account so the conversation can continue, and they stay until you clear the chat. The Portfolio Notes Assistant, the Headmaster chat, the ticker note and the site guide do not save your messages. Stored Stox and Koins reports stay in your account. To have reports or your account deleted, email us and we delete them. The AI provider keeps a request under its own API terms.",
+  "We never send your email address, your name or your account ID to the AI service, and the request does not include a card number. Anything you type into a chat is sent as you wrote it, so please do not type personal details you do not want shared. Our code does not write the text of these requests to its logs. Messages in the assistant chat and the Portfolio Notes Assistant are saved to your account so the conversation can continue, and they stay until you clear the chat. The Headmaster chat, the ticker note, the portfolio analysis report and the site guide do not save your messages. Stored Stox and Koins reports stay in your account. To have reports or your account deleted, email us and we delete them. The AI provider keeps a request under its own API terms.",
 ] as const;
 
 /**
@@ -184,6 +187,22 @@ export const AI_SENT_CATEGORIES = {
     "the latest Stox and Koins findings",
     "the Headmaster ideas block",
     "Names outside the book are included only when you ask for a watchlist",
+  ],
+  "/api/analysis": [
+    "the holding count",
+    "the total market value",
+    "the sector weights",
+    "the share count",
+    "the average price",
+  ],
+  "/api/free-trial/run": [
+    "the tickers you picked",
+    "their market figures",
+    "the market's top movers",
+  ],
+  "/api/personal-guide": [
+    "the message you type",
+    "recent messages in that chat",
   ],
   "/api/ticker-analysis": [
     "the ticker",
