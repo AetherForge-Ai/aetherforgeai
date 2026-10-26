@@ -1,6 +1,7 @@
 "use client";
 
-import { dedupedDelete } from "@/lib/delete-dedupe";
+import { dedupedDelete, markDeleteConfirmed } from "@/lib/delete-dedupe";
+import { clearPendingDeletesFor, pendingDeleteIds, pruneSettledDeletes } from "@/lib/write-journal";
 import { scrollRegionProps } from "@/lib/focus-trap";
 import {
   clearPendingWrite,
@@ -1367,7 +1368,30 @@ export function PortfolioDashboard({
       if (recentWrite) void loadPortfolioSnapshot({ force: true });
       return;
     }
-    const toastId = toast.loading(pendingCount === 1 ? "Finishing 1 entry that wasn't confirmed…" : `Finishing ${pendingCount} entries that weren't confirmed…`);
+    // b72 (TT b71 P2): a reload can drop a DELETE's 200 after the server already removed the row, so
+    // the queued delete looked unanswered and was replayed (404). Check a fresh ledger first: a queued
+    // delete whose id is no longer listed is done, and is dropped without a request.
+    if (pendingDeleteIds(userId).length) {
+      void (async () => {
+        const fresh = await api.get<{ transactions?: Array<{ _id?: string }> }>("/api/transactions?fresh=1", { signal: new AbortController().signal });
+        const list = fresh.ok ? fresh.data?.transactions : undefined;
+        if (Array.isArray(list)) {
+          const live = new Set(list.map((row) => String(row?._id || "")).filter(Boolean));
+          for (const id of pruneSettledDeletes(userId, live)) markDeleteConfirmed(id);
+        }
+        runReplay();
+      })();
+      return;
+    }
+    runReplay();
+    function runReplay() {
+    if (!userId) return;
+    if (!listPendingWrites(userId).length) {
+      void loadPortfolioSnapshot({ force: true });
+      return;
+    }
+    const left = listPendingWrites(userId).length;
+    const toastId = toast.loading(left === 1 ? "Finishing 1 entry that wasn't confirmed…" : `Finishing ${left} entries that weren't confirmed…`);
     void replayPendingWrites(
       userId,
       (payload) => api.post("/api/transactions", payload),
@@ -1382,6 +1406,7 @@ export function PortfolioDashboard({
       lastMutationAtRef.current = Date.now();
       void loadPortfolioSnapshot({ force: true });
     });
+    }
   }, [preview, userId, loadPortfolioSnapshot]);
 
   const applyKnownCash = useCallback(
@@ -2108,6 +2133,8 @@ export function PortfolioDashboard({
       WRITE_TIMEOUT_MS
     );
     if (res.ok || isDefiniteRefusal(res.status)) clearPendingWrite(deleteKey);
+    // b72: a settled delete clears every queued DELETE for this id, not only this click's entry.
+    if (res.ok && userId) clearPendingDeletesFor(userId, line.id);
     // b40: the server now answers 404 for an id it doesn't have (was 200). For a real id the row is
     // already gone, so it counts as removed.
     if (!res.ok && res.status === 404) {
