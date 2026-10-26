@@ -1722,6 +1722,8 @@ export interface ConfirmedFill {
   fill_price?: number | null;
   fx_rate?: number | null;
   currency?: string | null;
+  /** b73: last close the buy dialog used; seeds the price cell when the fill price is missing. */
+  last_close?: number | null;
 }
 
 function classOfTrade(assetType: string | null | undefined): Exclude<SnapshotClass, "cash"> {
@@ -1872,9 +1874,11 @@ export function paintConfirmedSnapshot(
         }
       }
       // b73 G-10: seed the price cell from the confirmed fill until the server snapshot replaces the book.
-      if (fill > 0 && type === "buy" && position.marketPriceLocal == null) {
-        position.marketPriceLocal = fill;
-        if (!position.priceSource) position.priceSource = "Confirmed fill";
+      const lastClose = Number(trade.last_close);
+      const seed = fill > 0 ? fill : lastClose > 0 ? lastClose : 0;
+      if (seed > 0 && type === "buy" && position.marketPriceLocal == null) {
+        position.marketPriceLocal = seed;
+        if (!position.priceSource) position.priceSource = fill > 0 ? "Confirmed fill" : "Last close";
       }
       position.closed = position.quantity <= 1e-9;
       const openLots = position.lots.filter((lot) => lot.quantity > 1e-9);

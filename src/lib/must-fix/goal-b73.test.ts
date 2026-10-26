@@ -79,3 +79,49 @@ describe("b73 G-10 priced cells on paint", () => {
     expect(read("qa/PULL-CHECK-2026-10-12.md")).toMatch(/Goal b73[^\n]*pull-check:v3-g10-b73-2026-10-28/);
   });
 });
+
+// b73 part 2 (TT b72 grade): last-close seed, a11y fixes, delete 404 wording.
+function lum(hex: string) {
+  const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+}
+const ratio = (a: string, b: string) => { const [x, y] = [lum(a), lum(b)].sort((m, n) => n - m); return (x + 0.05) / (y + 0.05); };
+
+describe("b73 part 2", () => {
+  it("seeds the price from last_close when the fill price is missing", () => {
+    const t = { ...optimistic, price: 0, fill_price: null, last_close: 0.4 };
+    const [h] = pos(paintConfirmedSnapshot(base(), t as never, 0.62), "AIR.NZ");
+    expect(h.marketPriceLocal).toBe(0.4);
+    expect(h.priceSource).toBe("Last close");
+  });
+  it("fill price wins over last_close", () => {
+    const [h] = pos(paintConfirmedSnapshot(base(), { ...optimistic, last_close: 0.4 } as never, 0.62), "AIR.NZ");
+    expect(h.marketPriceLocal).toBe(0.38);
+  });
+  it("dashboard passes the held last close into the paint", () => {
+    expect(read("src/components/dashboard/PortfolioDashboard.tsx")).toMatch(/last_close: Number\.isFinite\(heldClose\)/);
+  });
+  it("account trigger's accessible name starts with its visible text (initials)", () => {
+    const s = read("src/components/TopNav.tsx");
+    expect(s).toContain("aria-label={`${initials(user.name)} account menu`}");
+    expect(s).not.toContain("Account menu for ${");
+  });
+  it("/tax/realised inline links are underlined, not colour-only", () => {
+    for (const f of ["src/app/tax/income/page.tsx", "src/components/tax/TaxPageContent.tsx"]) {
+      expect(read(f)).toMatch(/href="\/tax\/realised" className="text-primary underline underline-offset-4"/);
+    }
+  });
+  it("/settings gain text uses text-gain on a plain surface at ≥ 4.5:1", () => {
+    const s = read("src/components/settings/SettingsClient.tsx");
+    expect(s).not.toMatch(/bg-primary\/15[^"]*text-gain/);
+    expect(s).toMatch(/bg-background[^"]*text-gain/);
+    const css = read("src/app/globals.css");
+    expect(css).toContain("--text-green: #047857");
+    expect(ratio("#047857", "#f8fafc")).toBeGreaterThanOrEqual(4.5);
+    expect(ratio("#34d399", "#0f172a")).toBeGreaterThanOrEqual(4.5);
+  });
+  it("cross-account delete 404 no longer says 'dividend'", () => {
+    const s = read("src/app/api/transactions/route.ts");
+    expect(s).not.toContain("That dividend was not found.");
+  });
+});

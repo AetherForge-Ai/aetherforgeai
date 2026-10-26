@@ -259,7 +259,7 @@ function AccountMenu({
           type="button"
           aria-expanded={open}
           aria-haspopup="menu"
-          aria-label={`Account menu for ${user.name || "your account"}`}
+          aria-label={`${initials(user.name)} account menu`}
           className="flex items-center gap-2 rounded-full border border-border/70 bg-card/60 py-1 pl-1 pr-2 transition-colors hover:border-primary/50"
         >
           <Avatar className="size-8">

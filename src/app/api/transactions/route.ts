@@ -368,7 +368,8 @@ export async function DELETE(req: Request) {
     }
     const owner = typeof row.user === "object" && row.user ? row.user._id : row.user;
     if (String(owner || "") !== String(user._id)) {
-      return NextResponse.json({ ok: false, error: "That dividend was not found." }, { status: 404 });
+      // b73 (TT b72 P3): generic wording; naming the other account's row type would leak it.
+      return NextResponse.json({ ok: false, code: "not_found", error: "That row was not found." }, { status: 404 });
     }
     const type = String(row.type || "");
     const trade = type === "buy" || type === "sell";

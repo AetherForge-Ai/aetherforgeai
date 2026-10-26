@@ -170,7 +170,7 @@ describe("b12 G-10 / G-14 / H-4", () => {
   it("optimistic confirm, labelled avatar, quota endpoint", () => {
     expect(read("src/components/dashboard/RecordTransactionPanel.tsx")).toContain("optimisticRollback: true");
     expect(read("src/lib/confirm-ledger.ts")).toContain("_optimistic");
-    expect(read("src/components/TopNav.tsx")).toContain("Account menu for");
+    expect(read("src/components/TopNav.tsx")).toContain("account menu`}"); // b73: name now starts with the visible initials
     expect(read("src/app/api/reports/quota/route.ts")).toContain("countFreeReportsThisMonth");
   });
 });

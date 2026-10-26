@@ -122,7 +122,7 @@ export function TaxPageContent({ book = null, xero = "guest" }: { book?: TaxBook
           </Link>
         </li>
         <li>
-          <Link href="/tax/realised" className="text-primary underline-offset-4 hover:underline">
+          <Link href="/tax/realised" className="text-primary underline underline-offset-4">
             Realised profit and loss
           </Link>
         </li>
