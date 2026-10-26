@@ -3,6 +3,8 @@
  * PEPE and Uniswap are always findable, even before a live list has loaded.
  */
 
+import { CRYPTO_SEARCH_ALIASES } from "@/lib/crypto-vendors";
+
 export type AssetMarket = "NZX" | "ASX" | "US" | "Crypto" | "DEX" | "Gold" | "Silver";
 
 export interface AssetHit {
@@ -75,13 +77,16 @@ export function isWrappedName(name: string): boolean {
 export function searchAssets(query: string, pools: AssetSearchPools = {}): AssetHit[] {
   const q = query.trim().toLowerCase();
   if (!q) return [];
+  // b68 P3: an old ticker (MATIC) is a search word for the renamed coin (POL).
+  const alias = (CRYPTO_SEARCH_ALIASES[q] || "").toLowerCase();
+  const aliasHit = (hit: AssetHit) => !!alias && hit.assetType === "crypto" && hit.symbol.toLowerCase() === alias;
   const all = [...PINNED, ...(pools.shares || []), ...(pools.coins || []), ...(pools.dex || [])];
   const seen = new Map<string, number>();
   const hits: AssetHit[] = [];
   for (const hit of all) {
     if (!hit?.symbol) continue;
     const id = key(hit);
-    if (!haystack(hit).includes(q)) continue;
+    if (!haystack(hit).includes(q) && !aliasHit(hit)) continue;
     const priced = hit.price != null && hit.price > 0;
     const prev = seen.get(id);
     if (prev != null) {
@@ -96,7 +101,7 @@ export function searchAssets(query: string, pools: AssetSearchPools = {}): Asset
   hits.sort((a, b) => {
     const rank = (hit: AssetHit) => {
       const symbol = hit.symbol.toLowerCase();
-      const localListing = symbol === q || symbol === `${q}.nz` || symbol === `${q}.ax`;
+      const localListing = symbol === q || symbol === `${q}.nz` || symbol === `${q}.ax` || aliasHit(hit);
       const exact = localListing ? 0 : symbol.startsWith(q) ? 1 : 2;
       // DEX stays ahead of a coin-list row. NZX and ASX stay ahead of a US fund with the same letters.
       const venue =

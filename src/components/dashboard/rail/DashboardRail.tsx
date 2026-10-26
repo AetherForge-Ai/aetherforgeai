@@ -7,6 +7,7 @@ import { SnapshotAllocation } from "@/components/dashboard/SnapshotAllocation";
 import { RailCard, RailTabs } from "@/components/dashboard/rail/RailCard";
 import { FREE_REPORTS_PER_MONTH } from "@/lib/entitlements";
 import { useAlertCount } from "@/components/dashboard/alerts/AlertCounter";
+import { HoldingCapsMeter, useHoldingCapsFlag } from "@/components/dashboard/rail/HoldingCapsMeter";
 import { railCardsFor, usageMeterLabel, usagePercent, UNLOCK_FEATURES } from "@/lib/dashboard-rail";
 
 type Asset = "stock" | "crypto";
@@ -49,6 +50,8 @@ export function DashboardRail({
   reportQuota: { used: number; limit: number } | null;
 }) {
   const alertCount = useAlertCount(!freePlan && !preview);
+  // b68 G-07: caps meter only when HOLDING_CAPS_V2=1 on the server (OFF in prod).
+  const capsV2 = useHoldingCapsFlag();
   return (
     <>
     {railCardsFor(freePlan).map((card) => {
@@ -122,7 +125,10 @@ export function DashboardRail({
                 <div key={row.label} className="grid grid-cols-[1fr_auto] items-baseline gap-x-3" {...(row.label === "Price alerts" ? { "data-alert-counter": "plan-usage" } : {})}>
                   <dt className="text-muted-foreground">{row.label}</dt>
                   <dd className="tnum font-semibold">{usageMeterLabel(row.used, row.limit)}</dd>
-                  {row.limit != null ? (
+                  {capsV2 && row.label === "Holdings" && row.used != null ? (
+                    // b68 G-07: caps meter behind HOLDING_CAPS_V2 (OFF in prod).
+                    <dd className="col-span-2"><HoldingCapsMeter used={row.used} limit={row.limit} /></dd>
+                  ) : row.limit != null ? (
                     <dd className="col-span-2 mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted" aria-hidden="true">
                       <div className="h-full rounded-full bg-primary" style={{ width: `${usagePercent(row.used, row.limit)}%` }} />
                     </dd>

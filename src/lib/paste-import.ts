@@ -98,7 +98,7 @@ function fixTicker(raw: string, line: string): string {
 const num = (s: string) => Number(s.replace(/,/g, ""));
 const MONEY = String.raw`(NZ\$|US\$|AU\$|A\$|NZD\s?|USD\s?|AUD\s?|\$)?\s?([\d,]+(?:\.\d+)?)(?:\s?(NZD|USD|AUD))?`;
 const TRADE = new RegExp(
-  String.raw`\b(bought|buy|purchased?|sold|sell)\b[^\d\n]{0,20}([\d,]+(?:\.\d+)?)\s*(?:x\s*)?(?:shares?|units?|of)?\s*(?:of\s+)?([A-Z][A-Z0-9]{0,9}(?:\.[A-Z]{1,3})?)\b[^\n]{0,40}?(?:@|\bat\s+an?\s+average\s+price\s+of\b|\bat\b|(?:average\s+)?price(?:\s+of)?:?|\bfor\b(?=[^\n]{0,30}\b(?:each|per\s+(?:share|unit))\b))\s*` + MONEY,
+  String.raw`\b(bought|buy|purchased?|sold|sell)\b[^\d\n]{0,20}([\d,]+(?:\.\d+)?)\s*(?:x\s+)?(?:shares?|units?|of)?\s*(?:of\s+)?([A-Z][A-Z0-9]{0,9}(?:\.[A-Z]{1,3})?)\b[^\n]{0,40}?(?:@|\bat\s+an?\s+average\s+price\s+of\b|\bat\b|(?:average\s+)?price(?:\s+of)?:?|\bfor\b(?=[^\n]{0,30}\b(?:each|per\s+(?:share|unit))\b))\s*` + MONEY,
   "i"
 );
 

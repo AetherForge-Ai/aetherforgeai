@@ -68,6 +68,8 @@ function symbolFor(input: string): string | null {
   if (!raw) return null;
   const upper = raw.toUpperCase();
   if (CRYPTO_VENDORS[upper]) return upper;
+  // b68 P3: MATIC is an alias of POL.
+  if (upper === "MATIC") return "POL";
   const slug = raw.toLowerCase();
   const hit = Object.values(CRYPTO_VENDORS).find((row) => row.coingecko === slug);
   return hit?.ticker ?? null;

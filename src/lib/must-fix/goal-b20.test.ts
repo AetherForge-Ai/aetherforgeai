@@ -11,7 +11,7 @@ import { importOversells } from "@/lib/import-oversell";
 const read = (p: string) => readFileSync(p, "utf8");
 
 describe("Goal b20", () => {
-  it("pins the build", () => expect(read("public/build-version.txt").trim()).toMatch(/^v3-(?:goal|h1)-b\d+[a-z]?-2026-10-\d\d$/));
+  it("pins the build", () => expect(read("public/build-version.txt").trim()).toMatch(/^v3-(?:goal|h1|g24)-b\d+[a-z]?-2026-10-\d\d$/));
 
   it("SECURITY: hooks need GOAL_TEST_HOOKS=1 and an allow-listed account", () => {
     const on = { GOAL_TEST_HOOKS: "1" };

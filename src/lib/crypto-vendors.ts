@@ -40,8 +40,8 @@ const ROWS: CryptoVendor[] = [
   { ticker: "DOGE", name: "Dogecoin", coingecko: "dogecoin", yahoo: "DOGE-USD" },
   { ticker: "LINK", name: "Chainlink", coingecko: "chainlink", yahoo: "LINK-USD" },
   { ticker: "DOT", name: "Polkadot", coingecko: "polkadot", yahoo: "DOT-USD" },
-  { ticker: "MATIC", name: "Polygon (POL)", coingecko: "polygon-ecosystem-token", yahoo: "POL28321-USD" },
-  { ticker: "POL", name: "Polygon", coingecko: "polygon-ecosystem-token", yahoo: "POL-USD" },
+  // b68 P3: polygon-ecosystem-token is POL. MATIC is only an alias (TICKER_ALIASES), so a slug lookup never returns MATIC.
+  { ticker: "POL", name: "Polygon (POL, was MATIC)", coingecko: "polygon-ecosystem-token", yahoo: "POL28321-USD" },
   { ticker: "LTC", name: "Litecoin", coingecko: "litecoin", yahoo: "LTC-USD" },
   { ticker: "UNI", name: "Uniswap", coingecko: "uniswap", yahoo: "UNI-USD" },
   { ticker: "ATOM", name: "Cosmos", coingecko: "cosmos", yahoo: "ATOM-USD" },
@@ -86,13 +86,18 @@ export function isStablecoinSymbol(symbol: string | null | undefined): boolean {
   return !!stripped && STABLECOIN_SYMBOLS.has(stripped);
 }
 
+/** b68 P3: renamed tickers. Old alerts, holdings and searches for MATIC resolve to POL. */
+export const TICKER_ALIASES: Readonly<Record<string, string>> = { MATIC: "POL" };
+/** b68 P3: search words that should find a coin (lower case). */
+export const CRYPTO_SEARCH_ALIASES: Readonly<Record<string, string>> = { matic: "POL", polygon: "POL" };
+
 export function normalizeCryptoTicker(ticker: string): string {
   const raw = (ticker || "").toUpperCase().replace(/\s+/g, "").trim();
   if (!raw) return "";
   if (STABLECOIN_SYMBOLS.has(raw)) return raw;
   const stripped = raw.replace(/-?USD[T]?$/, "").trim();
   if (stripped && STABLECOIN_SYMBOLS.has(stripped)) return stripped;
-  return stripped;
+  return TICKER_ALIASES[stripped] ?? stripped;
 }
 
 export function vendorFor(ticker: string): CryptoVendor | null {
