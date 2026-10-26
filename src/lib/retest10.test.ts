@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
@@ -126,7 +126,16 @@ function dexRow(symbol: string, detailId: string | null): DexTokenRow {
   };
 }
 
-afterEach(() => {
+// CI-TESTS: a read in one test (e.g. the tape test) can start a detached DEX refresh. With no seed
+// fetch installed it called live DexPaprika/GeckoTerminal, and the next test's refresh joined that
+// in-flight job: a 5 s timeout on a slow network, then live rows landing in the following test.
+// Every test starts with an offline seed fetch, and no refresh outlives its test.
+beforeEach(() => {
+  installSeedFetch(async () => jsonResponse({ data: [] }));
+});
+
+afterEach(async () => {
+  await dexRefreshSettled();
   resetCryptoSnapshotsForTests();
   resetSnapshotUpgradeBackoff();
   resetSeedFetch();
