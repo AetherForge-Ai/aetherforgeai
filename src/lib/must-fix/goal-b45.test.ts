@@ -24,7 +24,7 @@ describe("b45 G-23-TAXLABEL: NZ tax content carries the tax label", () => {
   it("chat route wraps model replies", () => {
     // b80 G-19: the raw completion is kept for the working check, then every model reply is wrapped.
     const src = read("src/app/api/chat/route.ts");
-    expect(src).toMatch(/const raw = refused\s*\? null\s*: await createGrokChatCompletion/);
+    expect(src).toMatch(/const raw = refused\s*\? null\s*: sendMessages == null\s*\? AI_OFF_REPLY\s*: await createGrokChatCompletion/); // b81 G-26 AI-off branch
     expect(src).toMatch(/: withAssistantDisclaimer\(raw\)/);
   });
   it("learn guides, compare pages, income tax panel and FIF setting show the label", () => {

@@ -26,6 +26,8 @@ import { totalumSdk } from "@/lib/totalum";
 import { activityEmailSendingEnabled, previewActivityEmail } from "@/lib/activity-email";
 import { readActivityEmailPrefs } from "@/lib/activity-email-server";
 import { createZenithCompletion, isZenithConfigured } from "@/lib/grok";
+import type { AiPrivacyMode } from "@/lib/ai-privacy";
+import { readAiPrivacyMode } from "@/lib/ai-privacy.server";
 import { analyzeSecurity, intelIsHeld, NOT_ENOUGH_DAILY_HISTORY, type MarketCode } from "@/lib/market-intel";
 import { fetchQuotesForAssetClass } from "@/lib/market-data";
 import {
@@ -575,13 +577,14 @@ function fallbackSummary(report: TrialReport): string {
 
 /* ----------------------------- Narrative layer -------------------------- */
 
-async function enhanceWithGrok(report: TrialReport): Promise<boolean> {
-  if (!isZenithConfigured() || !report.tickers.length) return false;
+async function enhanceWithGrok(report: TrialReport, aiMode: AiPrivacyMode = "on"): Promise<boolean> {
+  // b81 G-26: AI off → the report keeps its rule-based text and no provider call is made.
+  if (aiMode === "off" || !isZenithConfigured() || !report.tickers.length) return false;
   try {
     const lines = report.tickers
       .map(
         (t) =>
-          `${t.symbol} (${t.name}): ${t.price} · 24h ${t.change24h}% · 7d ${t.change7d}% · 30d ${t.change30d}% · 12mo ${t.momentum12moPct}% · RSI ${t.rsi ?? "n/a"} · MACD ${t.macdSignal ?? "n/a"} · signal ${t.signal} · 7d model ${t.predictions[0]?.expectedMovePct}% · 30d model ${t.predictions[1]?.expectedMovePct}%${t.holding ? ` · holds ${t.holding.shares} @ ${t.holding.avgPrice} (P&L ${t.holding.pnlPct}%)` : ""}`
+          `${t.symbol} (${t.name}): ${t.price} · 24h ${t.change24h}% · 7d ${t.change7d}% · 30d ${t.change30d}% · 12mo ${t.momentum12moPct}% · RSI ${t.rsi ?? "n/a"} · MACD ${t.macdSignal ?? "n/a"} · signal ${t.signal} · 7d model ${t.predictions[0]?.expectedMovePct}% · 30d model ${t.predictions[1]?.expectedMovePct}%${t.holding && aiMode === "on" ? ` · holds ${t.holding.shares} @ ${t.holding.avgPrice} (P&L ${t.holding.pnlPct}%)` : ""}`
       )
       .join("\n");
     const moversLine =
@@ -645,7 +648,7 @@ export async function generateTrialReport(args: {
 
   const report = bot === "crypto" ? await buildCryptoReport(user, inputs) : await buildStockReport(user, inputs);
 
-  report.aiEnhanced = await enhanceWithGrok(report);
+  report.aiEnhanced = await enhanceWithGrok(report, await readAiPrivacyMode(user._id));
 
   const html = renderTrialReportHtml(report, { userName: user.name || undefined });
   const now = new Date();

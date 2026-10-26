@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/session";
+import { AI_OFF_REPLY, applyAiPrivacy } from "@/lib/ai-privacy";
+import { readAiPrivacyMode } from "@/lib/ai-privacy.server";
 import { totalumSdk } from "@/lib/totalum";
 import { buildPortfolioContext, ANALYST_SYSTEM_PROMPT } from "@/lib/ai-context";
 import { createZenithCompletion, type GrokMessage } from "@/lib/grok";
@@ -45,9 +47,12 @@ export async function POST() {
       },
     ];
 
+    // b81 G-26: off → no report and no provider call; redacted → amounts removed.
+    const sendMessages = applyAiPrivacy(messages, await readAiPrivacyMode(user._id));
+    if (sendMessages == null) return NextResponse.json({ ok: true, data: { report: AI_OFF_REPLY, aiOff: true } });
     console.log(`[api/analysis] Generating ZENITH report for user ${user._id} (${stocks.length} holdings)`);
     const report = await createZenithCompletion({
-      messages,
+      messages: sendMessages,
       maxTokens: 1600,
       temperature: 0.6,
     });
