@@ -1,4 +1,4 @@
-// pull-check:v3-fix-b76-2026-10-27
+// pull-check:v3-fix-b77-2026-10-27
 /** b72 (Chief, 27 Oct 2026): TT b71 P2 — deletes replayed after reload (second and last attempt). */
 import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -117,6 +117,6 @@ describe("b72 dashboard wiring", () => {
 
   it("pins the build and the pull-check", () => {
     expect(read("public/build-version.txt").trim()).toMatch(/^v3-(fix|g10|m7|h1)-b7\d-2026-10-2[78]$/);
-    expect(read("qa/PULL-CHECK-2026-10-12.md")).toMatch(/Goal b72[^\n]*pull-check:v3-fix-b76-2026-10-27/);
+    expect(read("qa/PULL-CHECK-2026-10-12.md")).toMatch(/Goal b72[^\n]*pull-check:v3-fix-b77-2026-10-27/);
   });
 });

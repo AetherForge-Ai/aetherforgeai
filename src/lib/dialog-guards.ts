@@ -23,6 +23,7 @@ const PORTAL_SELECTORS = [
   "[cmdk-root]",
   "[cmdk-list]",
   "[cmdk-item]",
+  "[data-af-ticker-search-panel]",
 ] as const;
 
 /** Module-level guard — survives body.dataset wipes and TickerSearch remount races. */

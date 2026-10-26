@@ -192,6 +192,9 @@ import {
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+
+/** b77: the not-found text for a delete of a row that is already gone (matches the API 404 body). */
+const ALREADY_GONE_TEXT = "That row was not found. It was already removed, so nothing changed.";
 import {
   Plus,
   RefreshCw,
@@ -2143,7 +2146,7 @@ export function PortfolioDashboard({
     if (!res.ok && res.status === 404) {
       noteWrite(userId, { deletedId: line.id });
       // b75 (TT b73 P3): name the outcome on screen and keep it long enough to read.
-      toast.info(`${typeof res.error === "string" && res.error ? res.error : "That row was not found."} It was already removed, so nothing changed.`, { duration: 8000 });
+      toast.info(ALREADY_GONE_TEXT, { duration: 8000 });
       handleDataChanged();
       return true;
     }
@@ -2167,7 +2170,10 @@ export function PortfolioDashboard({
       });
       if (typeof after === "number") applyKnownCash(after);
       noteWrite(userId, { deletedId: line.id, cashAfter: typeof after === "number" ? after : null });
-      toast.success(res.data?.alreadyRemoved ? `${label} was already removed` : `${label} removed`);
+      // b77 (TT b75/b76 P3, 2nd attempt): dedupedDelete turns the server's 404 into ok + alreadyRemoved, so
+      // this is the toast the member sees. Same server wording as the 404 branch, kept for 8 s.
+      if (res.data?.alreadyRemoved) toast.info(ALREADY_GONE_TEXT, { duration: 8000 });
+      else toast.success(`${label} removed`);
       handleDataChanged(typeof after === "number" ? { cashBalance: after } : undefined);
       return true;
     }
