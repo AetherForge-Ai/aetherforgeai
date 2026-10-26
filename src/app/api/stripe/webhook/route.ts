@@ -15,7 +15,7 @@
  */
 
 import { NextResponse } from "next/server";
-import { stripe, STRIPE_WEBHOOK_SECRETS, cryptoProvider } from "@/lib/stripe";
+import { stripe, STRIPE_WEBHOOK_SECRETS, STRIPE_TEST_WEBHOOK_SECRETS, cryptoProvider } from "@/lib/stripe";
 import Stripe from "stripe";
 import { totalumSdk } from "@/lib/totalum";
 import { planByPriceId, planByKey, parsePaymentLinkRef } from "@/lib/plans";
@@ -26,6 +26,7 @@ import {
   markProcessed,
   mayAcceptUnsignedEvent,
   testModePlan,
+  testSecretEventAllowed,
 } from "@/lib/stripe-entitlement";
 import { testSecretKey } from "@/lib/stripe-mode";
 
@@ -267,10 +268,16 @@ export async function POST(req: Request) {
     // Verify webhook signature using async method for Cloudflare Workers compatibility.
     // Try every configured signing secret (preview + production endpoints have
     // different secrets) and accept the event if ANY of them validates.
-    if (STRIPE_WEBHOOK_SECRETS.length) {
+    // b78 CR-6: the TEST-mode endpoint's secret (STRIPE_TEST_WEBHOOK_SECRET) is tried after the live ones.
+    const allSecrets = [
+      ...STRIPE_WEBHOOK_SECRETS.map((secret) => ({ secret, test: false })),
+      ...STRIPE_TEST_WEBHOOK_SECRETS.map((secret) => ({ secret, test: true })),
+    ];
+    if (allSecrets.length) {
       let verified: Stripe.Event | null = null;
+      let viaTestSecret = false;
       let lastError = "";
-      for (const secret of STRIPE_WEBHOOK_SECRETS) {
+      for (const { secret, test } of allSecrets) {
         try {
           verified = await stripe.webhooks.constructEventAsync(
             body,
@@ -279,6 +286,7 @@ export async function POST(req: Request) {
             undefined,
             cryptoProvider
           );
+          viaTestSecret = test;
           break;
         } catch (err: any) {
           lastError = err?.message || "signature mismatch";
@@ -286,13 +294,18 @@ export async function POST(req: Request) {
       }
       if (!verified) {
         console.error(
-          `Webhook signature verification failed against ${STRIPE_WEBHOOK_SECRETS.length} secret(s):`,
+          `Webhook signature verification failed against ${allSecrets.length} secret(s):`,
           lastError
         );
         return NextResponse.json(
           { error: `Webhook signature verification failed: ${lastError}` },
           { status: 400 }
         );
+      }
+      if (!testSecretEventAllowed(viaTestSecret, verified.livemode)) {
+        // A live event signed with the test endpoint's secret is never trusted.
+        console.error("[webhook] refused: live event verified only by the test webhook secret", verified.id);
+        return NextResponse.json({ error: "Test webhook secret only verifies test-mode events" }, { status: 400 });
       }
       event = verified;
     } else if (mayAcceptUnsignedEvent()) {

@@ -175,6 +175,12 @@ export const STRIPE_WEBHOOK_SECRETS: string[] = Array.from(
   )
 );
 
+/** b78 CR-6: signing secret of the TEST-mode webhook endpoint. Events it verifies must be livemode=false. */
+export const STRIPE_TEST_WEBHOOK_SECRETS: string[] = String(process.env.STRIPE_TEST_WEBHOOK_SECRET || "")
+  .split(/[,\s]+/)
+  .map((s) => s.trim())
+  .filter((s) => Boolean(s) && !STRIPE_WEBHOOK_SECRETS.includes(s));
+
 if (!STRIPE_WEBHOOK_SECRETS.length && process.env.STRIPE_SECRET_KEY) {
   console.warn(
     "⚠️  STRIPE_WEBHOOK_SECRET is not set. " +

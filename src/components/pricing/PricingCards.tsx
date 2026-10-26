@@ -2,7 +2,7 @@
 
 import { ULTIMATE_PRICE_PENDING_D6 } from "@/lib/public-copy";
 import { ULTIMATE_FROM_LINE } from "@/lib/plan-usage";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "@/lib/auth-client";
@@ -54,6 +54,22 @@ export function PricingCards({
   const [period, setPeriod] = useState<BillingPeriod>("monthly");
   const [bot, setBot] = useState<BotChoice>("stock");
   const [loadingTier, setLoadingTier] = useState<string | null>(null);
+  // b78 CR-6: allow-listed test accounts check out in Stripe test mode (server decides; no key on the client).
+  const [testCheckout, setTestCheckout] = useState(false);
+  const signedInId = session?.user?.id;
+  useEffect(() => {
+    if (!signedInId) {
+      setTestCheckout(false);
+      return;
+    }
+    let cancelled = false;
+    void api.get<{ userTestCheckout?: boolean }>("/api/stripe/mode", { signal: new AbortController().signal }).then((res) => {
+      if (!cancelled) setTestCheckout(Boolean(res.ok && res.data?.userTestCheckout));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [signedInId]);
   // A server snapshot paints the US$ line in the first HTML. The client hook refreshes it.
   const { rates: fx, asOf, ready } = useFxRates(initialFx);
 
@@ -85,7 +101,8 @@ export function PricingCards({
       email: session.user.email,
       bot: plan.botAccess === "both" ? undefined : bot,
     });
-    if (linked) {
+    // b78 CR-6: a test account never follows a live payment link; the server builds a test session.
+    if (linked && !testCheckout) {
       console.log(`[pricing] Payment link ${tier.id} (${period})`);
       window.location.href = linked;
       return;
@@ -138,6 +155,13 @@ export function PricingCards({
 
   return (
     <div>
+      {testCheckout ? (
+        <p className="mb-4 flex justify-center" data-testid="stripe-test-mode-badge">
+          <span role="status" className="rounded-full border border-amber-500/60 bg-amber-500/15 px-3 py-1 text-xs font-semibold text-amber-800 dark:text-amber-200">
+            Test mode: checkout uses Stripe test cards. No real charge.
+          </span>
+        </p>
+      ) : null}
       {/* Billing toggle */}
       <div className="flex flex-col items-center gap-3">
         <div className="inline-flex items-center rounded-full border border-border/70 bg-card/60 p-1 shadow-sm">
