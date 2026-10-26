@@ -1,4 +1,4 @@
-// pull-check:v3-cr6-b78-2026-10-28
+// pull-check:v3-cr6-b78-2026-10-27
 /** b69 (Chief, 27 Oct 2026): TT b68 P2s — /api/crypto duplicate ids, REG-1 static chunk 520 recovery. */
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
@@ -57,8 +57,8 @@ function assertUnique400(rows: CoinMarket[]) {
 
 describe("b69 build", () => {
   it("pins the build", () => {
-    expect(read("public/build-version.txt").trim()).toBe("v3-cr6-b78-2026-10-28");
-    expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-cr6-b78-2026-10-28");
+    expect(read("public/build-version.txt").trim()).toBe("v3-cr6-b78-2026-10-27");
+    expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-cr6-b78-2026-10-27");
   });
 });
 
