@@ -27,6 +27,7 @@ import { persistCryptoSnapshot, persistDexSnapshot, readDexSnapshot } from "@/li
 import { dexscreenerPublicDisplay } from "@/lib/dexscreener-display";
 import {
   DEX_BACKOFF_MS,
+  contractIndexFromPlatforms,
   DEX_COLD_BUDGET_MS,
   DEX_STALE_MS,
   DEX_TRENDING,
@@ -254,6 +255,12 @@ async function loadPlatforms(): Promise<Map<string, Record<string, string>> | nu
     console.error("[crypto-coingecko] platform list unavailable:", err);
     return null;
   }
+}
+
+/** b75 H-1: contract -> CoinGecko id for DEX rows. Bounded; null when the list is slow or down. */
+export async function dexContractIndex(boundMs = 8_000): Promise<Map<string, string> | null> {
+  const platforms = await Promise.race([loadPlatforms(), sleep(boundMs).then(() => null)]);
+  return platforms ? contractIndexFromPlatforms(platforms) : null;
 }
 
 const TOP400_FRESH_MS = 60_000;

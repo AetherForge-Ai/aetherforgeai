@@ -153,6 +153,6 @@ describe("b50 P3: h4-playwright skips visibly without secrets", () => {
 
 describe("b50 build marker", () => {
   it("pins the build", () => {
-    expect(read("public/build-version.txt")).toContain("v3-m7-b74-2026-10-27");
+    expect(read("public/build-version.txt")).toContain("v3-h1-b75-2026-10-27");
   });
 });

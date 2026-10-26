@@ -55,7 +55,8 @@ import {
   parseMegafilterPage,
   type DexTokenRow,
 } from "@/lib/crypto-dex";
-import { GECKOTERMINAL_ACCEPT } from "@/lib/crypto-coingecko";
+import { GECKOTERMINAL_ACCEPT, dexContractIndex } from "@/lib/crypto-coingecko";
+import { fillDexDetailIds } from "@/lib/crypto-dex";
 import { fetchYahooMajorMarkets } from "@/lib/crypto-yahoo";
 import { snapshotTapeChange } from "@/lib/ticker-feed";
 import {
@@ -461,7 +462,8 @@ async function runDexSeed(): Promise<{ dexReplaced: boolean; dexRows: number }> 
     return { dexReplaced: false, dexRows: 0 };
   }
   dexRefreshFailure = null;
-  await persistDexSnapshot(loaded.rows, at, loaded.sources, dexReportRows());
+  const index = await Promise.resolve().then(() => dexContractIndex()).catch(() => null);
+  await persistDexSnapshot(fillDexDetailIds(loaded.rows, index), at, loaded.sources, dexReportRows());
   const saved = await readDexSnapshot();
   const replaced = saved?.at === at;
   if (!replaced) console.log(`[crypto-board] DEX seed ${loaded.rows.length} kept the previous list`);

@@ -333,7 +333,7 @@ export async function DELETE(req: Request) {
       return accountMismatchResponse(user._id);
     }
     const id = new URL(req.url).searchParams.get("id")?.trim() || "";
-    if (!id) return NextResponse.json({ ok: false, error: "A dividend id is required." }, { status: 400 });
+    if (!id) return NextResponse.json({ ok: false, error: "A row id is required." }, { status: 400 });
     if (id.startsWith("optimistic-")) {
       return NextResponse.json({ ok: false, code: "not_found", error: "That row is still saving; nothing was removed." }, { status: 404 });
     }
@@ -406,7 +406,7 @@ export async function DELETE(req: Request) {
     invalidateBookCache(user._id);
     return NextResponse.json({ ok: true, data: result }, { headers: writeMarkHeaders() });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "That dividend was not removed.";
+    const message = err instanceof Error ? err.message : "That row was not removed.";
     console.error("[api/transactions] DELETE error:", err);
     return NextResponse.json({ ok: false, error: message }, { status: 400 });
   }

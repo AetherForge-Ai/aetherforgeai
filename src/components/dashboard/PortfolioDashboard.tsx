@@ -2142,7 +2142,8 @@ export function PortfolioDashboard({
     // already gone, so it counts as removed.
     if (!res.ok && res.status === 404) {
       noteWrite(userId, { deletedId: line.id });
-      toast.success("Already removed");
+      // b75 (TT b73 P3): name the outcome on screen and keep it long enough to read.
+      toast.info(`${typeof res.error === "string" && res.error ? res.error : "That row was not found."} It was already removed, so nothing changed.`, { duration: 8000 });
       handleDataChanged();
       return true;
     }

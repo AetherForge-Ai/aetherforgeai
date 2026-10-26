@@ -40,6 +40,6 @@ describe("b47 P3", () => {
     expect(read("src/lib/sign-out.ts")).not.toContain("beforeunload\", ");
   });
   it("build marker", () => {
-    expect(read("public/build-version.txt")).toContain("v3-m7-b74-2026-10-27");
+    expect(read("public/build-version.txt")).toContain("v3-h1-b75-2026-10-27");
   });
 });
