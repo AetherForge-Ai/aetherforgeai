@@ -31,7 +31,7 @@ export function IncomeTaxPanel({ snapshot, loading }: { snapshot: PortfolioSnaps
             value={selected}
             disabled={loading || !snapshot}
             onChange={(event) => setYear(Number(event.target.value))}
-            className="mt-1 block rounded-md border border-border/70 bg-background px-2 py-1.5 text-sm text-foreground"
+            className="mt-1 block min-h-11 rounded-md border border-border/70 bg-background px-2 py-1.5 text-sm text-foreground md:min-h-9"
           >
             {(years.length ? years : [selected]).map((ending) => (
               <option key={ending} value={ending}>

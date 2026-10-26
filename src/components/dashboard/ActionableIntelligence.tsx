@@ -225,7 +225,7 @@ export function ActionableIntelligence({
               type="button"
               onClick={() => setSnapshotsMinimized((m) => !m)}
               aria-expanded={!snapshotsMinimized}
-              className="flex min-w-0 flex-1 items-center gap-2 text-left text-sm font-semibold text-gain"
+              className="flex min-h-11 min-w-0 flex-1 items-center gap-2 text-left text-sm font-semibold text-gain md:min-h-6"
             >
               <ArrowUpRight className="size-4 shrink-0" />
               <span className="truncate">Market snapshots</span>
@@ -248,7 +248,7 @@ export function ActionableIntelligence({
             <Button
               variant="outline"
               size="sm"
-              className="h-7 shrink-0 gap-1.5 px-2.5 text-xs"
+              className="h-11 shrink-0 gap-1.5 px-2.5 text-xs md:h-7"
               onClick={handleRefresh}
               disabled={refreshing || otherLoading}
             >

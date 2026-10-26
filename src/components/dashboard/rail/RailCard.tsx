@@ -66,7 +66,7 @@ export function RailTabs<T extends string>({
           aria-pressed={value === o.id}
           onClick={() => onChange(o.id)}
           className={cn(
-            "min-h-8 rounded-md px-2.5 text-xs font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
+            "min-h-11 rounded-md px-2.5 text-xs md:min-h-8 font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
             value === o.id ? RAIL_ACCENT_CLASS : "text-foreground/80 hover:bg-muted"
           )}
         >

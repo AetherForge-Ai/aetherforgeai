@@ -51,7 +51,7 @@ export function GlobalSearch({
       <Button
         variant="outline"
         onClick={() => setOpen(true)}
-        className="h-11 min-h-11 gap-2 text-muted-foreground"
+        className="h-11 min-h-11 min-w-11 gap-2 text-muted-foreground"
         aria-label="Search markets"
         aria-keyshortcuts="Meta+K"
       >

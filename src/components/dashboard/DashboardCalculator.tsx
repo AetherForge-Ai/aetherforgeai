@@ -1,12 +1,17 @@
 "use client";
 import { RAIL_ASIDE_CLASS, RAIL_GRID_CLASS } from "@/lib/dashboard-rail";
 
+import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
-import { HoldingDetailDrawer } from "@/components/dashboard/HoldingDetailDrawer";
-import { IncomeTaxPanel } from "@/components/dashboard/IncomeTaxPanel";
 import { KpiHeader } from "@/components/dashboard/KpiHeader";
-import { TransactionsTab } from "@/components/dashboard/TransactionsTab";
+
+// DASH-CLEAN C (perf): tab panels and the detail drawer load on first use, not with the Holdings view.
+// The fallback reserves height so switching tabs does not shift the page.
+const tabFallback = () => <div className="mt-4 h-64 animate-pulse rounded-2xl bg-muted/40 motion-reduce:animate-none" aria-hidden />;
+const TransactionsTab = dynamic(() => import("@/components/dashboard/TransactionsTab").then((m) => m.TransactionsTab), { loading: tabFallback });
+const IncomeTaxPanel = dynamic(() => import("@/components/dashboard/IncomeTaxPanel").then((m) => m.IncomeTaxPanel), { loading: tabFallback });
+const HoldingDetailDrawer = dynamic(() => import("@/components/dashboard/HoldingDetailDrawer").then((m) => m.HoldingDetailDrawer));
 import { TabEmptyState, isEmptyBook } from "@/components/dashboard/TabEmptyState";
 import { UnifiedHoldingsTable } from "@/components/dashboard/UnifiedHoldingsTable";
 import { Button } from "@/components/ui/button";

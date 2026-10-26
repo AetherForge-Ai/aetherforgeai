@@ -74,7 +74,7 @@ export function AnalysisPanel({
               ? "Generate an on-demand crypto report covering allocation, risk, and outlook — tailored to your coin book."
               : "Generate an on-demand equity report covering allocation, risk, and outlook — tailored to your portfolio."}
           </p>
-          <Button onClick={generate} disabled={loading} className="mt-5 font-semibold shadow-glow">
+          <Button onClick={generate} disabled={loading} className="mt-5 min-h-11 font-semibold shadow-glow md:min-h-9">
             {loading ? (
               <>
                 <Loader2 className="mr-2 size-4 animate-spin" /> Analyzing portfolio…
