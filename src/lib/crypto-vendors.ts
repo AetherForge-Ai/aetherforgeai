@@ -49,7 +49,8 @@ const ROWS: CryptoVendor[] = [
   { ticker: "APT", name: "Aptos", coingecko: "aptos", yahoo: "APT-USD" },
   { ticker: "ARB", name: "Arbitrum", coingecko: "arbitrum", yahoo: "ARB11841-USD" },
   { ticker: "OP", name: "Optimism", coingecko: "optimism", yahoo: "OP-USD" },
-  { ticker: "TON", name: "Toncoin", coingecko: "the-open-network", yahoo: "TON11419-USD" },
+  // b70 P3: CoinGecko renamed the-open-network to GRAM ("Gram (prev. Toncoin)"); TON is an alias.
+  { ticker: "GRAM", name: "Gram (prev. Toncoin)", coingecko: "the-open-network", yahoo: "TON11419-USD" },
   { ticker: "JUP", name: "Jupiter", coingecko: "jupiter-exchange-solana", yahoo: "JUP29210-USD" },
 ];
 
@@ -87,9 +88,9 @@ export function isStablecoinSymbol(symbol: string | null | undefined): boolean {
 }
 
 /** b68 P3: renamed tickers. Old alerts, holdings and searches for MATIC resolve to POL. */
-export const TICKER_ALIASES: Readonly<Record<string, string>> = { MATIC: "POL" };
+export const TICKER_ALIASES: Readonly<Record<string, string>> = { MATIC: "POL", TON: "GRAM" };
 /** b68 P3: search words that should find a coin (lower case). */
-export const CRYPTO_SEARCH_ALIASES: Readonly<Record<string, string>> = { matic: "POL", polygon: "POL" };
+export const CRYPTO_SEARCH_ALIASES: Readonly<Record<string, string>> = { matic: "POL", polygon: "POL", ton: "GRAM", toncoin: "GRAM", gram: "GRAM" };
 
 export function normalizeCryptoTicker(ticker: string): string {
   const raw = (ticker || "").toUpperCase().replace(/\s+/g, "").trim();

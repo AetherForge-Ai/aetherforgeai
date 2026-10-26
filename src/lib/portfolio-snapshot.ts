@@ -2048,3 +2048,41 @@ export function withCashDelta(snapshot: PortfolioSnapshot, deltaNzd: number): Po
     grand: bump(snapshot.grand),
   };
 }
+
+/**
+ * b70 G-10: a deleted buy or sell leaves the holdings at once, the same way cash does.
+ * The ledger line is reversed on the position (a buy is taken off, a sell is put back).
+ * Cash is left as it is: the caller already reversed it. A position with nothing left and
+ * no other ledger line is removed, so the row disappears instead of showing a closed 0.
+ */
+export function unpaintDeletedTrade(snapshot: PortfolioSnapshot, line: SnapshotLedgerLine): PortfolioSnapshot {
+  const type = String(line.type || "").toLowerCase();
+  const ticker = String(line.ticker || "").trim().toUpperCase();
+  const qty = Number(line.quantity);
+  if ((type !== "buy" && type !== "sell") || !ticker || !(qty > 0)) return snapshot;
+  const group = snapshot.groups.find(
+    (item) => item.id !== "cash" && item.positions.some((position) => position.ticker.toUpperCase() === ticker)
+  );
+  if (!group) return snapshot;
+  const cash = snapshot.kpis?.cash?.value;
+  const assetType = group.id === "crypto" ? "crypto" : group.id === "metals" ? "metal" : "stock";
+  const inverse = {
+    type: type === "buy" ? "sell" : "buy",
+    ticker,
+    quantity: qty,
+    price: line.price,
+    currency: line.currency || undefined,
+    fx_rate: line.fx ?? undefined,
+    asset_type: assetType,
+  };
+  const painted = paintConfirmedSnapshot(snapshot, inverse as never, typeof cash === "number" ? cash : 0);
+  if (typeof cash !== "number") painted.kpis = snapshot.kpis;
+  const stillInLedger = painted.ledger.some((row) => row.id !== line.id && row.ticker.toUpperCase() === ticker && (row.type === "buy" || row.type === "sell"));
+  for (const item of painted.groups) {
+    if (item.id !== group.id) continue;
+    item.positions = item.positions.filter(
+      (position) => !(position.ticker.toUpperCase() === ticker && position.quantity <= 1e-9 && !stillInLedger)
+    );
+  }
+  return painted;
+}
