@@ -4,6 +4,9 @@
  */
 import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+// b80 CR-6b: test-mode checkout is allow-list only; u1 is the allow-listed test account here.
+process.env.GOAL_TEST_HOOKS = "1";
+process.env.GOAL_TEST_HOOK_USER_IDS = "u1";
 
 vi.mock("server-only", () => ({}));
 const getCurrentUser = vi.fn();

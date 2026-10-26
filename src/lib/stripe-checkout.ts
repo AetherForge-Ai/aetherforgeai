@@ -16,6 +16,9 @@ import { checkoutStripe } from "@/lib/stripe-mode";
 import { HOLDING_CAPS_V2 } from "@/lib/feature-flags";
 import { trialPaymentCollection } from "@/lib/holding-caps";
 
+/** b80 CR-6b: shown when the site is in test mode and the member is not an allow-listed test account. */
+export const CHECKOUT_UNAVAILABLE = "Checkout is not available right now. Please try again later.";
+
 export const TEST_KEY_MISSING = "Checkout is in Stripe test mode and no test key is configured.";
 
 export function planUnitAmount(plan: Pick<PlanDef, "price">): number {
@@ -28,7 +31,8 @@ export type CheckoutResult =
 
 export async function createPlanCheckout(opts: { user: AppUser; plan: PlanDef; bot?: "stock" | "crypto"; baseUrl: string; cancelPath?: string }): Promise<CheckoutResult> {
   const { user, plan, baseUrl } = opts;
-  const { mode, client } = checkoutStripe(user._id);
+  const { mode, client, blocked } = checkoutStripe(user._id);
+  if (blocked) return { ok: false, status: 503, error: CHECKOUT_UNAVAILABLE };
   if (!client) return { ok: false, status: 503, error: TEST_KEY_MISSING };
 
   const selfServe = isSelfServeCheckoutPlan(plan);
