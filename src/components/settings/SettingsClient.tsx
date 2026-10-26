@@ -314,7 +314,7 @@ export function SettingsClient({
           >
             <Avatar className="size-20 ring-2 ring-border/70 transition group-hover:ring-primary/50">
               {image ? <AvatarImage src={image} alt={displayName} /> : null}
-              <AvatarFallback className="bg-primary/15 text-lg font-semibold text-gain">
+              <AvatarFallback className="border border-border bg-background text-lg font-semibold text-gain">
                 {initials(displayName || "U")}
               </AvatarFallback>
             </Avatar>

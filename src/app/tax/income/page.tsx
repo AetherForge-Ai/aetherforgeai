@@ -176,7 +176,7 @@ export default async function TaxableIncomePage({
           <li>A dividend saved without a breakdown is shown as cash only and is not added to gross.</li>
           <li>
             Realised amounts match the{" "}
-            <Link href="/tax/realised" className="text-primary underline-offset-4 hover:underline">
+            <Link href="/tax/realised" className="text-primary underline underline-offset-4">
               realised profit and loss
             </Link>{" "}
             page.
