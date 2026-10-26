@@ -11,7 +11,7 @@ import type { SnapshotLedgerLine } from "@/lib/portfolio-snapshot";
 const read = (p: string) => readFileSync(p, "utf8");
 
 describe("goal b19", () => {
-  it("pins the build", () => expect(read("public/build-version.txt").trim()).toMatch(/^v3-(?:goal|h1|g24|dedupe|g10|del404|fix|m7|cr6)-b\d+[a-z]?-2026-10-\d\d$/));
+  it("pins the build", () => expect(read("public/build-version.txt").trim()).toMatch(/^v3-(?:goal|h1|g24|dedupe|g10|del404|fix|m7|cr6|g18)-b\d+[a-z]?-2026-10-\d\d$/));
 
   it("M-1: ticker and toaster load lazily with a height-holding placeholder", () => {
     expect(read("src/app/page.tsx")).toMatch(/LazyMarketTicker/);
