@@ -38,7 +38,7 @@ export function ShowTheMaths({ figure, label }: { figure: SnapshotFigure; label:
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="inline-flex size-5 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:text-foreground focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none"
+          className="-m-3 inline-flex size-11 shrink-0 md:-m-0.5 md:size-6 items-center justify-center rounded-full text-muted-foreground hover:text-foreground focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none"
           aria-label={`Show the maths for ${label}`}
         >
           <Info className="size-3.5" aria-hidden />

@@ -456,7 +456,7 @@ export function MarketTicker({ className, compact = false, initial = null, initi
           {loaded && feedBadge.tone !== "green" ? <span className="text-[0.6rem]">{feedBadge.why}</span> : null}
           <button
             type="button"
-            className="rounded border border-emerald-500/30 px-2 py-0.5 font-semibold text-emerald-200 disabled:opacity-50"
+            className="min-h-6 rounded border border-emerald-500/30 px-2 py-0.5 font-semibold text-emerald-200 disabled:opacity-50"
             disabled={!fxReady}
             aria-pressed={display === "NZD"}
             onClick={() => setShowNzd((on) => !on)}
@@ -534,7 +534,7 @@ export function MarketTicker({ className, compact = false, initial = null, initi
         )}
         <button
           type="button"
-          className="rounded border border-emerald-500/30 px-2 py-0.5 font-semibold text-emerald-200 hover:text-white disabled:opacity-50"
+          className="min-h-6 rounded border border-emerald-500/30 px-2 py-0.5 font-semibold text-emerald-200 hover:text-white disabled:opacity-50"
           disabled={!fxReady}
           aria-pressed={display === "NZD"}
           onClick={() => setShowNzd((on) => !on)}

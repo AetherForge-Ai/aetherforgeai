@@ -60,7 +60,7 @@ export function DashboardInsights({
         </div>
       </CollapsibleSection>
       <CollapsibleSection title="AI research report" icon={LineChart}>
-        <AnalysisPanel holdingsCount={holdingsCount} scope="equity" />
+        <AnalysisPanel holdingsCount={holdingsCount} scope="equity" nested />
       </CollapsibleSection>
       <CollapsibleSection title="Institutional Crypto Terminal" icon={LineChart}>
         <CryptoMarketSection showProjected={!freePlan && !CRYPTO_PROJECTIONS_PAUSED} />

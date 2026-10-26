@@ -18,7 +18,7 @@ export function TabEmptyState({ tab, action }: { tab: keyof typeof TAB_EMPTY_COP
   const copy = TAB_EMPTY_COPY[tab] || TAB_EMPTY_COPY.holdings;
   return (
     <div className="mt-3 rounded-3xl border border-dashed border-border/70 bg-card/40 p-5" data-empty-tab={tab}>
-      <p className="text-sm font-medium">{copy.title}</p>
+      <h2 className="text-base font-semibold">{copy.title}</h2>
       <p className="mt-1 text-sm text-muted-foreground">{copy.body}</p>
       {action ? <div className="mt-3 flex flex-wrap gap-2">{action}</div> : null}
     </div>
