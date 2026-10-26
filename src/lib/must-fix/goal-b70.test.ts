@@ -1,4 +1,4 @@
-// pull-check:v3-g10-b73-2026-10-28
+// pull-check:v3-m7-b74-2026-10-27
 /** b70 (Chief, 27 Oct 2026): TT b69 grade — G-10 holding row within 1 s on confirm and delete; P3 TON/GRAM. */
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
@@ -115,7 +115,7 @@ describe("b70 P3 TON/GRAM", () => {
 
 describe("b70 build", () => {
   it("pins the build and the pull-check", () => {
-    expect(read("public/build-version.txt").trim()).toMatch(/^v3-(g10|del404|fix)-b7\d-2026-10-2[78]$/);
-    expect(read("qa/PULL-CHECK-2026-10-12.md")).toMatch(/Goal b70[^\n]*pull-check:v3-g10-b73-2026-10-28/);
+    expect(read("public/build-version.txt").trim()).toMatch(/^v3-(g10|del404|fix|m7)-b7\d-2026-10-2[78]$/);
+    expect(read("qa/PULL-CHECK-2026-10-12.md")).toMatch(/Goal b70[^\n]*pull-check:v3-m7-b74-2026-10-27/);
   });
 });
