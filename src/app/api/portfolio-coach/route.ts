@@ -2,6 +2,8 @@ import { withAssistantDisclaimer } from "@/lib/guide-safety";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/session";
+import { AI_OFF_REPLY, applyAiPrivacy } from "@/lib/ai-privacy";
+import { readAiPrivacyMode } from "@/lib/ai-privacy.server";
 import {
   createGrokChatCompletion,
   isGrokConfigured,
@@ -259,9 +261,12 @@ async function handle(req: Request): Promise<Response> {
       userMessage,
     });
 
+    // b81 G-26: off → fixed reply, no provider call; redacted → amounts removed.
+    const sendMessages = applyAiPrivacy(messages, await readAiPrivacyMode(user._id));
+    if (sendMessages == null) return answer(AI_OFF_REPLY, { aiOff: true });
     try {
       const reply = await createGrokChatCompletion({
-        messages,
+        messages: sendMessages,
         maxTokens: 600,
         temperature: 0.45,
         signal: AbortSignal.timeout(COACH_MODEL_TIMEOUT_MS),

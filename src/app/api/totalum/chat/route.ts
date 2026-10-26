@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/session";
+import { AI_OFF_REPLY, applyAiPrivacy } from "@/lib/ai-privacy";
+import { readAiPrivacyMode } from "@/lib/ai-privacy.server";
 import { loadTotalumSynthesis, loadReportFindings } from "@/lib/totalum-service";
 import { isFullHeadmaster } from "@/lib/headmaster-access";
 import { createGrokChatCompletion, isGrokConfigured, type GrokMessage } from "@/lib/grok";
@@ -168,10 +170,15 @@ export async function POST(req: Request) {
       userMessage: parsed.data.message.trim(),
     });
 
+    // b81 G-26: off → deterministic reply, no provider call; redacted → amounts removed.
+    const sendMessages = applyAiPrivacy(messages, await readAiPrivacyMode(user._id));
+    if (sendMessages == null) {
+      return NextResponse.json({ ok: true, data: { reply: deterministicReply(parsed.data.message, synthesis, findings), source: "deterministic", aiOff: true } });
+    }
     console.log(`[api/totalum/chat] Generating strategist reply for user ${user._id}`);
     let reply: string;
     try {
-      reply = await createGrokChatCompletion({ messages, maxTokens: 1100, temperature: 0.6 });
+      reply = await createGrokChatCompletion({ messages: sendMessages, maxTokens: 1100, temperature: 0.6 });
     } catch (aiErr) {
       console.error("[api/totalum/chat] Grok call failed, falling back deterministically:", aiErr);
       reply = deterministicReply(parsed.data.message, synthesis, findings);

@@ -9,6 +9,8 @@ import { createGrokChatCompletion, type GrokMessage } from "@/lib/grok";
 import { ASSISTANT_SHARE_PICK_REPLY, isSharePickRequest, withAssistantDisclaimer, withGuideDisclaimer } from "@/lib/guide-safety";
 import { assistantCompletionMessages } from "@/lib/ai-request-payload";
 import type { Stock } from "@/lib/portfolio";
+import { AI_OFF_REPLY, applyAiPrivacy } from "@/lib/ai-privacy";
+import { readAiPrivacyMode } from "@/lib/ai-privacy.server";
 import { aiShowWorkingEnabled, latestAsOf, showWorking } from "@/lib/ai-working";
 
 const postSchema = z.object({
@@ -132,10 +134,15 @@ export async function POST(req: Request) {
     const refused = isSharePickRequest(userMessage);
     if (refused) console.info(`[api/chat] share-pick refusal for user ${user._id}`);
     else console.log(`[api/chat] Generating Grok reply for user ${user._id}`);
+    // b81 G-26: the member's AI mode. Off → fixed reply, no provider call; redacted → amounts removed.
+    const aiMode = refused ? "on" : await readAiPrivacyMode(user._id);
+    const sendMessages = applyAiPrivacy(messages, aiMode);
     const raw = refused
       ? null
-      : await createGrokChatCompletion({
-          messages,
+      : sendMessages == null
+        ? AI_OFF_REPLY
+        : await createGrokChatCompletion({
+          messages: sendMessages,
           maxTokens: 1000,
           temperature: 0.7,
         });
@@ -143,7 +150,7 @@ export async function POST(req: Request) {
     const reply = raw == null ? withGuideDisclaimer(ASSISTANT_SHARE_PICK_REPLY) : withAssistantDisclaimer(raw);
     // b80 G-19: checked against the same context the model was given (before the disclaimer is added).
     const working =
-      raw != null && aiShowWorkingEnabled() ? showWorking(raw, bookLine, { asOf: latestAsOf(stocks as any) ?? new Date() }) : undefined;
+      raw != null && sendMessages != null && aiMode === "on" && aiShowWorkingEnabled() ? showWorking(raw, bookLine, { asOf: latestAsOf(stocks as any) ?? new Date() }) : undefined;
 
     // Persist the assistant reply
     const saved = await totalumSdk.crud.createRecord("chat_message", {
