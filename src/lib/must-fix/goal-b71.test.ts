@@ -1,4 +1,4 @@
-// pull-check:v3-fix-b76-2026-10-27
+// pull-check:v3-fix-b77-2026-10-27
 /** b71 (Chief, 27 Oct 2026): TT b70 P3 — stray DELETE 404s. One DELETE per id; 404 on a gone id is success. */
 import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -93,6 +93,6 @@ describe("b71 delete dedupe", () => {
 
   it("pins the build and the pull-check", () => {
     expect(read("public/build-version.txt").trim()).toMatch(/^v3-(del404|fix|g10|m7|h1)-b7\d-2026-10-2[78]$/);
-    expect(read("qa/PULL-CHECK-2026-10-12.md")).toMatch(/Goal b71[^\n]*pull-check:v3-fix-b76-2026-10-27/);
+    expect(read("qa/PULL-CHECK-2026-10-12.md")).toMatch(/Goal b71[^\n]*pull-check:v3-fix-b77-2026-10-27/);
   });
 });

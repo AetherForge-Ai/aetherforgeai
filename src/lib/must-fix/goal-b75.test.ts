@@ -1,4 +1,4 @@
-// pull-check:v3-fix-b76-2026-10-27
+// pull-check:v3-fix-b77-2026-10-27
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { contractIndexFromPlatforms, fillDexDetailIds, type DexTokenRow } from "@/lib/crypto-dex";
@@ -40,6 +40,6 @@ describe("b75 H-1: DEX rows without a CoinGecko id are matched by contract", () 
 describe("b75 (TT b73 P3): a delete of a row already gone says so on screen", () => {
   it("shows the not-found text for 8 s", () => {
     const src = readFileSync("src/components/dashboard/PortfolioDashboard.tsx", "utf8");
-    expect(src).toMatch(/It was already removed, so nothing changed\.`, \{ duration: 8000 \}/);
+    expect(src).toMatch(/ALREADY_GONE_TEXT, \{ duration: 8000 \}/);
   });
 });
