@@ -1,4 +1,4 @@
-// pull-check:v3-cr6-b78-2026-10-27
+// pull-check:v3-g18-b79-2026-10-27
 /** b73 (Chief, 27 Oct 2026): G-10 — priced cells on the optimistic and confirmed paint (trace bc-47cf729a). */
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
@@ -75,8 +75,8 @@ describe("b73 G-10 priced cells on paint", () => {
   it("G-10 confirm wiring is unchanged and the build is pinned", () => {
     const d = read("src/components/dashboard/PortfolioDashboard.tsx");
     expect(d).toMatch(/paintConfirmedSnapshot\(current, guess, cashGuess\)/);
-    expect(read("public/build-version.txt").trim()).toBe("v3-cr6-b78-2026-10-27");
-    expect(read("qa/PULL-CHECK-2026-10-12.md")).toMatch(/Goal b73[^\n]*pull-check:v3-cr6-b78-2026-10-27/);
+    expect(read("public/build-version.txt").trim()).toBe("v3-g18-b79-2026-10-27");
+    expect(read("qa/PULL-CHECK-2026-10-12.md")).toMatch(/Goal b73[^\n]*pull-check:v3-g18-b79-2026-10-27/);
   });
 });
 
