@@ -102,3 +102,12 @@ export function documentAccess(pathname: string): "public" | "member" | "missing
   if (matchesRoute(path, MEMBER_DOCUMENT_ROUTES)) return "member";
   return "missing";
 }
+
+/**
+ * b87 G-27 (TT b86 P3): /shared is 404 for everyone while PORTFOLIO_SHARING is off, decided in
+ * middleware before the signed-out redirect (which made a signed-out request end on a 200 page).
+ */
+export function sharingPageHidden(pathname: string, env: Record<string, string | undefined> = process.env): boolean {
+  const onShared = pathname === "/shared" || pathname.startsWith("/shared/");
+  return onShared && String(env.PORTFOLIO_SHARING || "").trim().toLowerCase() !== "on";
+}
