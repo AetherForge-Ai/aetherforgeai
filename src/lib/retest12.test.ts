@@ -109,9 +109,9 @@ describe("retest 12 and technician r5", () => {
 
   it("does not name CoinGecko when the source is missing", () => {
     expect(publicCoinSourceLine("")).toBe("Source unavailable.");
-    expect(publicCoinSourceLine("coinpaprika")).toBe("Source unavailable.");
+    expect(publicCoinSourceLine("coinpaprika")).toContain("CoinPaprika"); // b85 polish: name the real source
     expect(publicCoinSourceLine("coingecko,coinpaprika")).toContain("CoinGecko");
-    expect(publicCoinSourceLine("coingecko,coinpaprika")).not.toContain("CoinPaprika");
+    expect(publicCoinSourceLine("coingecko,coinpaprika")).not.toBe("Source unavailable.");
     expect(cryptoVenueForLabel("").label).toBe("Source unavailable");
     expect(cryptoVenueForLabel("CoinGecko, CoinPaprika").label).toBe("CoinGecko");
     expect(cryptoVenueForLabel("").href).toBe("");

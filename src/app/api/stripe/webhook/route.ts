@@ -22,7 +22,9 @@ import { planByPriceId, planByKey, parsePaymentLinkRef } from "@/lib/plans";
 import { PUBLIC_CATALOG } from "@/lib/public-catalog";
 import {
   alreadyProcessed,
+  endedPatch,
   entitlementPatch,
+  subscriptionEnded,
   markProcessed,
   mayAcceptUnsignedEvent,
   testModePlan,
@@ -80,6 +82,49 @@ async function findUserIdByCustomer(customerId: string | null): Promise<string |
   }
 }
 
+/**
+ * b85 CR-7: Payment Link subscriptions may carry the user only on the Checkout Session's
+ * client_reference_id (the metadata stamp can fail). Find that session by subscription id.
+ */
+async function findUserIdBySubscriptionSession(subscription: Stripe.Subscription): Promise<string | null> {
+  try {
+    const list = await withTimeout(
+      readerFor(subscription.livemode).checkout.sessions.list({ subscription: subscription.id, limit: 1 }),
+      WEBHOOK_IO_TIMEOUT_MS,
+      "checkout session lookup"
+    );
+    const session = list.data?.[0];
+    if (!session) return null;
+    return (session.metadata?.userId as string) || parsePaymentLinkRef(session.client_reference_id).userId || null;
+  } catch (err) {
+    console.error("[webhook] checkout session lookup failed:", err instanceof Error ? err.message : "error");
+    return null;
+  }
+}
+
+/** b85 CR-7: an ended subscription must not downgrade a customer who has another live one. */
+async function otherLiveSubscription(subscription: Stripe.Subscription): Promise<boolean> {
+  const customerId = typeof subscription.customer === "string" ? subscription.customer : subscription.customer?.id;
+  if (!customerId) return false;
+  const list = await withTimeout(
+    readerFor(subscription.livemode).subscriptions.list({ customer: customerId, status: "all", limit: 10 }),
+    WEBHOOK_IO_TIMEOUT_MS,
+    "subscription list"
+  );
+  return (list.data || []).some((other) => other.id !== subscription.id && !subscriptionEnded(other as never) && (other.status === "active" || other.status === "trialing" || other.status === "past_due"));
+}
+
+/** b85 CR-7: metadata → stored customer id → the subscription's Checkout Session. */
+async function resolveSubscriptionUser(subscription: Stripe.Subscription, override?: string | null): Promise<string | null> {
+  const customerId = typeof subscription.customer === "string" ? subscription.customer : subscription.customer?.id;
+  return (
+    override ||
+    (subscription.metadata?.userId as string) ||
+    (await findUserIdByCustomer(customerId ?? null)) ||
+    (await findUserIdBySubscriptionSession(subscription))
+  );
+}
+
 async function updateUserSubscription(userId: string, patch: SubscriptionPatch) {
   try {
     await withTimeout(totalumSdk.crud.editRecordById("user", userId, patch), WEBHOOK_IO_TIMEOUT_MS, "user update");
@@ -124,12 +169,16 @@ async function syncSubscription(
   const customerId = typeof subscription.customer === "string" ? subscription.customer : subscription.customer?.id;
   // Resolution order: explicit override (Payment Link client_reference_id) →
   // subscription metadata (stamped server-side) → customer lookup.
-  const userId =
-    overrides?.userId ||
-    (subscription.metadata?.userId as string) ||
-    (await findUserIdByCustomer(customerId ?? null));
+  const userId = await resolveSubscriptionUser(subscription, overrides?.userId);
   if (!userId) {
-    console.warn("[webhook] No user found for subscription", subscription.id);
+    // b85 CR-7: a 500 makes Stripe retry instead of the downgrade being lost behind a 200.
+    throw new Error(`No user found for subscription ${subscription.id}`);
+  }
+  // b85 CR-7: an ended subscription (canceled, unpaid, incomplete_expired, or cancel_at_period_end
+  // past current_period_end) is Free. Canceling at period end keeps the plan until then.
+  if (subscriptionEnded(subscription as never)) {
+    if (await otherLiveSubscription(subscription)) return;
+    await updateUserSubscription(userId, endedPatch(customerId ?? null));
     return;
   }
 
@@ -224,14 +273,16 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
   await syncSubscription(subscription);
 }
 
-async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
-  console.log("Subscription deleted:", subscription.id);
+async function handleSubscriptionDeleted(eventSubscription: Stripe.Subscription) {
+  console.log("Subscription deleted:", eventSubscription.id);
+  // b85 CR-7: same user resolution as updates (incl. the Payment Link session), Free + canceled,
+  // and a 500 (Stripe retries) when the user cannot be found. Replays write the same patch.
+  const subscription = await liveSubscription(eventSubscription);
   const customerId = typeof subscription.customer === "string" ? subscription.customer : subscription.customer?.id;
-  const userId = (subscription.metadata?.userId as string) || (await findUserIdByCustomer(customerId ?? null));
-  if (userId) {
-    // Back to Free limits at period end (Stripe sends deleted when the period ends).
-    await updateUserSubscription(userId, entitlementPatch({ stripeStatus: "canceled", plan: undefined }));
-  }
+  const userId = await resolveSubscriptionUser(subscription);
+  if (!userId) throw new Error(`No user found for deleted subscription ${subscription.id}`);
+  if (await otherLiveSubscription(subscription)) return;
+  await updateUserSubscription(userId, endedPatch(customerId ?? null));
 }
 
 async function handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent) {

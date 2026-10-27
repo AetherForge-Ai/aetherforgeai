@@ -109,7 +109,8 @@ export function sourceLabel(source: string): string {
     case "yahoo":
       return "Yahoo Finance";
     case "coinpaprika":
-      return "";
+      // b85: name the real feed (CoinPaprika is credited since b58).
+      return "CoinPaprika";
     case "coincap":
       return "CoinCap";
     case "binance":

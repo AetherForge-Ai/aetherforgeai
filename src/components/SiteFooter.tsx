@@ -29,7 +29,7 @@ export function SiteFooter() {
       <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-8 sm:px-6 lg:px-8">
         <nav className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted-foreground" aria-label="Legal">
           {LINKS.map((item) => (
-            <Link key={item.href} href={item.href} className="hover:text-foreground inline-flex min-h-11 items-center md:min-h-0">
+            <Link key={item.href} href={item.href} className="hover:text-foreground inline-flex min-h-11 items-center md:min-h-0 min-w-11 justify-center md:min-w-0">
               {item.label}
             </Link>
           ))}

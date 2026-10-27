@@ -23,6 +23,27 @@ export function mapStripeStatus(status: string): AppSubscriptionStatus {
   return "none";
 }
 
+/**
+ * b85 CR-7: has this subscription ended? Ended means canceled, unpaid or incomplete_expired, or a
+ * cancel_at_period_end subscription whose current_period_end has passed. A subscription canceling at
+ * period end keeps its plan until then. Pure and idempotent: the same input always gives the same answer.
+ */
+export function subscriptionEnded(
+  sub: { status?: string | null; cancel_at_period_end?: boolean | null; cancel_at?: number | null; ended_at?: number | null; current_period_end?: number | null },
+  nowMs = Date.now()
+): boolean {
+  const status = String(sub.status || "");
+  if (status === "canceled" || status === "unpaid" || status === "incomplete_expired") return true;
+  if (typeof sub.ended_at === "number" && sub.ended_at > 0 && sub.ended_at * 1000 <= nowMs) return true;
+  const endAt = sub.cancel_at_period_end ? sub.current_period_end : sub.cancel_at;
+  return typeof endAt === "number" && endAt > 0 && endAt * 1000 <= nowMs;
+}
+
+/** b85 CR-7: the Free patch written when a subscription has ended. Same patch on every replay. */
+export function endedPatch(customerId?: string | null): EntitlementPatch {
+  return entitlementPatch({ stripeStatus: "canceled", plan: undefined, customerId: customerId ?? null });
+}
+
 /** past_due keeps the plan (grace while Stripe retries the card). */
 export function statusKeepsPlan(status: AppSubscriptionStatus): boolean {
   return status === "active" || status === "past_due";

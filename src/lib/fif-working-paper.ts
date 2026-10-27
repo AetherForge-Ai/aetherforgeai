@@ -71,7 +71,7 @@ export const FIF_ASSUMPTIONS = [
   "An ASX share this book treats as meeting Inland Revenue's Australian listed share exemption (Australian resident, franking account, not stapled) is shown as excluded and does not count toward the FIF cost; its dividends are shown as overseas dividend income. Confirm each with Inland Revenue's Australian listed share exemption tool. Any other .AX share is counted.",
   "Crypto and metals are left out. This paper does not treat them as shares in a foreign company.",
   "Other share tickers are treated as attributing interests for this paper.",
-  "Cost is quantity times price times the exchange rate stored on the buy, in NZ$. A foreign buy with no stored rate is not given a guessed rate, and the FIF threshold test is then not calculated.",
+  "Cost is quantity times price, plus the brokerage fee on the buy, times the exchange rate stored on the buy, in NZ$. A foreign buy with no stored rate is not given a guessed rate, and the FIF threshold test is then not calculated.",
   "Amounts are rounded to the nearest cent, with half a cent rounded up. A cash figure in your ledger that differs by a cent does not change the result.",
   "The FIF threshold test uses the highest total cost of attributing lots open at any point in the income year, including lots still open on 1 April. It is cost, not market value.",
   "A cost exactly at the threshold is reported as at the limit. The public exemptions page says the de minimis exemption is for attributing interests that cost less than NZ$50,000. The Tax Technical article on section CQ 5 says FIF income arises when the total cost at any time in the income year is more than NZ$50,000. Inland Revenue's two sources word this edge case differently, so if your cost is exactly NZ$50,000.00, check with your tax adviser before relying on the exemption.",
@@ -171,6 +171,12 @@ function fxOf(row: TaxLedgerRow): number | null {
 }
 
 /** Same FIFO lot as the dashboard. A booked cash figure never replaces it, including a one-cent neighbour. */
+/** b85 H-9: buy fees, in the trade currency, converted at the stored buy rate. */
+export function buyFeesNzd(row: { fees?: unknown }, fx: number): number {
+  const fees = Number(row.fees) || 0;
+  return fees > 0 ? fifoLotCostNzd(1, fees, fx) : 0;
+}
+
 function nzdCost(qty: number, price: number, fx: number, _bookedCash?: number | null): number {
   return fifoLotCostNzd(qty, price, fx);
 }
@@ -409,7 +415,8 @@ export function buildFifPaper(input: {
         book.working.unknown = true;
         if (inYear) book.working.qsBlocked = true;
       } else {
-        const cost = nzdCost(qty, price, fx, row.cash_nzd);
+        // b85 H-9: incidental acquisition costs (brokerage fees on the buy) are part of cost.
+        const cost = nzdCost(qty, price, fx, row.cash_nzd) + buyFeesNzd(row, fx);
         addLot(book.working, qty, cost);
         if (inYear) {
           book.working.costsInYearNzd += cost;

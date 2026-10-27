@@ -958,6 +958,13 @@ function countKeys(keys: Iterable<string>): Map<string, number> {
   return counts;
 }
 
+/** b85 H-10: rows that could not be read or validated. Cash-funding skips are not row errors. */
+export function importRowErrors(plan: Pick<ImportPlan, "unsupported">): { line: number; reason: string }[] {
+  return plan.unsupported
+    .filter((row) => !String(row.reason || "").startsWith("Left out so paper cash does not go negative."))
+    .map((row) => ({ line: row.line, reason: row.reason }));
+}
+
 /** True only when the plan has trades to save, no file-level error, and skipped rows are acknowledged. */
 export function importWrites(plan: ImportPlan, acknowledgeSkipped = false): boolean {
   return plan.error == null && plan.toWrite.length > 0 && (plan.unsupported.length === 0 || acknowledgeSkipped);

@@ -5,6 +5,7 @@
  */
 
 import "server-only";
+import { strandedImportDeposit } from "@/lib/import-stranded";
 import { totalumSdk } from "@/lib/totalum";
 import { currencyForTicker, nativeToNzd, type FxRatesToNZD, BASELINE_FX_TO_NZD } from "@/lib/currency";
 import { getFxSnapshot } from "@/lib/fx";
@@ -103,7 +104,10 @@ export async function planOrApplyLedgerReversal(
 
   const plan = planLedgerReversal(userId, target, transactions, before);
   const cashBefore = Number((userRes as { data?: { cash_balance?: number } })?.data?.cash_balance) || 0;
-  const cashAfter = round2(cashBefore + plan.cashDeltaNzd);
+  let cashAfter = round2(cashBefore + plan.cashDeltaNzd);
+  // b85 H-10: a paper deposit left by a failed import (its cash was never credited and no trade in
+  // its batch remains) is removable. Removing it debits nothing rather than taking cash below zero.
+  if (cashAfter < -0.009 && strandedImportDeposit(target, transactions)) cashAfter = round2(cashBefore);
 
   let rates = BASELINE_FX_TO_NZD;
   try {

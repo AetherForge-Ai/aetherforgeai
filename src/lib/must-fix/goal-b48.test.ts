@@ -91,6 +91,6 @@ describe("b48 /api/ticker replies carry the headers (simulated store)", () => {
 
 describe("b48 build marker", () => {
   it("pins the build", () => {
-    expect(read("public/build-version.txt")).toContain("v3-dashclean-e-b84-2026-10-27");
+    expect(read("public/build-version.txt")).toContain("v3-b85-2026-10-28");
   });
 });
