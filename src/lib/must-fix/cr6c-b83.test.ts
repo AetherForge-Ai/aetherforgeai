@@ -55,7 +55,7 @@ describe("b83 CR-6c: GET /api/account/plan", () => {
     getCurrentUser.mockResolvedValue({ _id: "u1", subscription_plan: "monthly", subscription_status: "active", stripe_customer_id: "cus_x" });
     const { GET } = await import("@/app/api/account/plan/route");
     const body = await (await GET()).json();
-    expect(body).toEqual({ plan: "monthly", status: "active", subscriptionIdLast4: "CVJL" });
+    expect(body).toEqual({ plan: "monthly", status: "active", trialEndsAt: null, trialLine: null, subscriptionIdLast4: "CVJL" });
   });
   it("no customer: null last4", async () => {
     getCurrentUser.mockResolvedValue({ _id: "u2", subscription_plan: "free", subscription_status: "none", stripe_customer_id: null });

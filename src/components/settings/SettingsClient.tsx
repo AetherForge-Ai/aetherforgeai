@@ -144,13 +144,16 @@ export function SettingsClient({
   const onFreePlan = isFreeReportPlan(user.subscription_plan);
   // DASH-CLEAN-E: confirm the plan from the CR-6c source (GET /api/account/plan) so the
   // switch grid never offers the plan the account is already on.
+  // b87 CR-1 F-3: "Trial ends 11 Nov 2026" while the subscription is trialing.
+  const [trialLine, setTrialLine] = useState<string | null>(null);
   const [livePlanKey, setLivePlanKey] = useState<string | null | undefined>(user.subscription_plan);
   useEffect(() => {
     let alive = true;
     fetch("/api/account/plan", { cache: "no-store" })
-      .then((r) => (r.ok ? (r.json() as Promise<{ plan?: unknown }>) : null))
+      .then((r) => (r.ok ? (r.json() as Promise<{ plan?: unknown; trialLine?: unknown }>) : null))
       .then((j) => {
         if (alive && j && typeof j.plan === "string" && j.plan !== "none") setLivePlanKey(j.plan);
+        if (alive && j && typeof j.trialLine === "string") setTrialLine(j.trialLine);
       })
       .catch(() => {});
     return () => {
@@ -593,6 +596,7 @@ export function SettingsClient({
               <p className="mt-4 text-sm" data-current-plan>
                 Current plan: <span className="font-semibold">{currentPlan.name.replace("Apex ", "")}</span>
                 <span className="text-muted-foreground"> · NZ${currentPlan.price} / {currentPlan.intervalLabel}</span>
+                {trialLine ? <span className="text-muted-foreground" data-trial-line> · {trialLine}</span> : null}
               </p>
             ) : null}
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
