@@ -45,7 +45,13 @@ vi.mock("@/lib/stripe", async () => {
         s.metadata = { ...(s.metadata as object), ...p.metadata };
         return structuredClone(s);
       },
+      // b85 CR-7: the webhook checks for another live subscription before a downgrade.
+      list: async (p: { customer: string; status?: string; limit?: number }) =>
+        h.real
+          ? h.real.subscriptions.list(p as never)
+          : { data: [...h.subs.values()].filter((s) => (s as { customer?: unknown }).customer === p.customer).map((s) => structuredClone(s)) },
     },
+    checkout: { sessions: { list: async () => ({ data: [] }) } },
     webhooks: S.webhooks,
   };
   return { stripe: reader, STRIPE_WEBHOOK_SECRETS: ["whsec_b64_harness_local_only"], STRIPE_TEST_WEBHOOK_SECRETS: [], cryptoProvider: S.createSubtleCryptoProvider() };

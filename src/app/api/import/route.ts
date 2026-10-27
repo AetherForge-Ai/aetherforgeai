@@ -7,6 +7,7 @@ import {
   brokerRefFromNotes,
   importDuplicateKey,
   importFailureReport,
+  importRowErrors,
   importWriteOrder,
   importWrites,
   planBrokerImport,
@@ -42,6 +43,12 @@ import { applyTransaction } from "@/lib/transactions";
 
 export const dynamic = "force-dynamic";
 
+/** b85 H-10: keep the request's user snapshot equal to the cash just written. */
+function syncSessionCash(user: { cash_balance?: number | null }, cash: number) {
+  (user as { cash_balance?: number; cash_read_at?: number }).cash_balance = cash;
+  (user as { cash_read_at?: number }).cash_read_at = Date.now();
+}
+
 
 function publicPlan(plan: ImportPlan) {
   return {
@@ -51,6 +58,8 @@ function publicPlan(plan: ImportPlan) {
     needsMapping: plan.needsMapping,
     unreadable: plan.unreadable,
     unsupported: plan.unsupported,
+    // b85 H-10: the preview lists row errors (bad-rows.csv: 3).
+    errors: importRowErrors(plan),
     duplicateCount: plan.duplicates.length,
     duplicates: plan.duplicates.map((row) => ({ line: row.line, date: row.date, ticker: row.ticker, side: row.side })),
     toWrite: plan.toWrite,
@@ -389,6 +398,8 @@ export async function POST(req: Request) {
       },
       writeCash: async (step, trade) => {
         await totalumSdk.crud.editRecordById("user", user._id, { cash_balance: trade.pendingCash });
+        // b85 H-10: the next row reads the session cash; credit the deposit there too, before the buys.
+        syncSessionCash(user, trade.pendingCash);
         if (step.kind === "deposit") writtenDeposits.push({ date: step.date, amountNzd: step.amountNzd || 0 });
         else if (step.trade) written.push(step.trade);
       },
@@ -396,10 +407,14 @@ export async function POST(req: Request) {
         await totalumSdk.crud.deleteRecordById("transaction", trade.id);
         if (trade.restoreHolding) await trade.restoreHolding();
         await totalumSdk.crud.editRecordById("user", user._id, { cash_balance: trade.previousCash });
+        syncSessionCash(user, trade.previousCash);
       },
     });
     if (outcome.error) {
       console.error("[api/import] write failed:", outcome.error);
+      // b85 H-10: the commit unwound every saved row, so nothing is reported as saved.
+      written.length = 0;
+      writtenDeposits.length = 0;
       return NextResponse.json(
         {
           ok: false,

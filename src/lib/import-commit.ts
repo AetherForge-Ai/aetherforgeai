@@ -28,13 +28,25 @@ export interface ImportCommitResult {
 /** One row at a time: ledger id first, then cash. Cash failure deletes that id and stops. */
 export async function commitImportInOrder(steps: readonly ImportWriteStep[], io: ImportCommitIO): Promise<ImportCommitResult> {
   const written: ImportCommitTrade[] = [];
+  // b85 H-10: all or nothing. On any failure every row already saved by this commit is removed,
+  // newest first, and its cash restored, so a failed commit leaves nothing behind.
+  const unwind = async (): Promise<void> => {
+    for (const done of [...written].reverse()) {
+      try {
+        await io.rollbackTrade(done);
+      } catch (err) {
+        console.error("[import-commit] rollback failed:", err);
+      }
+    }
+  };
   for (const step of steps) {
     let trade: ImportCommitTrade;
     try {
       trade = await io.writeTrade(step);
     } catch (err) {
+      await unwind();
       return {
-        written,
+        written: [],
         error: err instanceof Error ? err.message : "The import was not saved.",
         rolledBack: null,
       };
@@ -43,8 +55,9 @@ export async function commitImportInOrder(steps: readonly ImportWriteStep[], io:
       await io.writeCash(step, trade);
     } catch (err) {
       await io.rollbackTrade(trade);
+      await unwind();
       return {
-        written,
+        written: [],
         error: err instanceof Error ? err.message : "The cash update failed.",
         rolledBack: trade.id,
       };
