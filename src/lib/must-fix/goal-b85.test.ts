@@ -1,5 +1,5 @@
 /**
- * b85 batch 1. pull-check:v3-b85-2026-10-28
+ * b85 batch 1. pull-check:v3-b86-2026-10-28
  * Worked NZ examples are hand-checked; indicative, not tax advice. No GST.
  */
 import { readFileSync } from "node:fs";
@@ -13,8 +13,8 @@ const read = (p: string) => readFileSync(p, "utf8");
 
 describe("b85 pins", () => {
   it("pins the build", () => {
-    expect(read("public/build-version.txt").trim()).toBe("v3-b85-2026-10-28");
-    expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-b85-2026-10-28");
+    expect(read("public/build-version.txt").trim()).toBe("v3-b86-2026-10-28");
+    expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-b86-2026-10-28");
   });
 });
 
@@ -74,9 +74,11 @@ describe("b85 H-10 Sharesies and Hatch fixtures + preview paths", () => {
   });
   it("embedded preview fixtures equal the csv files", async () => {
     const m = await import("@/lib/fixtures/broker-import/preview-fixtures");
-    expect(m.SHARESIES_FIXTURE).toBe(readFileSync(dir + "sharesies.csv", "utf8"));
-    expect(m.HATCH_FIXTURE).toBe(readFileSync(dir + "hatch.csv", "utf8"));
-    expect(m.BAD_ROWS_FIXTURE).toBe(readFileSync(dir + "bad-rows.csv", "utf8"));
+    // b86: the hook fixtures moved to the H-10 engine's own layouts (src/lib/import/fixtures).
+    const h10 = "src/lib/import/fixtures/";
+    expect(m.SHARESIES_FIXTURE).toBe(readFileSync(h10 + "sharesies.csv", "utf8"));
+    expect(m.HATCH_FIXTURE).toBe(readFileSync(h10 + "hatch.csv", "utf8"));
+    expect(m.BAD_ROWS_FIXTURE).toBe(readFileSync(h10 + "bad-rows.csv", "utf8"));
   });
   it("preview hook is allow-listed, preview-only and covers oversize + bad-rows", () => {
     const src = readFileSync("src/app/api/test-hooks/import-preview/route.ts", "utf8");
