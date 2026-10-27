@@ -158,3 +158,33 @@ describe("b85 H-10 commit: deposit credited before buys, all or nothing, strande
     expect(readFileSync("src/app/api/import/route.ts", "utf8")).toContain("errors: importRowErrors(plan),");
   });
 });
+
+describe("b85 CR-7 ended subscriptions go to Free", () => {
+  const now = Date.UTC(2026, 9, 28) ;
+  const sep13 = Date.UTC(2026, 8, 13) / 1000;
+  it("canceled, unpaid, incomplete_expired and a passed cancel_at_period_end are ended; canceling-at-period-end before the end is not", async () => {
+    const { subscriptionEnded } = await import("@/lib/stripe-entitlement");
+    for (const status of ["canceled", "unpaid", "incomplete_expired"]) expect(subscriptionEnded({ status }, now)).toBe(true);
+    expect(subscriptionEnded({ status: "active", cancel_at_period_end: true, current_period_end: sep13 }, now)).toBe(true);
+    expect(subscriptionEnded({ status: "active", cancel_at_period_end: true, current_period_end: now / 1000 + 86400 }, now)).toBe(false);
+    expect(subscriptionEnded({ status: "active", current_period_end: sep13 }, now)).toBe(false); // renewing, not ended
+    expect(subscriptionEnded({ status: "past_due" }, now)).toBe(false);
+  });
+  it("the ended patch is Free + canceled and identical on replay", async () => {
+    const { endedPatch } = await import("@/lib/stripe-entitlement");
+    const a = endedPatch("cus_test");
+    expect(a).toMatchObject({ subscription_status: "canceled", subscription_plan: "none", bot_access: "none" });
+    expect(endedPatch("cus_test")).toEqual(a);
+  });
+  it("webhook: deleted and updated resolve the user via metadata, customer, then the Checkout Session; unresolved is a 500 for retry", () => {
+    const src = readFileSync("src/app/api/stripe/webhook/route.ts", "utf8");
+    expect(src).toContain("checkout.sessions.list({ subscription: subscription.id, limit: 1 })");
+    expect(src).toContain("parsePaymentLinkRef(session.client_reference_id).userId");
+    expect(src).toContain("throw new Error(`No user found for deleted subscription");
+    expect(src).toContain("throw new Error(`No user found for subscription");
+    expect(src).toContain("if (subscriptionEnded(subscription as never)) {");
+    expect((src.match(/await otherLiveSubscription\(subscription\)/g) || []).length).toBe(2);
+    expect(src).toContain('case "customer.subscription.deleted"');
+    expect(src).toContain('case "customer.subscription.updated"');
+  });
+});
