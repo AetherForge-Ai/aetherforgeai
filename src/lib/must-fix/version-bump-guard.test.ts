@@ -9,7 +9,7 @@ import { readFileSync, readdirSync } from "node:fs";
 describe("version bump guard", () => {
   it("build-version matches the newest goal-bNN test and the PULL-CHECK marker", () => {
     const version = readFileSync("public/build-version.txt", "utf8").trim();
-    const m = /^v3-(?:goal|h1|g24|dedupe|g10|del404|fix|m7|cr6|g18|cr6b|dashclean|dashclean-d|dashclean-e)-b(\d+)[a-z]?-\d{4}-\d{2}-\d{2}$/.exec(version);
+    const m = /^v3-(?:(?:goal|h1|g24|dedupe|g10|del404|fix|m7|cr6|g18|cr6b|dashclean|dashclean-d|dashclean-e)-)?b(\d+)[a-z]?-\d{4}-\d{2}-\d{2}$/.exec(version);
     expect(m, `bad build-version: ${version}`).not.toBeNull();
     const newest = Math.max(
       ...readdirSync("src/lib/must-fix")

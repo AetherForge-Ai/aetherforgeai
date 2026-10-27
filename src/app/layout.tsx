@@ -140,7 +140,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <div className="flex min-h-screen min-w-0 flex-col overflow-x-clip">
             <a
               href="#main"
-              className="absolute left-4 top-4 z-[100] -translate-y-24 rounded-md bg-background px-3 py-2 text-sm font-semibold text-foreground shadow focus:translate-y-0"
+              className="absolute left-4 top-4 z-[100] inline-flex min-h-11 items-center -translate-y-24 rounded-md bg-background px-3 py-2 text-sm font-semibold text-foreground shadow focus:translate-y-0"
             >
               Skip to content
             </a>

@@ -19,7 +19,7 @@ import {
   PROCESSORS,
   SECURITY_LINE,
 } from "@/lib/public-copy";
-import { AI_PROVIDER_API_SENTENCE, nameAiProvider } from "@/lib/ai-provider-disclosure";
+import { AI_DISCLAIMER_DATA_SENTENCE, AI_PROVIDER_API_SENTENCE, nameAiProvider } from "@/lib/ai-provider-disclosure";
 import {
   TRUST_HOSTING_LINE,
   TRUST_PAGE_LOG,
@@ -162,7 +162,8 @@ export default function TrustPage() {
                 {line}
               </p>
             ))}
-            <p className="text-sm leading-relaxed text-muted-foreground">{AI_PROVIDER_API_SENTENCE}</p>
+            <p className="text-sm leading-relaxed text-muted-foreground" data-k12-api>{AI_PROVIDER_API_SENTENCE}</p>
+            <p className="text-sm leading-relaxed text-muted-foreground" data-k12-data>{AI_DISCLAIMER_DATA_SENTENCE}</p>
           </section>
 
           <section className="mt-8 space-y-2">

@@ -166,13 +166,12 @@ export function SettingsClient({
   const { rates: fx, asOf, ready } = useFxRates(initialFx);
   // Other paid plans the member can switch to from their current subscription.
   // Ultimate stays founder-led. Do not offer it as a self-serve Stripe switch.
-  const switchOptions = PLANS.filter(
-    (p) =>
-      !p.archived &&
-      p.key !== livePlanKey &&
-      !String(p.key).startsWith("ultimate_") &&
-      (p.priceId || p.key.startsWith("starter_") || p.key.startsWith("pro_"))
-  );
+  // b85: a paid account sees its current plan and one next step only: Pro on the same
+  // billing interval as the current plan (monthly when that is unknown). Pro has no self-serve next step.
+  const nextIntervalSuffix = String(livePlanKey ?? "").endsWith("_yearly") || livePlanKey === "yearly" || livePlanKey === "dual_yearly" ? "yearly" : "monthly";
+  const switchOptions = currentTier === "pro"
+    ? []
+    : PLANS.filter((p) => !p.archived && p.key === `pro_${nextIntervalSuffix}` && p.key !== livePlanKey).slice(0, 1);
 
   const displayName = `${firstName} ${lastName}`.trim() || user.name;
 

@@ -3,7 +3,7 @@ import { FmcStatement } from "@/components/legal/DisclaimerNotice";
 import { EmailAddress } from "@/components/EmailAddress";
 import { publicPageMetadata } from "@/lib/reviewed-book";
 import { AI_DISCLAIMER_DATA_SENTENCE, AI_PROVIDER_API_SENTENCE } from "@/lib/ai-provider-disclosure";
-import { ENGINE_PARAGRAPH, LEGAL_UPDATED, ONE_LINE_DISCLAIMER } from "@/lib/public-copy";
+import { AI_REQUEST_LINES, ENGINE_PARAGRAPH, LEGAL_UPDATED, ONE_LINE_DISCLAIMER } from "@/lib/public-copy";
 
 export const metadata = publicPageMetadata("/ai-disclaimer", {
   title: "AI Disclaimer — AetherForge AI",
@@ -81,6 +81,12 @@ export default function AiDisclaimer() {
           You should independently verify any information before relying on it, and treat all AI output
           with appropriate professional scepticism.
         </p>
+        {/* b85 K-12: the same AI request lines as /trust, as plain visible text. */}
+        <div className="space-y-2" data-k12-request-lines>
+          {AI_REQUEST_LINES.map((line) => (
+            <p key={line.slice(0, 24)}>{line}</p>
+          ))}
+        </div>
       </LegalSection>
 
       <LegalSection heading="4. No guarantee of performance">

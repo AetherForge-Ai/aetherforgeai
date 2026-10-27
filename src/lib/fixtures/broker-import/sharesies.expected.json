@@ -1,0 +1,7 @@
+{
+  "_note": "Copied from expected-totals.json (b85 H-10). Synthetic fixture, not customer data.",
+  "fixture": "sharesies.csv",
+  "broker": "sharesies",
+  "rows": 2,
+  "cashNzd": 537.87
+}
