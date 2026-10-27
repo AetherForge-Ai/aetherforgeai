@@ -1,4 +1,4 @@
-// pull-check:v3-b87-2026-10-28
+// pull-check:v3-b88-2026-10-28
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
@@ -6,6 +6,6 @@ const read = (p: string) => readFileSync(p, "utf8");
 
 describe("b58 H-9 split cash, FX P2, P3 crypto notice", () => {
   it("build string", () => {
-    expect(read("public/build-version.txt").trim()).toBe("v3-b87-2026-10-28");
+    expect(read("public/build-version.txt").trim()).toBe("v3-b88-2026-10-28");
   });
 });

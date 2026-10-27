@@ -2,6 +2,7 @@ import Link from "next/link";
 import { publicPageMetadata } from "@/lib/reviewed-book";
 import { SiteHeader } from "@/components/SiteHeader";
 import { PricingCards } from "@/components/pricing/PricingCards";
+import { SubscriberGate } from "@/components/pricing/SubscriberGate";
 import { HoldingCapsGrid } from "@/components/pricing/HoldingCapsGrid";
 import { HOLDING_CAPS_V2 } from "@/lib/feature-flags";
 import { FeatureComparison } from "@/components/pricing/FeatureComparison";
@@ -159,6 +160,7 @@ export default async function PricingPage() {
         {/* 7 · Final CTA */}
         <section className="mx-auto max-w-6xl px-4 pt-24 sm:px-6 lg:px-8">
           <div className="relative overflow-hidden rounded-3xl border border-primary/40 bg-gradient-to-br from-primary/15 via-card/60 to-gold/10 px-6 py-14 text-center shadow-glow sm:px-12">
+            <SubscriberGate>
             <h2 className="mx-auto max-w-2xl font-display text-3xl font-extrabold tracking-tight sm:text-4xl">
               Start the 14-day Pro trial for the full research desk
             </h2>
@@ -176,6 +178,7 @@ export default async function PricingPage() {
                 <Link href="/register">Start Free</Link>
               </Button>
             </div>
+            </SubscriberGate>
           </div>
         </section>
 
