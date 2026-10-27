@@ -1,0 +1,4 @@
+# EXAMPLE DATA. Not a customer file. FX Rate = ECB USD->NZD reference rate for each trade date (frankfurter.dev, 2 Mar 2026 1.6848, 3 Mar 2026 1.6964).
+Date (NZ),Side,Symbol,Quantity,Price (USD),Notional Value (USD),Brokerage Fees (USD),FX Rate,Price (NZD),Notional Value (NZD),Brokerage Fees (NZD)
+2026-03-02,Buy,MSFT,2,100.00,203.00,3.00,1.6848,168.48,342.01,5.05
+2026-03-03,Sell,MSFT,1,110.00,113.00,3.00,1.6964,186.60,191.69,5.09
