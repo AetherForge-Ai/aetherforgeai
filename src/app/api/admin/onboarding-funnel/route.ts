@@ -18,8 +18,9 @@ export async function GET() {
   if (!session || session.email.trim().toLowerCase() !== PRIVACY_OFFICER_EMAIL.toLowerCase()) {
     return new NextResponse("Not found", { status: 404, headers: { "content-type": "text/plain; charset=utf-8", ...NO_STORE } });
   }
+  // b86 G-28: with the flag off the summary does not exist (404), same as for non-owners.
   if (!flagOn("ONBOARDING_FUNNEL_SERVER")) {
-    return NextResponse.json({ ok: true, enabled: false, events: aggregate([]), steps: {}, plans: {} }, { headers: NO_STORE });
+    return new NextResponse("Not found", { status: 404, headers: { "content-type": "text/plain; charset=utf-8", ...NO_STORE } });
   }
   try {
     const res = await totalumSdk.crud.query(ONBOARDING_FUNNEL_EVENT.table, { _limit: 5000 } as never);
