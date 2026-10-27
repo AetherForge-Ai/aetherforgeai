@@ -49,7 +49,7 @@ const CRYPTO_STAGES = [
   "Sweeping 24h / 7d / 30d performance across the largest coins by market cap…",
   "Pulling 12-month price history for your assets…",
   "Scanning worldwide crypto news wires…",
-  "Running the momentum and mean-reversion models…",
+  "Scoring the coins from daily closes…",
   "AI composing your executive briefing…",
   "Rendering PDF & dispatching to your inbox…",
 ];
@@ -58,7 +58,7 @@ const STOCK_STAGES = [
   "Sweeping the entire NZX + ASX universe…",
   "Pulling 12-month price history for your tickers…",
   "Computing RSI / MACD / momentum signals…",
-  "Running the forward-projection models…",
+  "Scoring the shares from daily closes…",
   "AI composing your executive briefing…",
   "Rendering PDF & dispatching to your inbox…",
 ];

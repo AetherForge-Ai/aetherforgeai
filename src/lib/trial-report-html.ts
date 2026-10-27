@@ -169,6 +169,12 @@ function predictionRows(preds: ForwardPrediction[]): string {
   if (!preds.length) return "";
   return preds
     .map((p) => {
+      if (p.figureOmitted) {
+        return `<td style="padding:10px;border:1px solid ${LINE};vertical-align:top;width:50%;background:${PANEL2}">
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:${MUTE}">${esc(p.horizon)} outlook</div>
+        <div style="font-size:12px;color:${MUTE};line-height:1.45;margin-top:6px">${esc(p.rationale)}</div>
+      </td>`;
+      }
       const arrow = p.direction === "up" ? "▲" : p.direction === "down" ? "▼" : "—";
       const c = p.direction === "up" ? GREEN : p.direction === "down" ? RED : MUTE;
       return `<td style="padding:10px;border:1px solid ${LINE};vertical-align:top;width:50%;background:${PANEL2}">
