@@ -1,5 +1,5 @@
 /**
- * DASH-CLEAN b81. pull-check:v3-dashclean-b81-2026-10-27
+ * DASH-CLEAN b81. pull-check:v3-dashclean-d-b82-2026-10-27
  */
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
@@ -8,7 +8,7 @@ const read = (p: string) => readFileSync(p, "utf8");
 
 describe("DASH-CLEAN b81: signed-out dashboard tap targets", () => {
   it("ships the b81 build version", () => {
-    expect(read("public/build-version.txt").trim()).toBe("v3-dashclean-b81-2026-10-27");
+    expect(read("public/build-version.txt").trim()).toBe("v3-dashclean-d-b82-2026-10-27");
   });
   it("gives the signed-out prompt, header CTA, logo and dialog close 44px on mobile", () => {
     const prompt = read("src/components/dashboard/MemberDashboardPrompt.tsx");

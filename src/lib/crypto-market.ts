@@ -531,6 +531,49 @@ export function fmtPrice(n: number | null | undefined): string {
 }
 
 /**
+ * DASH-CLEAN-D: market-list price to 4 significant figures under US$1 (US$0.003334),
+ * 2dp from US$1 up. Display only; the stored price is unchanged.
+ */
+export function fmtPriceSig(n: number | null | undefined): string {
+  if (n == null || !isFinite(n)) return "—";
+  const abs = Math.abs(n);
+  if (abs >= 1 || abs === 0) return fmtPrice(n);
+  return new Intl.NumberFormat("en-NZ", { style: "currency", currency: "USD", maximumSignificantDigits: 4 }).format(n);
+}
+
+/**
+ * DASH-CLEAN-D: one row per coin in the market list. Two feeds can send the same coin
+ * (same name and symbol, different source). Keep the better-ranked row. Rows from the
+ * same feed are distinct coins and are all kept.
+ */
+export function dedupeCrossFeedCoins(coins: CoinMarket[]): CoinMarket[] {
+  const best = new Map<string, CoinMarket>();
+  const out: CoinMarket[] = [];
+  const seenIds = new Set<string>();
+  for (const coin of coins) {
+    if (seenIds.has(coin.id)) continue;
+    seenIds.add(coin.id);
+    const key = `${coin.name.replace(/[\u200b-\u200d\ufeff]/g, "").trim().toLowerCase()}|${coin.symbol.toUpperCase()}`;
+    const prior = best.get(key);
+    if (!prior) {
+      best.set(key, coin);
+      out.push(coin);
+      continue;
+    }
+    if ((prior.source || "") === (coin.source || "")) {
+      out.push(coin);
+      continue;
+    }
+    const better = (coin.rank || Infinity) < (prior.rank || Infinity) ? coin : prior;
+    if (better === coin) {
+      out[out.indexOf(prior)] = coin;
+      best.set(key, coin);
+    }
+  }
+  return out;
+}
+
+/**
  * Absolute session move under a market row.
  * A sub-cent coin must not print a real move as +0.0000.
  */
