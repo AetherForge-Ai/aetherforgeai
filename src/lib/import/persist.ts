@@ -247,6 +247,25 @@ export async function runH10Import(user: ImportUser, text: string, body: unknown
   const batchId = batchIdForHash(fileHash);
   const label = preview.label || "broker";
   const written: ImportRow[] = [];
+  // b85 H-10: all or nothing. A failure removes every row this commit saved, newest first.
+  const savedRows: { id: string; previousCash: number; restoreHolding?: () => Promise<void> }[] = [];
+  const setCash = (cash: number) => {
+    (user as { cash_balance?: number; cash_read_at?: number }).cash_balance = cash;
+    (user as { cash_read_at?: number }).cash_read_at = Date.now();
+  };
+  const unwind = async () => {
+    for (const done of [...savedRows].reverse()) {
+      try {
+        await totalumSdk.crud.deleteRecordById("transaction", done.id);
+        if (done.restoreHolding) await done.restoreHolding();
+        await totalumSdk.crud.editRecordById("user", user._id, { cash_balance: done.previousCash });
+        setCash(done.previousCash);
+      } catch (err) {
+        console.error("[import] rollback failed:", err);
+      }
+    }
+    written.length = 0;
+  };
   for (const row of preview.toWrite) {
     let saved: Awaited<ReturnType<typeof applyTransaction>>;
     try {
@@ -269,6 +288,7 @@ export async function runH10Import(user: ImportUser, text: string, body: unknown
         deferCash: true,
       });
     } catch (err) {
+      await unwind();
       invalidateBookCache(user._id);
       const message = err instanceof Error ? err.message : "The import was not saved.";
       return NextResponse.json(
@@ -277,6 +297,7 @@ export async function runH10Import(user: ImportUser, text: string, body: unknown
       );
     }
     if (!saved.ledgerId || saved.pendingCash == null || saved.previousCash == null) {
+      await unwind();
       invalidateBookCache(user._id);
       return NextResponse.json({ ok: false, error: `Line ${row.line} was not saved.`, data: { written: written.length, batchId } }, { status: 400 });
     }
@@ -286,6 +307,7 @@ export async function runH10Import(user: ImportUser, text: string, body: unknown
       await totalumSdk.crud.deleteRecordById("transaction", saved.ledgerId);
       if (saved.restoreHolding) await saved.restoreHolding();
       await totalumSdk.crud.editRecordById("user", user._id, { cash_balance: saved.previousCash });
+      await unwind();
       invalidateBookCache(user._id);
       const message = err instanceof Error ? err.message : "The cash update failed.";
       return NextResponse.json(
@@ -293,6 +315,8 @@ export async function runH10Import(user: ImportUser, text: string, body: unknown
         { status: 400 }
       );
     }
+    setCash(saved.pendingCash);
+    savedRows.push({ id: saved.ledgerId, previousCash: saved.previousCash, restoreHolding: saved.restoreHolding });
     written.push(row);
   }
   invalidateBookCache(user._id);
