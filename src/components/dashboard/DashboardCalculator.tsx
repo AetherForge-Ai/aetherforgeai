@@ -112,6 +112,26 @@ export function DashboardCalculator({
   const [tab, setTab] = useState<DashboardTab>("holdings");
   const [detail, setDetail] = useState<HoldingsRowModel | null>(null);
   const tabsRef = useRef<HTMLDivElement>(null);
+  const [tabEdges, setTabEdges] = useState({ left: false, right: false });
+  // DASH-CLEAN-D: keep the chosen tab whole in view and refresh the edge fades.
+  useEffect(() => {
+    const strip = tabsRef.current;
+    if (!strip) return;
+    const active = strip.querySelector<HTMLElement>('[aria-selected="true"]');
+    if (active) {
+      // Scroll to a whole-tab boundary, so the tab at the left edge is never half shown.
+      const starts = [...strip.querySelectorAll<HTMLElement>("[role=tab]")].map((el) => el.offsetLeft - strip.offsetLeft - 4);
+      const need = active.offsetLeft - strip.offsetLeft + active.offsetWidth + 24 - strip.clientWidth;
+      const activeStart = active.offsetLeft - strip.offsetLeft - 4;
+      if (strip.scrollLeft > activeStart) strip.scrollLeft = Math.max(0, activeStart);
+      else if (strip.scrollLeft < need) strip.scrollLeft = Math.max(0, starts.find((x) => x >= need) ?? activeStart);
+    }
+    const update = () => setTabEdges(tabEdgeState(strip));
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(strip);
+    return () => ro.disconnect();
+  }, [tab]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -252,11 +272,14 @@ export function DashboardCalculator({
     <div data-calculator="portfolio" data-section="dashboard-workspace">
       {error && !snapshot && tab !== "transactions" ? <p className="mt-4 text-sm text-muted-foreground">{error}</p> : null}
       <div className="flex flex-col">
+        {/* DASH-CLEAN-D: phones show the tabs as a 2x2 grid so no label is cut; wider screens snap to a whole label and fade at a scrollable edge. */}
+        <div className="relative order-1 mt-4 md:order-3" data-tab-strip>
         <div
           id="dashboard-tabs"
           ref={tabsRef}
           data-tti="dashboard-tabs"
-          className="order-1 mt-4 flex scroll-mt-24 flex-nowrap gap-1 overflow-x-auto border-b border-border/70 md:order-3"
+          onScroll={(event) => setTabEdges(tabEdgeState(event.currentTarget))}
+          className="grid scroll-mt-24 grid-cols-2 gap-x-1 border-b border-border/70 sm:flex sm:snap-x sm:snap-mandatory sm:scroll-px-2 sm:flex-nowrap sm:gap-1 sm:overflow-x-auto sm:px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           role="tablist"
           aria-label="Dashboard"
         >
@@ -268,14 +291,17 @@ export function DashboardCalculator({
               aria-selected={tab === id}
               className={
                 tab === id
-                  ? "min-h-11 shrink-0 whitespace-nowrap border-b-2 border-primary px-3 py-2 text-sm font-semibold text-foreground"
-                  : "min-h-11 shrink-0 whitespace-nowrap px-3 py-2 text-sm font-medium text-muted-foreground"
+                  ? "min-h-11 shrink-0 snap-start whitespace-nowrap border-b-2 border-primary px-2 py-2 text-sm font-semibold text-foreground sm:px-3"
+                  : "min-h-11 shrink-0 snap-start whitespace-nowrap border-b-2 border-transparent px-2 py-2 text-sm font-medium text-muted-foreground sm:border-b-0 sm:px-3"
               }
               onClick={() => setTab(id)}
             >
               {DASHBOARD_TAB_LABEL[id]}
             </button>
           ))}
+        </div>
+        {tabEdges.left ? <span aria-hidden data-tab-fade="left" className="pointer-events-none absolute inset-y-0 left-0 w-6 bg-gradient-to-r from-card to-transparent" /> : null}
+        {tabEdges.right ? <span aria-hidden data-tab-fade="right" className="pointer-events-none absolute inset-y-0 right-0 w-6 bg-gradient-to-l from-card to-transparent" /> : null}
         </div>
         {actions ? <div className="order-3 md:order-1">{actions}</div> : null}
         <div className="order-2 md:order-2">
@@ -445,6 +471,10 @@ function DetailActions({
       )}
     </>
   );
+}
+
+function tabEdgeState(el: HTMLElement): { left: boolean; right: boolean } {
+  return { left: el.scrollLeft > 2, right: el.scrollLeft + el.clientWidth < el.scrollWidth - 2 };
 }
 
 function storageKey(userId: string | null): string {

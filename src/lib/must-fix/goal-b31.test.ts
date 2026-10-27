@@ -7,7 +7,7 @@ const read = (p: string) => readFileSync(p, "utf8");
 
 describe("b31 version bump", () => {
   it("marker and pull-check line", () => {
-    expect(read("public/build-version.txt").trim()).toMatch(/^v3-(?:goal|h1|g24|dedupe|g10|del404|fix|m7|cr6|g18|cr6b|dashclean)-b(3[1-9]|[4-9]\d)[a-z]?-/);
+    expect(read("public/build-version.txt").trim()).toMatch(/^v3-(?:goal|h1|g24|dedupe|g10|del404|fix|m7|cr6|g18|cr6b|dashclean|dashclean-d)-b(3[1-9]|[4-9]\d)[a-z]?-/);
     expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-goal-b31-2026-10-19");
   });
 });
