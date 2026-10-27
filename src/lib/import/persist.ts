@@ -4,6 +4,7 @@
  * the batch id are stamps in the notes field (file= and batch=). No new table.
  */
 
+import { currentCashNzd, planImportUndo } from "@/lib/import-undo-server";
 import { NextResponse } from "next/server";
 import { checkTickerQuota } from "@/lib/entitlements";
 import { historicalNzdPerUnit } from "@/lib/fx";
@@ -193,11 +194,13 @@ export async function runH10Import(user: ImportUser, text: string, body: unknown
       return NextResponse.json({ ok: false, error: "That import was not found. Nothing was changed." }, { status: 400 });
     }
     const stored = await loadLedger(user._id);
-    const mine = stored
-      .filter((row) => notesHaveBatch(row.notes, batchId) && row._id)
-      .sort((a, b) => String(b.executed_at || "").localeCompare(String(a.executed_at || "")));
+    // b87 H-10: plan the whole batch first (cash and holdings); on any refusal nothing is changed.
+    const plan = planImportUndo({ ledger: stored as never, batchId, cashNzd: await currentCashNzd(user._id) });
+    if (plan.ok === false) {
+      return NextResponse.json({ ok: false, error: plan.error, data: { undone: 0, batchId } }, { status: plan.ids.length ? 400 : 404 });
+    }
     const outcome = await undoImportInOrder(
-      mine.map((row) => String(row._id)),
+      plan.ids,
       async (id) => {
         await planOrApplyLedgerReversal(id, true);
       }
@@ -205,7 +208,7 @@ export async function runH10Import(user: ImportUser, text: string, body: unknown
     invalidateBookCache(user._id);
     if (outcome.error) {
       return NextResponse.json(
-        { ok: false, error: `${outcome.error} Undone before this failure: ${outcome.undone.length}.`, data: { undone: outcome.undone.length, batchId } },
+        { ok: false, error: `${outcome.error} The undo stopped after ${outcome.undone.length} of ${plan.ids.length} rows; run undo again to finish.`, data: { undone: outcome.undone.length, batchId } },
         { status: 400 }
       );
     }

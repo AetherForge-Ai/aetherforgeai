@@ -1,5 +1,6 @@
 import { IMPORT_MAX_BYTES, IMPORT_TOO_LARGE, importTextTooLarge } from "@/lib/import-limits";
 import { invalidateBookCache } from "@/lib/book-cache";
+import { currentCashNzd, planImportUndo } from "@/lib/import-undo-server";
 import { NextResponse } from "next/server";
 import { requestClaimsOtherUser } from "@/lib/account-guard";
 import { accountMismatchResponse } from "@/lib/account-response";
@@ -241,11 +242,13 @@ export async function POST(req: Request) {
       }
       const loadLedger = bookRows;
       const stored = await loadLedger(user._id);
-      const mine = stored
-        .filter((row) => notesHaveBatch(row.notes, batchId) && row._id)
-        .sort((a, b) => String(b.executed_at || "").localeCompare(String(a.executed_at || "")));
+      // b87 H-10: plan the whole batch first (cash and holdings); on any refusal nothing is changed.
+      const plan = planImportUndo({ ledger: stored as never, batchId, cashNzd: await currentCashNzd(user._id) });
+      if (plan.ok === false) {
+        return NextResponse.json({ ok: false, error: plan.error, data: { undone: 0, batchId } }, { status: plan.ids.length ? 400 : 404 });
+      }
       const outcome = await undoImportInOrder(
-        mine.map((row) => String(row._id)),
+        plan.ids,
         async (id) => {
           await planOrApplyLedgerReversal(id, true);
         }
@@ -256,7 +259,7 @@ export async function POST(req: Request) {
         return NextResponse.json(
           {
             ok: false,
-            error: `${outcome.error} Undone before this failure: ${outcome.undone.length}.`,
+            error: `${outcome.error} The undo stopped after ${outcome.undone.length} of ${plan.ids.length} rows; run undo again to finish.`,
             data: { undone: outcome.undone.length, batchId },
           },
           { status: 400 }
