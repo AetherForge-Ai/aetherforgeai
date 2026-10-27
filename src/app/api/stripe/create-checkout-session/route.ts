@@ -31,7 +31,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "This plan is not available for self-serve checkout." }, { status: 400 });
     }
     const result = await createPlanCheckout({ user, plan, bot: parsed.data.bot, baseUrl: getRequestBaseUrl(req) });
-    if ("error" in result) return NextResponse.json({ ok: false, error: result.error }, { status: result.status });
+    if ("error" in result) return NextResponse.json({ ok: false, error: result.error, ...(result.portalUrl ? { data: { portalUrl: result.portalUrl } } : {}) }, { status: result.status });
     return NextResponse.json({ ok: true, data: result.data });
   } catch (err) {
     const e = err as { message?: string };

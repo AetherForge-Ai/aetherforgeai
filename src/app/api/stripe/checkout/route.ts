@@ -80,7 +80,7 @@ export async function POST(req: Request) {
 
     // Goal b11 CR-1: test mode unless STRIPE_CHECKOUT_MODE=live (see stripe-mode.ts).
     const result = await createPlanCheckout({ user, plan: planDef, bot, baseUrl: getRequestBaseUrl(req) });
-    if ("error" in result) return NextResponse.json({ ok: false, error: result.error }, { status: result.status });
+    if ("error" in result) return NextResponse.json({ ok: false, error: result.error, ...(result.portalUrl ? { data: { portalUrl: result.portalUrl } } : {}) }, { status: result.status });
     return NextResponse.json({ ok: true, data: result.data });
   } catch (err) {
     console.error("[api/stripe/checkout] error:", err);

@@ -13,6 +13,7 @@ import { publicPriceSlot } from "@/lib/public-catalog";
 import { ensurePublicPrice } from "@/lib/ensure-public-price";
 import { totalumSdk } from "@/lib/totalum";
 import { checkoutStripe } from "@/lib/stripe-mode";
+import { ALREADY_SUBSCRIBED, hasLiveSubscription } from "@/lib/billing-guard";
 import { HOLDING_CAPS_V2 } from "@/lib/feature-flags";
 import { trialPaymentCollection } from "@/lib/holding-caps";
 
@@ -27,13 +28,19 @@ export function planUnitAmount(plan: Pick<PlanDef, "price">): number {
 
 export type CheckoutResult =
   | { ok: true; status: 200; data: { url: string | null; sessionId: string; testMode?: true; priceId?: string; unitAmount?: number; currency?: "nzd"; plan?: string } }
-  | { ok: false; status: number; error: string };
+  | { ok: false; status: number; error: string; portalUrl?: string };
 
 export async function createPlanCheckout(opts: { user: AppUser; plan: PlanDef; bot?: "stock" | "crypto"; baseUrl: string; cancelPath?: string }): Promise<CheckoutResult> {
   const { user, plan, baseUrl } = opts;
   const { mode, client, blocked } = checkoutStripe(user._id);
   if (blocked) return { ok: false, status: 503, error: CHECKOUT_UNAVAILABLE };
   if (!client) return { ok: false, status: 503, error: TEST_KEY_MISSING };
+
+  // b87 CR-1 F-1: an account that is already active, trialing or past_due never gets a second
+  // checkout (double billing, second trial). Live and test mode alike: 409 + where to manage billing.
+  if (await alreadySubscribed(user, client)) {
+    return { ok: false, status: 409, error: ALREADY_SUBSCRIBED, portalUrl: await billingPortalUrl(user, client, baseUrl) };
+  }
 
   const selfServe = isSelfServeCheckoutPlan(plan);
   const botAccess = plan.botAccess === "both" ? "both" : opts.bot === "crypto" ? "crypto" : "stock";
@@ -53,7 +60,7 @@ export async function createPlanCheckout(opts: { user: AppUser; plan: PlanDef; b
     subscription_data: subscriptionData as any,
     payment_method_collection: paymentCollection,
     locale: "en" as const,
-    success_url: `${baseUrl}/stripe/success?session_id={CHECKOUT_SESSION_ID}`,
+    success_url: `${baseUrl}/stripe/success?session_id={CHECKOUT_SESSION_ID}&plan=${encodeURIComponent(plan.key)}`,
     cancel_url: `${baseUrl}${opts.cancelPath || "/pricing"}`,
     allow_promotion_codes: true,
   };
@@ -89,4 +96,30 @@ export async function createPlanCheckout(opts: { user: AppUser; plan: PlanDef; b
   }
   const session = await client.checkout.sessions.create({ ...common, customer: customerId, line_items: [{ price: priceId, quantity: 1 }] });
   return { ok: true, status: 200, data: { url: session.url, sessionId: session.id } };
+}
+
+type ModeClient = NonNullable<ReturnType<typeof checkoutStripe>["client"]>;
+
+/** App status first; then, when the account has a customer in this mode, Stripe's own list. */
+async function alreadySubscribed(user: AppUser, client: ModeClient): Promise<boolean> {
+  if (hasLiveSubscription({ status: user.subscription_status, plan: user.subscription_plan })) return true;
+  if (!user.stripe_customer_id) return false;
+  try {
+    const list = await client.subscriptions.list({ customer: user.stripe_customer_id, status: "all", limit: 10 });
+    return (list.data || []).some((s) => s.status === "active" || s.status === "trialing" || s.status === "past_due");
+  } catch {
+    return false; // customer not in this mode (e.g. live id on a test session): fall back to the app status
+  }
+}
+
+/** Billing Portal for the account's customer in this mode; /settings/billing when there is none. */
+async function billingPortalUrl(user: AppUser, client: ModeClient, baseUrl: string): Promise<string> {
+  const fallback = `${baseUrl}/settings/billing`;
+  if (!user.stripe_customer_id) return fallback;
+  try {
+    const portal = await client.billingPortal.sessions.create({ customer: user.stripe_customer_id, return_url: `${baseUrl}/settings` });
+    return portal.url || fallback;
+  } catch {
+    return fallback;
+  }
 }

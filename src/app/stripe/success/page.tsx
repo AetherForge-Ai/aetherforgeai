@@ -10,9 +10,13 @@ import { Button } from "@/components/ui/button";
 import { BrandLogo } from "@/components/BrandLogo";
 import { CheckCircle2, Loader2, ArrowRight } from "lucide-react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { successCopyFor } from "@/lib/billing-guard";
 
 function SuccessContent() {
   const [countdown, setCountdown] = useState(6);
+  // b87 CR-1 F-2: copy from the plan this checkout was for (?plan= is set by the server's success_url).
+  const copy = successCopyFor(useSearchParams().get("plan"));
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -38,13 +42,11 @@ function SuccessContent() {
         <div className="mx-auto mt-8 grid size-16 place-items-center rounded-2xl bg-emerald-500/15 text-gain">
           <CheckCircle2 className="size-8" />
         </div>
-        <h1 className="mt-6 font-display text-3xl font-bold">Welcome to AetherForge Pro</h1>
-        <p className="mt-3 text-sm text-muted-foreground">
-          Your subscription is active. You now have full access to the analytics dashboard, AI
-          research, and your market assistant.
-        </p>
+        <h1 className="mt-6 font-display text-3xl font-bold">{copy.heading}</h1>
+        <p className="mt-3 text-sm text-muted-foreground">{copy.body}</p>
 
-        <div className="mt-5 rounded-2xl border border-[var(--gold)]/30 bg-[var(--gold)]/10 p-4 text-left">
+        {copy.showYearlyBox ? (
+        <div data-yearly-box className="mt-5 rounded-2xl border border-[var(--gold)]/30 bg-[var(--gold)]/10 p-4 text-left">
           <p className="text-sm font-semibold text-[var(--gold)]">Yearly plan</p>
           <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
             On a yearly plan? From your dashboard you can download the Excel investor toolkit
@@ -52,6 +54,7 @@ function SuccessContent() {
             It is not filled with your holdings.
           </p>
         </div>
+        ) : null}
 
         <Button asChild size="lg" className="mt-7 h-12 w-full font-semibold shadow-glow">
           <Link href="/dashboard">

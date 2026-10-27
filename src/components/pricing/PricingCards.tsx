@@ -1,5 +1,6 @@
 "use client";
 
+import { pricingCtaFor } from "@/lib/billing-guard";
 import { ULTIMATE_PRICE_PENDING_D6 } from "@/lib/public-copy";
 import { ULTIMATE_FROM_LINE } from "@/lib/plan-usage";
 import { useEffect, useState } from "react";
@@ -70,6 +71,30 @@ export function PricingCards({
       cancelled = true;
     };
   }, [signedInId]);
+  // b87 CR-1 F-1: the signed-in account's plan, so an existing subscriber is never offered a second trial.
+  const [account, setAccount] = useState<{ plan?: string; status?: string } | null>(null);
+  useEffect(() => {
+    if (!signedInId) {
+      setAccount(null);
+      return;
+    }
+    let alive = true;
+    fetch("/api/account/plan", { cache: "no-store" })
+      .then((r) => (r.ok ? (r.json() as Promise<{ plan?: string; status?: string }>) : null))
+      .then((j) => {
+        if (alive) setAccount(j);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [signedInId]);
+
+  async function openBilling() {
+    const res = await api.post<{ url: string }>("/api/stripe/portal", {});
+    window.location.href = res.ok && res.data?.url ? res.data.url : "/settings/billing";
+  }
+
   // A server snapshot paints the US$ line in the first HTML. The client hook refreshes it.
   const { rates: fx, asOf, ready } = useFxRates(initialFx);
 
@@ -95,6 +120,11 @@ export function PricingCards({
       toast.error("Sign in again to continue to checkout.");
       return;
     }
+    // b87 CR-1 F-1: never a payment link or checkout for an account that already subscribes.
+    if (pricingCtaFor(tier.id, account).kind !== "checkout") {
+      void openBilling();
+      return;
+    }
     setLoadingTier(tier.id);
     const linked = buildPaymentLinkUrl(plan, {
       userId,
@@ -116,6 +146,11 @@ export function PricingCards({
     });
     if (res.ok && res.data?.url) {
       window.location.href = res.data.url;
+      return;
+    }
+    const portalUrl = (res as { data?: { portalUrl?: string } }).data?.portalUrl;
+    if (res.status === 409 && portalUrl) {
+      window.location.href = portalUrl;
       return;
     }
     setLoadingTier(null);
@@ -323,7 +358,10 @@ export function PricingCards({
                   </>
                 ) : (
                   <>
-                    {tier.cta.label}
+                    {(() => {
+                      const cta = tier.cta.kind === "checkout" ? pricingCtaFor(tier.id, account) : null;
+                      return cta && cta.kind !== "checkout" ? <span data-current-plan-cta={cta.kind}>{cta.label}</span> : tier.cta.label;
+                    })()}
                     <ArrowRight className="ml-1.5 size-4" />
                   </>
                 )}
