@@ -14,7 +14,7 @@ import {
 } from "@/lib/private-document";
 import { gsc404Redirect } from "@/lib/gsc-404-redirects";
 import { permanentRedirect, publicAliasRedirect } from "@/lib/public-route-aliases";
-import { documentAccess } from "@/lib/route-gate";
+import { documentAccess, sharingPageHidden } from "@/lib/route-gate";
 import { makeCspNonce, nonceCsp } from "@/lib/security-headers";
 import {
   anonymousAccountApi,
@@ -202,6 +202,13 @@ export async function middleware(request: NextRequest) {
   if (alias) {
     const redirectResponse = NextResponse.redirect(new URL(alias, request.url), portfolioAliasStatus(pathname) ?? 307);
     return finish(redirectResponse, request, signedIn);
+  }
+
+  // b87 G-27: with PORTFOLIO_SHARING off, /shared is 404 signed in or out (before the sign-in redirect).
+  if (sharingPageHidden(pathname)) {
+    const missing = request.nextUrl.clone();
+    missing.pathname = "/__missing";
+    return finish(NextResponse.rewrite(missing), request, signedIn);
   }
 
   // b40 (TT b39 P1 sign-out leak): a signed-in-only page requested with no session cookie is redirected
