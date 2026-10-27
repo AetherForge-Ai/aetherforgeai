@@ -48,11 +48,11 @@ export function AnalyticsNotice() {
       <div className="mx-auto flex max-w-7xl flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-foreground">
           {ANALYTICS_NOTICE}{" "}
-          <Link href="/privacy-policy" className="font-semibold text-primary underline-offset-2 hover:underline">
+          <Link href="/privacy-policy" className="inline-flex min-h-11 items-center font-semibold text-primary underline-offset-2 hover:underline md:min-h-0">
             Privacy Policy
           </Link>
           {" · "}
-          <Link href="/cookies" className="font-semibold text-primary underline-offset-2 hover:underline">
+          <Link href="/cookies" className="inline-flex min-h-11 items-center font-semibold text-primary underline-offset-2 hover:underline md:min-h-0">
             Cookies
           </Link>
         </p>

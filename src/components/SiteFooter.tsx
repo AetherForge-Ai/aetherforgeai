@@ -18,6 +18,9 @@ const LINKS = [
   { href: "/pricing", label: "Pricing" },
 ] as const;
 
+/** DASH-CLEAN-E: 44px tap height on phones for footer email links. */
+const FOOTER_EMAIL = "[&>a]:inline-flex [&>a]:min-h-11 [&>a]:items-center md:[&>a]:min-h-0";
+
 /** The one site footer. Legal links and the company block are the same on every route. */
 export function SiteFooter() {
   const year = new Date().getFullYear();
@@ -26,7 +29,7 @@ export function SiteFooter() {
       <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-8 sm:px-6 lg:px-8">
         <nav className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted-foreground" aria-label="Legal">
           {LINKS.map((item) => (
-            <Link key={item.href} href={item.href} className="hover:text-foreground">
+            <Link key={item.href} href={item.href} className="hover:text-foreground inline-flex min-h-11 items-center md:min-h-0">
               {item.label}
             </Link>
           ))}
@@ -34,9 +37,9 @@ export function SiteFooter() {
         </nav>
         <p className="text-xs leading-relaxed text-muted-foreground">
           {LEGAL_ENTITY_NAME} · Company number {COMPANY_NUMBER} · NZBN {NZBN} ·{" "}
-          <EmailAddress email={CUSTOMER_EMAIL} />
+          <EmailAddress email={CUSTOMER_EMAIL} className={FOOTER_EMAIL} />
           {" · "}
-          <EmailAddress email={PRIVACY_OFFICER_EMAIL} />
+          <EmailAddress email={PRIVACY_OFFICER_EMAIL} className={FOOTER_EMAIL} />
         </p>
         <p className="text-xs leading-relaxed text-muted-foreground">
           © {year} {LEGAL_ENTITY_NAME}. {ONE_LINE_DISCLAIMER}

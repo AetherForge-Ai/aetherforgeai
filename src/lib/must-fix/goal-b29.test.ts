@@ -22,7 +22,7 @@ import { corporateActionsCsv, positionsCsv, tradesCsv } from "@/lib/tax-pack-zip
 
 describe("b29 version bump", () => {
   it("marker and pull-check line ship with the runtime", () => {
-    expect(read("public/build-version.txt").trim()).toMatch(/^v3-(?:goal|h1|g24|dedupe|g10|del404|fix|m7|cr6|g18|cr6b|dashclean|dashclean-d)-b(29|[3-9]\d)[a-z]?-/);
+    expect(read("public/build-version.txt").trim()).toMatch(/^v3-(?:goal|h1|g24|dedupe|g10|del404|fix|m7|cr6|g18|cr6b|dashclean|dashclean-d|dashclean-e)-b(29|[3-9]\d)[a-z]?-/);
     expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-goal-b29-2026-10-19");
   });
 });

@@ -452,7 +452,7 @@ export function MarketTicker({ className, compact = false, initial = null, initi
         />
         {/* b40 CLS (/tax 0.14): the footer reserves two lines on narrow screens and carries the feed note
             inline, so text arriving after load ("Prices last updated …", the feed note) can't push the page down. */}
-        <div className="flex min-h-[2.75rem] flex-wrap items-center justify-center gap-x-3 gap-y-1 bg-zinc-950 px-3 py-1 text-[0.6rem] text-muted-foreground sm:min-h-[1.75rem]">
+        <div className="flex min-h-[4.5rem] flex-wrap items-center justify-center gap-x-3 gap-y-1 bg-zinc-950 px-3 py-1 text-[0.6rem] text-muted-foreground md:min-h-[1.75rem]">
           {loaded && feedBadge.tone !== "green" ? <span className="text-[0.6rem]">{feedBadge.why}</span> : null}
           <button
             type="button"

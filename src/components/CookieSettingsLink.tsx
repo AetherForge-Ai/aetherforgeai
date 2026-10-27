@@ -7,7 +7,7 @@ export function CookieSettingsLink() {
   return (
     <button
       type="button"
-      className="bg-transparent p-0 text-left text-sm text-muted-foreground hover:text-foreground"
+      className="bg-transparent p-0 text-left text-sm text-muted-foreground hover:text-foreground inline-flex min-h-11 items-center md:min-h-0"
       onClick={() => window.dispatchEvent(new Event(OPEN_COOKIE_SETTINGS_EVENT))}
     >
       Cookie settings

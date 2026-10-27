@@ -1,4 +1,4 @@
-// pull-check:v3-dashclean-d-b82-2026-10-27
+// pull-check:v3-dashclean-e-b84-2026-10-27
 /** b74 (27 Oct 2026): M-7 "one green for text" — up/down deltas use the text-gain token and an AA red. */
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
@@ -25,6 +25,6 @@ describe("b74 M-7 one green for text", () => {
   });
 
   it("pins the build", () => {
-    expect(read("public/build-version.txt").trim()).toBe("v3-dashclean-d-b82-2026-10-27");
+    expect(read("public/build-version.txt").trim()).toBe("v3-dashclean-e-b84-2026-10-27");
   });
 });
