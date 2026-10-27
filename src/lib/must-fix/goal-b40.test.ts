@@ -42,7 +42,8 @@ describe("b40 H-1 (b): DEX rows over 15 min are marked delayed", () => {
 describe("b40 CLS /tax, /status, console, CR-2", () => {
   it("compact tape footer reserves its height and carries the feed note inline", () => {
     const t = read("src/components/MarketTicker.tsx");
-    expect(t).toMatch(/min-h-\[2\.75rem\][^"]*sm:min-h-\[1\.75rem\]/);
+    // b84 DASH-CLEAN-E: phones reserve two lines with the 44px NZ$ button.
+    expect(t).toMatch(/min-h-\[4\.5rem\][^"]*md:min-h-\[1\.75rem\]/);
     expect(t).not.toMatch(/<p className="bg-zinc-950 px-3 py-1 text-\[0\.65rem\] text-muted-foreground">\{feedBadge\.why\}<\/p>/);
   });
   it("/status falls back to the colo's last OK time and the edge snapshot", () => {

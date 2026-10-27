@@ -359,9 +359,9 @@ function KpiMoney({ figure, label, signed = false }: { figure: SnapshotFigure; l
           className="tnum inline-flex items-center gap-1 whitespace-nowrap tabular-nums"
           style={{ fontSize: "clamp(1rem, 0.8rem + 1.4vw, 1.25rem)" }}
           title={full}
-          aria-label={`${label} ${full}`}
           data-kpi-value={fits || !short ? "full" : "compact"}
         >
+          <span className="sr-only">{`${label} ${full}`}</span>
           {arrow}
           <span aria-hidden>{fits || !short ? full : short}</span>
         </span>

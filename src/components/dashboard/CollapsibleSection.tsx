@@ -74,7 +74,8 @@ export function CollapsibleSection({
           open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
         )}
       >
-        <div className="overflow-hidden">
+        {/* DASH-CLEAN-E: collapsed content is inert so hidden controls cannot take taps or focus. */}
+        <div className="overflow-hidden" inert={!open} aria-hidden={open ? undefined : true}>
           <div className="border-t border-border/60 p-4 sm:p-5">{children}</div>
         </div>
       </div>

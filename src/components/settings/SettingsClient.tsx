@@ -2,7 +2,7 @@
 
 import { isFreeReportPlan } from "@/lib/entitlements";
 import { freePlanLine } from "@/lib/free-bot-choice";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
@@ -142,7 +142,23 @@ export function SettingsClient({
 
   const isActive = user.subscription_status === "active";
   const onFreePlan = isFreeReportPlan(user.subscription_plan);
-  const currentPlan = planByKey(user.subscription_plan);
+  // DASH-CLEAN-E: confirm the plan from the CR-6c source (GET /api/account/plan) so the
+  // switch grid never offers the plan the account is already on.
+  const [livePlanKey, setLivePlanKey] = useState<string | null | undefined>(user.subscription_plan);
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/account/plan", { cache: "no-store" })
+      .then((r) => (r.ok ? (r.json() as Promise<{ plan?: unknown }>) : null))
+      .then((j) => {
+        if (alive && j && typeof j.plan === "string" && j.plan !== "none") setLivePlanKey(j.plan);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
+  const currentPlan = planByKey(livePlanKey);
+  const currentTier = String(livePlanKey ?? "").split("_")[0];
   // Rank plans by price so we can label each option as an upgrade or a change.
   const currentPrice = currentPlan?.price ?? 0;
   const preferredBot: "stock" | "crypto" = user.bot_access === "crypto" ? "crypto" : "stock";
@@ -153,7 +169,7 @@ export function SettingsClient({
   const switchOptions = PLANS.filter(
     (p) =>
       !p.archived &&
-      p.key !== user.subscription_plan &&
+      p.key !== livePlanKey &&
       !String(p.key).startsWith("ultimate_") &&
       (p.priceId || p.key.startsWith("starter_") || p.key.startsWith("pro_"))
   );
@@ -574,9 +590,16 @@ export function SettingsClient({
               </div>
             </div>
 
+            {currentPlan ? (
+              <p className="mt-4 text-sm" data-current-plan>
+                Current plan: <span className="font-semibold">{currentPlan.name.replace("Apex ", "")}</span>
+                <span className="text-muted-foreground"> · NZ${currentPlan.price} / {currentPlan.intervalLabel}</span>
+              </p>
+            ) : null}
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               {switchOptions.map((plan) => {
-                const isUpgrade = plan.price > currentPrice;
+                const sameTier = String(plan.key).split("_")[0] === currentTier;
+                const isUpgrade = !sameTier && plan.price > currentPrice;
                 const busy = upgradingPrice === plan.key;
                 return (
                   <div
@@ -635,6 +658,8 @@ export function SettingsClient({
                         </>
                       ) : isUpgrade ? (
                         `Upgrade to ${plan.name.replace("Apex ", "")}`
+                      ) : sameTier ? (
+                        `Switch to ${plan.name.replace("Apex ", "")} ${plan.intervalLabel === "year" ? "yearly" : plan.intervalLabel === "month" ? "monthly" : plan.intervalLabel}`
                       ) : (
                         `Switch to ${plan.name.replace("Apex ", "")}`
                       )}
