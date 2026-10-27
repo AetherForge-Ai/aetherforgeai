@@ -25,7 +25,8 @@ import { cryptoCoveragePhrase } from "@/lib/crypto-coverage";
 import { cryptoFreshnessLabel, latestQuoteTime } from "@/lib/market-freshness";
 import {
   selectCoins,
-  fmtPrice,
+  dedupeCrossFeedCoins,
+  fmtPriceSig,
   fmtCompactUsd,
   fmtPct,
   pctColor,
@@ -38,6 +39,10 @@ import {
 } from "@/lib/crypto-market";
 import { RefreshCw, Search, Loader2, ChevronRight, Info } from "lucide-react";
 
+/** DASH-CLEAN-D: phones show coin, price and 24h with room each; the wide grid starts at lg. */
+const GRID =
+  "grid-cols-[minmax(0,1fr)_auto_4.5rem] lg:grid-cols-[48px_minmax(140px,1.6fr)_repeat(2,minmax(72px,1fr))_repeat(3,minmax(96px,1.1fr))_100px_44px]";
+const WIDE = "hidden lg:block";
 const ROW_H = 56; // px — fixed row height enables cheap windowing
 const OVERSCAN = 8;
 
@@ -69,9 +74,15 @@ export function CryptoMarketModal({
   const [sort, setSort] = useState<SortKey>("market_cap");
   const [filter, setFilter] = useState<FilterKey>("all");
 
+  const listCoins = useMemo(() => dedupeCrossFeedCoins(coins), [coins]);
   const rows = useMemo(
-    () => selectCoins(coins, { search, sort, filter }),
-    [coins, search, sort, filter]
+    () => selectCoins(listCoins, { search, sort, filter }),
+    [listCoins, search, sort, filter]
+  );
+  // DASH-CLEAN-D: name the feeds behind the rows on screen, not "Source unavailable" while live.
+  const sourceLine = useMemo(
+    () => publicCoinSourceLine([...new Set(listCoins.filter((c) => !c.priceUnavailable).map((c) => c.source).filter(Boolean))].join(",")),
+    [listCoins]
   );
 
   // ---- Windowing ----
@@ -100,16 +111,16 @@ export function CryptoMarketModal({
   const endIdx = Math.min(total, Math.ceil((scrollTop + viewportH) / ROW_H) + OVERSCAN);
   const visible = rows.slice(startIdx, endIdx);
 
-  const coverage = cryptoCoveragePhrase(coins.length);
+  const coverage = cryptoCoveragePhrase(listCoins.length);
   const freshness = cryptoFreshnessLabel(latestQuoteTime(coins.map((coin) => coin.quotedAt)));
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex h-[92dvh] max-h-[92dvh] w-[97vw] max-w-6xl flex-col gap-0 overflow-hidden p-0">
+      <DialogContent className="flex h-[92dvh] max-h-[92dvh] w-[97vw] max-w-6xl flex-col sm:max-w-6xl gap-0 overflow-hidden p-0">
         {/* Header */}
         <DialogHeader className="border-b border-border/60 px-5 py-4 sm:px-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
+            <div className="min-w-0 pr-12 md:pr-8">
               <DialogTitle className="font-display text-xl">
                 Crypto Market <span className="text-muted-foreground">— {coverage}</span>
               </DialogTitle>
@@ -118,7 +129,7 @@ export function CryptoMarketModal({
                 {refreshing && <Loader2 className="size-3 animate-spin" />}
               </DialogDescription>
             </div>
-            <Button variant="outline" size="sm" onClick={refresh} disabled={loading || refreshing} className="gap-1.5">
+            <Button variant="outline" size="sm" onClick={refresh} disabled={loading || refreshing} className="min-h-11 gap-1.5 sm:min-h-8">
               <RefreshCw className={cn("size-3.5", refreshing && "animate-spin")} /> Refresh Data
             </Button>
           </div>
@@ -131,11 +142,11 @@ export function CryptoMarketModal({
                 value={searchRaw}
                 onChange={(e) => setSearchRaw(e.target.value)}
                 placeholder="Search name or symbol…"
-                className="h-9 pl-8"
+                className="h-11 pl-8 sm:h-9"
               />
             </div>
             <Select value={sort} onValueChange={(v) => setSort(v as SortKey)}>
-              <SelectTrigger className="h-9 w-[168px]">
+              <SelectTrigger className="h-11 w-[168px] sm:h-9">
                 <SelectValue placeholder="Sort" />
               </SelectTrigger>
               <SelectContent>
@@ -152,7 +163,7 @@ export function CryptoMarketModal({
                   key={f.value}
                   onClick={() => setFilter(f.value)}
                   className={cn(
-                    "rounded-full px-3 py-1.5 text-xs font-semibold transition",
+                    "min-h-11 rounded-full px-3 py-1.5 text-xs font-semibold transition sm:min-h-0",
                     filter === f.value
                       ? "bg-primary text-primary-foreground"
                       : "bg-background/60 text-muted-foreground hover:text-foreground"
@@ -166,16 +177,16 @@ export function CryptoMarketModal({
         </DialogHeader>
 
         {/* Column header */}
-        <div className="grid grid-cols-[48px_minmax(140px,1.6fr)_repeat(2,minmax(72px,1fr))_repeat(3,minmax(96px,1.1fr))_100px_44px] items-center gap-2 border-b border-border/60 bg-background/40 px-4 py-2 text-[0.6rem] font-semibold uppercase tracking-wide text-muted-foreground sm:px-6">
-          <span>#</span>
+        <div className={`grid ${GRID} items-center gap-3 border-b border-border/60 bg-background/40 px-4 py-2 text-[0.6rem] font-semibold uppercase tracking-wide text-muted-foreground sm:px-6`}>
+          <span className={WIDE}>#</span>
           <span>Coin</span>
           <span className="text-right">Price</span>
           <span className="text-right">24h</span>
-          <span className="text-right">7d</span>
-          <span className="text-right">Market Cap</span>
-          <span className="text-right">Volume 24h</span>
-          <span className="text-center">7d Chart</span>
-          <span />
+          <span className={`${WIDE} text-right`}>7d</span>
+          <span className={`${WIDE} text-right`}>Market Cap</span>
+          <span className={`${WIDE} text-right`}>Volume 24h</span>
+          <span className={`${WIDE} text-center`}>7d Chart</span>
+          <span className={WIDE} />
         </div>
 
         {/* Virtualized body */}
@@ -216,10 +227,10 @@ export function CryptoMarketModal({
         {/* Footer / attribution */}
         <div className="flex items-center justify-between gap-2 border-t border-border/60 px-4 py-2 text-[0.62rem] text-muted-foreground sm:px-6">
           <span className="inline-flex items-center gap-1">
-            <Info className="size-3" /> {publicCoinSourceLine()}
+            <Info className="size-3" aria-hidden /> {sourceLine}
           </span>
           <span className="tnum">
-            Showing {total} of {coins.length} coins
+            Showing {total} of {listCoins.length} coins
           </span>
         </div>
       </DialogContent>
@@ -232,9 +243,9 @@ function Row({ coin, top, onClick }: { coin: CoinMarket; top: number; onClick: (
     <button
       onClick={onClick}
       style={{ position: "absolute", top, height: ROW_H, left: 0, right: 0 }}
-      className="grid w-full grid-cols-[48px_minmax(140px,1.6fr)_repeat(2,minmax(72px,1fr))_repeat(3,minmax(96px,1.1fr))_100px_44px] items-center gap-2 border-b border-border/40 px-4 text-sm transition hover:bg-primary/5 sm:px-6"
+      className={`grid w-full ${GRID} items-center gap-3 border-b border-border/40 px-4 text-sm transition hover:bg-primary/5 sm:px-6`}
     >
-      <span className="tnum text-xs text-muted-foreground">{coin.rank}</span>
+      <span className={`${WIDE} tnum text-xs text-muted-foreground`}>{coin.rank}</span>
       <span className="flex min-w-0 items-center gap-2 text-left">
         <img
           src={coin.image || GENERIC_COIN_ICON}
@@ -253,15 +264,15 @@ function Row({ coin, top, onClick }: { coin: CoinMarket; top: number; onClick: (
           <span className="block text-[0.66rem] uppercase text-muted-foreground">{coin.symbol}</span>
         </span>
       </span>
-      <span className="tnum text-right font-medium">{fmtPrice(coin.price)}</span>
-      <span className={cn("tnum text-right font-semibold", pctColor(coin.change24h))}>{fmtPct(coin.change24h)}</span>
-      <span className={cn("tnum text-right font-semibold", pctColor(coin.change7d))}>{fmtPct(coin.change7d)}</span>
-      <span className="tnum text-right text-muted-foreground">{fmtCompactUsd(coin.marketCap)}</span>
-      <span className="tnum text-right text-muted-foreground">{fmtCompactUsd(coin.volume24h)}</span>
-      <span className="flex justify-center">
+      <span className="tnum whitespace-nowrap text-right font-medium">{fmtPriceSig(coin.price)}</span>
+      <span className={cn("tnum whitespace-nowrap text-right font-semibold", pctColor(coin.change24h))}>{fmtPct(coin.change24h)}</span>
+      <span className={cn(WIDE, "tnum text-right font-semibold", pctColor(coin.change7d))}>{fmtPct(coin.change7d)}</span>
+      <span className={`${WIDE} tnum text-right text-muted-foreground`}>{fmtCompactUsd(coin.marketCap)}</span>
+      <span className={`${WIDE} tnum text-right text-muted-foreground`}>{fmtCompactUsd(coin.volume24h)}</span>
+      <span className="hidden justify-center lg:flex">
         <Sparkline data={coin.sparkline7d} />
       </span>
-      <span className="flex justify-end text-muted-foreground">
+      <span className="hidden justify-end text-muted-foreground lg:flex">
         <ChevronRight className="size-4" />
       </span>
     </button>

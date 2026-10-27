@@ -1,13 +1,14 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
-import { ChevronRight } from "lucide-react";
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { ArrowDown, ArrowUp, ChevronRight } from "lucide-react";
 
-import { FigureReadout } from "@/components/dashboard/ShowTheMaths";
+import { FigureReadout, ShowTheMaths } from "@/components/dashboard/ShowTheMaths";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { formatNzd } from "@/lib/currency";
+import { compactNzd, KPI_NOT_AVAILABLE } from "@/lib/kpi-compact";
 import {
   BENCHMARKS,
   CHART_BLANK_REASON,
@@ -18,7 +19,7 @@ import {
   type PercentMode,
   type PeriodId,
 } from "@/lib/dashboard-kpi";
-import { MISSING_MARK, type SnapshotCashLine } from "@/lib/portfolio-snapshot";
+import { MISSING_MARK, type SnapshotCashLine, type SnapshotFigure } from "@/lib/portfolio-snapshot";
 import { cn } from "@/lib/utils";
 
 const SEGMENT_BAR: Record<KpiView["segments"][number]["id"], string> = {
@@ -70,9 +71,9 @@ export function KpiHeader({
   const historyReady = !!view && view.chartReason !== CHART_BLANK_REASON;
   return (
     <section className="mt-6" aria-busy={loading || undefined} data-section="kpi-header">
-      <div className="grid min-w-0 grid-cols-2 gap-2 md:gap-3 xl:grid-cols-3">
+      <div className="grid min-w-0 grid-cols-1 gap-2 min-[420px]:grid-cols-2 md:gap-3 xl:grid-cols-3">
         <KpiCard label="Net worth" loading={loading}>
-          {view ? <FigureReadout figure={view.netWorth} label="Net worth" showReason className="items-start" /> : null}
+          {view ? <KpiMoney figure={view.netWorth} label="Net worth" /> : null}
         </KpiCard>
         {todayMissing ? null : (
         <KpiCard label="Today" loading={loading}>
@@ -85,7 +86,12 @@ export function KpiHeader({
         </KpiCard>
         )}
         <KpiCard label="Total return" loading={loading}>
-          {view ? (
+          {view && view.totalReturn.display === MISSING_MARK && view.percent.display === MISSING_MARK ? (
+            <span className="block text-sm font-semibold text-muted-foreground" title={view.totalReturn.reason || undefined} data-kpi-empty="total-return">
+              {KPI_NOT_AVAILABLE}
+              {view.totalReturn.reason ? <span className="sr-only">. {view.totalReturn.reason}</span> : null}
+            </span>
+          ) : view ? (
             <span className="flex w-full flex-col items-start gap-2">
               <span className="flex flex-wrap items-baseline gap-2">
                 <FigureReadout figure={view.totalReturn} label="Total return" signed showReason className="items-start" />
@@ -100,13 +106,13 @@ export function KpiHeader({
         <KpiCard label="Cash" loading={loading}>
           {view ? (
             <span className="flex flex-col items-start gap-1">
-              <FigureReadout figure={view.cash} label="Cash" showReason className="items-start" />
+              <KpiMoney figure={view.cash} label="Cash" />
               <CashByCurrency lines={cashLines} warning={cashWarning} />
             </span>
           ) : null}
         </KpiCard>
         <KpiCard label="Net contributions" loading={loading}>
-          {view ? <FigureReadout figure={view.contributions} label="Net contributions" signed showReason className="items-start" /> : null}
+          {view ? <KpiMoney figure={view.contributions} label="Net contributions" signed /> : null}
         </KpiCard>
         {benchmarkMissing ? null : (
         <KpiCard label={`vs ${view?.benchmarkName || "NZX 50"}`} loading={loading}>
@@ -209,7 +215,7 @@ export function KpiHeader({
         <p className="mt-3 text-xs text-muted-foreground">
           Period and benchmark controls appear when a value history is stored.{" "}
           {/* Goal b12 G-02 */}
-          <a href="/dashboard/performance" className="font-semibold text-primary underline underline-offset-4">See XIRR and TWR on Performance</a>
+          <a href="/dashboard/performance" className="inline-flex min-h-11 items-center font-semibold text-primary underline underline-offset-4 md:min-h-0">See XIRR and TWR on Performance</a>
         </p>
       )}
 
@@ -241,7 +247,7 @@ function KpiCard({
   className?: string;
 }) {
   return (
-    <div className={cn("min-w-0 rounded-2xl border border-border/70 bg-card/50 p-3 md:min-h-[8.75rem] md:p-4", className)}>
+    <div data-kpi={label} className={cn("min-w-0 rounded-2xl border border-border/70 bg-card/50 p-3 md:min-h-[8.75rem] md:p-4", className)}>
       <p className="text-[0.65rem] font-medium uppercase tracking-wide text-muted-foreground md:text-xs">{label}</p>
       {loading ? (
         <div className="mt-2 h-6 w-20 animate-pulse rounded-md bg-muted/50 motion-reduce:animate-none md:mt-3 md:h-7 md:w-24" />
@@ -309,4 +315,60 @@ function CashByCurrency({ lines, warning }: { lines: SnapshotCashLine[]; warning
 function formatLocal(value: number): string {
   if (!Number.isFinite(value)) return MISSING_MARK;
   return new Intl.NumberFormat("en-NZ", { maximumFractionDigits: 2 }).format(value);
+}
+
+/**
+ * DASH-CLEAN-D: a NZ$ KPI that never runs out of its card. The font scales with clamp(),
+ * the short form (NZ$1.62M) shows only when the full value will not fit, the full 2dp
+ * value stays in title and aria-label, and the info button sits on its own row.
+ */
+function KpiMoney({ figure, label, signed = false }: { figure: SnapshotFigure; label: string; signed?: boolean }) {
+  const boxRef = useRef<HTMLSpanElement>(null);
+  const probeRef = useRef<HTMLSpanElement>(null);
+  const [fits, setFits] = useState(true);
+  const missing = figure.display === MISSING_MARK;
+  const up = !missing && figure.value != null && figure.value > 0;
+  const down = !missing && figure.value != null && figure.value < 0;
+  const full = !missing && signed && up && !figure.display.startsWith("+") ? `+${figure.display}` : figure.display;
+  const short = missing ? null : compactNzd(figure.value, signed);
+  useLayoutEffect(() => {
+    const box = boxRef.current;
+    const probe = probeRef.current;
+    if (!box || !probe || !short) return;
+    const measure = () => setFits(probe.scrollWidth <= box.clientWidth);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(box);
+    return () => ro.disconnect();
+  }, [full, short]);
+  if (missing) return <FigureReadout figure={figure} label={label} signed={signed} showReason className="items-start" />;
+  const arrow = up ? <ArrowUp className="size-3 shrink-0 text-gain" aria-hidden /> : down ? <ArrowDown className="size-3 shrink-0 text-rose-600" aria-hidden /> : null;
+  return (
+    <span className="flex w-full min-w-0 flex-col items-start gap-1">
+      <span ref={boxRef} className="relative block w-full min-w-0 overflow-hidden">
+        <span
+          ref={probeRef}
+          aria-hidden
+          className="tnum invisible absolute top-0 left-0 inline-flex items-center gap-1 whitespace-nowrap tabular-nums"
+          style={{ fontSize: "clamp(1rem, 0.8rem + 1.4vw, 1.25rem)" }}
+        >
+          {arrow}
+          {full}
+        </span>
+        <span
+          className="tnum inline-flex items-center gap-1 whitespace-nowrap tabular-nums"
+          style={{ fontSize: "clamp(1rem, 0.8rem + 1.4vw, 1.25rem)" }}
+          title={full}
+          aria-label={`${label} ${full}`}
+          data-kpi-value={fits || !short ? "full" : "compact"}
+        >
+          {arrow}
+          <span aria-hidden>{fits || !short ? full : short}</span>
+        </span>
+      </span>
+      <span className="inline-flex shrink-0">
+        <ShowTheMaths figure={figure} label={label} />
+      </span>
+    </span>
+  );
 }
