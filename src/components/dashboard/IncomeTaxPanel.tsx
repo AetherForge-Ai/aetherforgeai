@@ -68,7 +68,7 @@ export function IncomeTaxPanel({ snapshot, loading }: { snapshot: PortfolioSnaps
         </div>
       ) : null}
       <p className="text-sm">
-        <Link href="/tax" className="font-semibold text-primary hover:underline">
+        <Link href="/tax" className="font-semibold text-primary hover:underline inline-flex min-h-11 items-center md:min-h-0">
           Tax papers
         </Link>
       </p>

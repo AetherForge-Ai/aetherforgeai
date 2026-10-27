@@ -72,11 +72,11 @@ export function DisclaimerNotice({
       <p className="mx-auto max-w-4xl break-words text-sm leading-relaxed text-foreground">
         <strong className="font-semibold text-foreground/80">Not financial advice.</strong>{" "}
         {SHORT_DISCLAIMER}{" "}
-        <Link href="/trust" className="font-medium text-primary hover:underline">
+        <Link href="/trust" className="font-medium text-primary hover:underline inline-flex min-h-11 items-center md:min-h-0">
           How the books work
         </Link>
         {" · "}
-        <Link href={LONG_DISCLAIMER_HREF} className="font-medium text-primary hover:underline">
+        <Link href={LONG_DISCLAIMER_HREF} className="font-medium text-primary hover:underline inline-flex min-h-11 items-center md:min-h-0">
           Full disclaimer
         </Link>
         .

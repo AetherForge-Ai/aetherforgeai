@@ -62,7 +62,7 @@ export function DashboardInsights({
       <CollapsibleSection title="AI research report" icon={LineChart}>
         <AnalysisPanel holdingsCount={holdingsCount} scope="equity" nested />
       </CollapsibleSection>
-      <CollapsibleSection title="Institutional Crypto Terminal" icon={LineChart}>
+      <CollapsibleSection title="Institutional Crypto Terminal" icon={LineChart} defaultOpen>
         <CryptoMarketSection showProjected={!freePlan && !CRYPTO_PROJECTIONS_PAUSED} />
         {freePlan && CRYPTO_PROJECTIONS_PAUSED ? (
           <p className="mt-3 text-sm text-muted-foreground">{CRYPTO_PROJECTIONS_PAUSE_MESSAGE}</p>

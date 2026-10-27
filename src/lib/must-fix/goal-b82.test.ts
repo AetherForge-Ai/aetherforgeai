@@ -1,5 +1,5 @@
 /**
- * DASH-CLEAN-D b82. pull-check:v3-dashclean-d-b82-2026-10-27
+ * DASH-CLEAN-D b82. pull-check:v3-dashclean-e-b84-2026-10-27
  */
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
@@ -13,8 +13,8 @@ const coin = (id: string, name: string, symbol: string, rank: number, source: st
 
 describe("DASH-CLEAN-D b82", () => {
   it("pins the build", () => {
-    expect(read("public/build-version.txt").trim()).toBe("v3-dashclean-d-b82-2026-10-27");
-    expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-dashclean-d-b82-2026-10-27");
+    expect(read("public/build-version.txt").trim()).toBe("v3-dashclean-e-b84-2026-10-27");
+    expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-dashclean-e-b84-2026-10-27");
   });
 
   it("compacts real NZ$ totals only, never inventing a value", () => {
@@ -30,7 +30,7 @@ describe("DASH-CLEAN-D b82", () => {
     expect(kpi).toContain("grid-cols-1 gap-2 min-[420px]:grid-cols-2");
     expect(kpi).toContain('fontSize: "clamp(1rem, 0.8rem + 1.4vw, 1.25rem)"');
     expect(kpi).toContain("title={full}");
-    expect(kpi).toContain("aria-label={`${label} ${full}`}");
+    expect(kpi).toContain("<span className=\"sr-only\">{`${label} ${full}`}</span>"); // b84: sr-only, not aria-label on a span
     expect(kpi).toContain("fits || !short ? full : short");
     expect(kpi).toMatch(/<KpiMoney figure=\{view\.netWorth\}/);
     expect(kpi).toMatch(/<KpiMoney figure=\{view\.cash\}/);
