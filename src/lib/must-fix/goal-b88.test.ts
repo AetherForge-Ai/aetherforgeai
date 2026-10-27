@@ -59,3 +59,32 @@ describe("TT b87 P3 /pricing for subscribers", () => {
     expect(read("src/components/pricing/SubscriberGate.tsx")).toContain("hasLiveSubscription(j)");
   });
 });
+
+import { buildDexPanel, DEX_PANEL_LIMIT } from "@/lib/dex-news-panel";
+const dexRow = (i: number, over: Record<string, unknown> = {}) =>
+  ({ id: `t${i}`, symbol: `T${i}`, name: `Token ${i}`, price: 1 + i, priceUnavailable: false, volume24h: i * 1000, network: "Base", dex: "Uniswap V3", detailId: null, ...over }) as never;
+
+describe("MN-DEX-1 DEX tokens on /market-news", () => {
+  const now = Date.parse("2026-10-28T00:00:00Z");
+  it("shows real rows by 24h volume, capped, dropping unpriced rows", () => {
+    const rows = [...Array.from({ length: 14 }, (_, i) => dexRow(i + 1)), dexRow(99, { price: null, priceUnavailable: true, volume24h: 9e9 })];
+    const p = buildDexPanel({ at: "2026-10-27T23:55:00Z", rows }, now);
+    expect(p.rows).toHaveLength(DEX_PANEL_LIMIT);
+    expect(p.rows[0].symbol).toBe("T14");
+    expect(p.rows.some((r) => r.symbol === "T99")).toBe(false);
+    expect(p.rows[0].price).toBe("US$15.00");
+  });
+  it("no snapshot or a stale one shows no prices, never made-up rows", () => {
+    expect(buildDexPanel(null, now).rows).toEqual([]);
+    expect(buildDexPanel({ at: "2026-10-27T20:00:00Z", rows: [dexRow(1)] }, now)).toMatchObject({ rows: [] });
+  });
+  it("panel is rendered above the feed with no breakpoint hiding", () => {
+    const c = read("src/components/market-news/DexTokensPanel.tsx");
+    expect(c).not.toMatch(/\bhidden\b|sm:block|md:block|lg:block|max-h-0|h-0/);
+    expect(c).toContain("grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3");
+    const m = read("src/components/dashboard/MarketNewsPageContent.tsx");
+    expect(m.indexOf("<DexTokensPanel")).toBeGreaterThan(0);
+    expect(m.indexOf("<DexTokensPanel")).toBeLessThan(m.indexOf("<NewsFeed"));
+    expect(read("src/app/market-news/page.tsx")).toContain("dexPanel={dexPanel}");
+  });
+});
