@@ -1,5 +1,5 @@
 /**
- * DASH-CLEAN-D b82. pull-check:v3-b87-2026-10-28
+ * DASH-CLEAN-D b82. pull-check:v3-b88-2026-10-28
  */
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
@@ -13,8 +13,8 @@ const coin = (id: string, name: string, symbol: string, rank: number, source: st
 
 describe("DASH-CLEAN-D b82", () => {
   it("pins the build", () => {
-    expect(read("public/build-version.txt").trim()).toBe("v3-b87-2026-10-28");
-    expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-b87-2026-10-28");
+    expect(read("public/build-version.txt").trim()).toBe("v3-b88-2026-10-28");
+    expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-b88-2026-10-28");
   });
 
   it("compacts real NZ$ totals only, never inventing a value", () => {
