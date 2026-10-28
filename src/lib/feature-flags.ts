@@ -24,3 +24,9 @@ export const IN_APP_ALERTS_V1 = on("IN_APP_ALERTS_V1");
 /** Read per request so tests and preview deploys can switch it without a rebuild. */
 export const taxSalePreviewEnabled = (env: Record<string, string | undefined> = process.env) => env.TAX_SALE_PREVIEW === "1";
 export { CSP_ALLOW_TOTALUM_TEST } from "@/lib/security-headers";
+/**
+ * b89 START-3: the "dip your toes in" offer on /start-here. OFF by default. Even when on, nothing shows
+ * until DIP_CTA_CONFIG in src/lib/dip-cta.ts has a real amount and checkout link (Lukas decides; no
+ * Stripe product or price exists for it yet).
+ */
+export const dipCtaEnabled = (env: Record<string, string | undefined> = process.env) => env.DIP_CTA === "1";
