@@ -45,7 +45,7 @@ describe("G-19 show your working", () => {
   });
   it("route only adds working behind the flag; refusals never get it", () => {
     const src = readFileSync("src/app/api/chat/route.ts", "utf8");
-    expect(src).toMatch(/raw != null && sendMessages != null && aiMode === \"on\" && aiShowWorkingEnabled\(\)/);
+    expect(src).toMatch(/raw != null && sendMessages != null && aiMode === \"on\" && \(aiShowWorkingEnabled\(\) \|\| testHooksAllowedFor\(user as never\)\)/);
     expect(src).toMatch(/\.\.\.\(working \? \{ working \} : \{\}\)/);
   });
 });

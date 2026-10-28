@@ -4,7 +4,7 @@ import { RedirectSignedOut } from "@/components/auth/RedirectSignedOut";
 import { SettingsSectionNav } from "@/components/settings/SettingsSectionNav";
 import { SharingPanel } from "@/components/sharing/SharingPanel";
 import { publicPageMetadata } from "@/lib/reviewed-book";
-import { flagOn } from "@/lib/schema/types";
+import { featureOnFor } from "@/lib/preview-grading";
 import { getCurrentUser } from "@/lib/session";
 import { resolveDisplayName } from "@/lib/user-display";
 
@@ -17,8 +17,9 @@ export const metadata = publicPageMetadata("/settings/sharing", {
 
 /** b66 G-27: owner sharing controls. Behind PORTFOLIO_SHARING=on (off = 404). */
 export default async function SharingSettingsPage() {
-  if (!flagOn("PORTFOLIO_SHARING")) notFound();
   const user = await getCurrentUser();
+  // b91 G-27: flag off = 404, except for allow-listed test accounts (preview grading).
+  if (!featureOnFor("PORTFOLIO_SHARING", user as never)) notFound();
   if (!user) redirect("/login?redirect=/settings/sharing");
   return (
     <RedirectSignedOut redirectTo="/settings/sharing">
