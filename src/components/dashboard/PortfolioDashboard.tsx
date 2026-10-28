@@ -162,6 +162,7 @@ import { DashboardRail } from "@/components/dashboard/rail/DashboardRail";
 import { AlertCounter } from "@/components/dashboard/alerts/AlertCounter";
 import { GlobalSearch } from "@/components/dashboard/GlobalSearch";
 import { DashboardCalculator } from "@/components/dashboard/DashboardCalculator";
+import { StartHereButton } from "@/components/start-here/StartHereButton";
 import { FREE_REPORTS_PER_MONTH } from "@/lib/entitlements";
 import { SnapshotAllocation } from "@/components/dashboard/SnapshotAllocation";
 import { holdingDeleteEffect } from "@/lib/dashboard-tabs";
@@ -2507,6 +2508,9 @@ export function PortfolioDashboard({
           </div>
         </div>
       ) : null}
+
+      {/* b89 START-1 */}
+      {isHome && !preview ? <StartHereButton userId={userId} /> : null}
 
       {isHome && !preview ? (
         <DashboardCalculator

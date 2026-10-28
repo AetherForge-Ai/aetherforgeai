@@ -98,10 +98,10 @@ export const DOCS_GUIDES: DocsGuide[] = [
   {
     slug: "income-and-tax-view",
     title: "Use the Income & Tax tab",
-    summary: "See dividends, withholding and realised gains for the year.",
+    summary: "See dividend cash, realised gains and FIF for the tax year.",
     steps: [
       "Record dividends from the dashboard as well as buys and sells.",
-      "Open the Income & Tax tab to see gross income, withholding and realised gains using FIFO.",
+      "Open the Income & Tax tab on the dashboard and pick the tax year (ending 31 March). It shows dividend cash, realised gains and FIF.",
       "The FIF working paper explains which method applies. Check your own position with a tax adviser.",
     ],
   },
