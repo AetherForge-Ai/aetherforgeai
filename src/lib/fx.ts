@@ -18,6 +18,8 @@ export interface FxSnapshot {
   sourced: boolean;
   /** Provider rate time (open.er-api time_last_update_unix) as ISO. Null when that field is missing or the baseline table is in use. Never the fetch clock. */
   asOf: string | null;
+  /** b90 M-2: when this server last fetched the provider successfully (ISO). This is the /status "Last OK" time; asOf stays the provider's own rate time. */
+  fetchedAt?: string | null;
 }
 
 // One-hour in-memory cache. FX moves slowly enough that hourly is plenty and
@@ -145,6 +147,7 @@ export async function getFxSnapshot(nowMs?: number): Promise<FxSnapshot> {
       live: false,
       sourced: fetched.asOf != null,
       asOf: fetched.asOf,
+      fetchedAt: new Date(t).toISOString(),
     };
     cache = { snapshot, fetchedAtMs: t, nextUpdateMs: fetched.nextUpdateMs };
     console.log("[fx] Live FX rates resolved:", fetched.rates);
