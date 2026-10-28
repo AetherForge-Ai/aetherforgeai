@@ -1,5 +1,5 @@
 /**
- * b87: H-10 import undo all-or-nothing, G-27 /shared gate, test-hook cleanup. pull-check:v3-b89-2026-10-29
+ * b87: H-10 import undo all-or-nothing, G-27 /shared gate, test-hook cleanup. pull-check:v3-b90-2026-10-29
  * Ledger below mirrors TT's live b86 FREE case (batch impf0e3380e7bf9f380); ids are made up for the test.
  */
 import { readFileSync } from "node:fs";
@@ -22,8 +22,8 @@ const batch = [
 
 describe("b87 pins", () => {
   it("pins the build", () => {
-    expect(read("public/build-version.txt").trim()).toBe("v3-b89-2026-10-29");
-    expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-b89-2026-10-29");
+    expect(read("public/build-version.txt").trim()).toBe("v3-b90-2026-10-29");
+    expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-b90-2026-10-29");
   });
 });
 

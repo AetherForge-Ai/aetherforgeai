@@ -1,5 +1,5 @@
 /**
- * DASH-CLEAN-E b84. pull-check:v3-b89-2026-10-29
+ * DASH-CLEAN-E b84. pull-check:v3-b90-2026-10-29
  */
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
@@ -8,8 +8,8 @@ const read = (p: string) => readFileSync(p, "utf8");
 
 describe("DASH-CLEAN-E b84", () => {
   it("pins the build", () => {
-    expect(read("public/build-version.txt").trim()).toBe("v3-b89-2026-10-29");
-    expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-b89-2026-10-29");
+    expect(read("public/build-version.txt").trim()).toBe("v3-b90-2026-10-29");
+    expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-b90-2026-10-29");
   });
 
   it("Crypto Market trigger is visible by default and collapsed content is inert", () => {

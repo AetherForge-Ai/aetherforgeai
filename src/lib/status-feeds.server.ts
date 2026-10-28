@@ -25,6 +25,22 @@ function remember(key: string, at: string | null | undefined): string | null {
 }
 
 /** On a probe timeout, the last time this server saw the feed OK, marked as a timed-out check. */
+/** b90 M-2: the provider's own rate time, beside the fetch-based Last OK. */
+function withRatesDated(row: StatusFeedRow, ratesDated: string | null): StatusFeedRow {
+  return ratesDated && !row.text.startsWith("—") ? { ...row, text: `${row.text} · rates dated ${formatStatusTime(ratesDated)}` } : row;
+}
+
+export const SHARE_PRICE_SAVED_LABEL = "Share prices last saved";
+
+/** b90 M-2: the newest saved NZX/ASX share price (the saved board prints), in NZ time. */
+async function sharePriceSavedRow(): Promise<StatusFeedRow> {
+  const { latestSavedEquityAt } = await import("@/lib/stock-board.server");
+  const at = latestSavedEquityAt();
+  return at
+    ? { label: SHARE_PRICE_SAVED_LABEL, tone: "ok", text: `${formatStatusTime(at)} · newest saved NZX or ASX price` }
+    : { label: SHARE_PRICE_SAVED_LABEL, tone: "amber", text: "— no saved share price yet" };
+}
+
 function withLastOk(row: StatusFeedRow, timedOut: boolean): StatusFeedRow {
   return timedOut && row.text !== "unavailable" && !row.text.startsWith("—") ? { ...row, text: `${row.text} · check timed out` } : row;
 }
@@ -178,11 +194,14 @@ export async function loadStatusFeeds(now = Date.now()): Promise<StatusFeedRow[]
   // b46 M-2 (TT b45: crypto "check timed out" 4/140): the crypto time comes from the snapshot, so a slow
   // tape probe does not make the crypto row a timed-out check when a snapshot time was read.
   const cryptoTimedOut = tapeTimedOut && !snap?.at;
-  const fxAt = fxTimedOut ? await lastOkFor("fx") : remember("fx", fx?.sourced ? fx.asOf : null);
+  // b90 M-2 (health 29 Oct P3: "Last OK" was 18 h old): Last OK is when the rates were last fetched; the provider's rate date is shown beside it.
+  const fxAt = fxTimedOut ? await lastOkFor("fx") : remember("fx", fx?.sourced ? fx.fetchedAt ?? fx.asOf : null);
+  const fxRatesDated = !fxTimedOut && fx?.sourced && fx.asOf ? fx.asOf : null;
   const metalsAt = metalsTimedOut ? await lastOkFor("metals") : remember("metals", metals?.live ? metals.quotedAt : null);
   const killed = cryptoFeedKilled();
   return [
     await equityRow(withLastOk(shapeStatusFeed({ label: FEED_FORCE_LABEL.equity, at: equityAt, now, ...FEED_FRESHNESS_WINDOWS.equity }), tapeTimedOut), now, tapeLate),
+    await sharePriceSavedRow(),
     withLastOk(shapeStatusFeed({
       label: FEED_FORCE_LABEL.crypto,
       at: cryptoAt,
@@ -198,12 +217,12 @@ export async function loadStatusFeeds(now = Date.now()): Promise<StatusFeedRow[]
       edgeTimePut("dex", at);
       return dexStatusRow(at, dex?.failure ?? null, now, dex?.sourceNote ?? null);
     })(),
-    withLastOk(shapeStatusFeed({
+    withRatesDated(withLastOk(shapeStatusFeed({
       label: FEED_FORCE_LABEL.fx,
       at: fxAt,
       now,
       ...FEED_FRESHNESS_WINDOWS.fx,
-    }), fxTimedOut),
+    }), fxTimedOut), fxRatesDated),
     withLastOk(shapeStatusFeed({
       label: FEED_FORCE_LABEL.metals,
       at: metalsAt,

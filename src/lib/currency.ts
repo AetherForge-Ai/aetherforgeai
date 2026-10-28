@@ -292,9 +292,9 @@ export function roundFxRate(value: number): number {
   return Math.round((value + Number.EPSILON) * 10000) / 10000;
 }
 
-/** One FIFO lot in NZ$. Fill × quantity × the trade rate at 4dp. Fees stay off this figure. */
+/** One FIFO lot in NZ$. Fill × quantity × the full trade rate (b90 H-9 G11: no 4dp rounding before converting; 4dp is display only). Fees stay off this figure. */
 export function fifoLotCostNzd(qty: number, price: number, fx: number): number {
-  return qty * price * roundFxRate(fx);
+  return qty * price * fx;
 }
 
 export function formatFxInput(value: number): string {

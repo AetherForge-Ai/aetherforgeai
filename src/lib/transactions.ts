@@ -114,6 +114,8 @@ export interface TransactionInput {
   trade_date?: string; // yyyy-mm-dd Pacific/Auckland
   fx_rate?: number;
   fx_source?: string;
+  /** b90 FX-1: NZD per unit on the trade date, already fetched by the caller (import commit). */
+  trade_date_fx?: number | null;
   /**
    * Trade currency from a broker file. Not a stored column.
    * When set, this fill uses it instead of the ticker suffix.
@@ -672,9 +674,12 @@ async function applyTransactionUnlocked(
   // The trade-date rate starts with cash and the holding. It is not fetched again later.
   const reviewedFx = Number(input.fx_rate);
   const historicalCap = Number.isFinite(reviewedFx) && reviewedFx > 0 ? 250 : 1200;
+  const knownTradeDateFx = Number(input.trade_date_fx);
   const historicalPromise =
     !datedFx || bookingCurrency === "NZD"
       ? Promise.resolve({ value: bookingCurrency === "NZD" ? (1 as number | null) : null, timedOut: false })
+      : knownTradeDateFx > 0 && Number.isFinite(knownTradeDateFx)
+      ? Promise.resolve({ value: knownTradeDateFx as number | null, timedOut: false })
       : firstWithin(historicalNzdPerUnit(bookingCurrency, tradeDay), historicalCap);
 
   // ---------- Cash-only movements (opening balance with a ticker is a holding) ----------
