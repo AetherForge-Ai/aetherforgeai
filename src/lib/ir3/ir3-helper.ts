@@ -60,8 +60,13 @@ function qsNote(fif: FifPaper): string {
   return qs ? `FDR includes a quick sale adjustment of NZD ${moneyCell(qs / 100)} (IR461, April 2026). ` : "";
 }
 
-export function buildIr3Helper(input: { income: TaxableIncomeReport; fif: FifPaper }): Ir3Helper {
+/** b90 H-9 (G13): top NZ individual rate, used to cap foreign tax credits when no marginal rate is given. */
+export const IR3_DEFAULT_MARGINAL_RATE = 0.39;
+
+export function buildIr3Helper(input: { income: TaxableIncomeReport; fif: FifPaper; marginalRate?: number | null }): Ir3Helper {
   const { income, fif } = input;
+  const given = Number(input.marginalRate);
+  const marginalRate = given > 0 && given < 1 ? given : IR3_DEFAULT_MARGINAL_RATE;
   const boxes = IR3_BOXES[income.endingYear] ?? null;
   const notes: string[] = [];
   const lines: Ir1261Line[] = [];
@@ -107,6 +112,12 @@ export function buildIr3Helper(input: { income: TaxableIncomeReport; fif: FifPap
       notes.push("FIF income is blank because an opening market value or exchange rate is missing.");
     } else {
       fifMethod = pick.method;
+      // b90 H-9 (G13): the credit cannot exceed the NZ tax on the FIF income (LJ 5).
+      const nzTaxCents = cents(pick.incomeNzd * marginalRate);
+      if (creditCents > nzTaxCents) {
+        creditCents = Math.max(0, nzTaxCents);
+        notes.push(`Foreign tax credit on FIF dividends is capped at the NZ tax on the FIF income (NZD ${moneyCell(nzTaxCents / 100)} at ${Math.round(marginalRate * 100)}%${input.marginalRate ? "" : ", the top individual rate; your rate may be lower"}).`);
+      }
       lines.push({
         incomeType: "FIF income",
         jurisdiction: "overseas",
@@ -122,7 +133,7 @@ export function buildIr3Helper(input: { income: TaxableIncomeReport; fif: FifPap
   for (const [key, v] of [...divs].sort(([a], [b]) => a.localeCompare(b))) {
     const [cls, jur] = key.split("|");
     if (cls === "attributable" && !fifExempt) continue;
-    const credit = foreignTaxCredit({ jurisdiction: jur, grossNzd: v.g / 100, taxPaidNzd: v.w / 100 });
+    const credit = foreignTaxCredit({ jurisdiction: jur, grossNzd: v.g / 100, taxPaidNzd: v.w / 100, nzTaxOnIncomeNzd: (v.g / 100) * marginalRate });
     lines.push({
       incomeType: cls === "australian" ? "Dividends (Australian listed, excluded from FIF)" : "Dividends",
       jurisdiction: jur,

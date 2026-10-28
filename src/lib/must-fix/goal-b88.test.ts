@@ -1,4 +1,4 @@
-/** b88: AI-BUY-1 Buy/Sell labels + TT b87 P3 pricing gate. pull-check:v3-b89-2026-10-29 */
+/** b88: AI-BUY-1 Buy/Sell labels + TT b87 P3 pricing gate. pull-check:v3-b90-2026-10-29 */
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { directionLabel, FLAT_BAND_PCT, LABEL_TOOLTIP } from "@/lib/buy-label";
@@ -9,8 +9,8 @@ const call = (lo: number, hi: number) => ({ horizon: "7d", range: "", oddsPct: 5
 
 describe("b88 pins", () => {
   it("pins the build", () => {
-    expect(read("public/build-version.txt").trim()).toBe("v3-b89-2026-10-29");
-    expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-b89-2026-10-29");
+    expect(read("public/build-version.txt").trim()).toBe("v3-b90-2026-10-29");
+    expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-b90-2026-10-29");
   });
 });
 

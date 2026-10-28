@@ -248,6 +248,14 @@ export async function runH10Import(user: ImportUser, text: string, body: unknown
   if (cap) return cap;
 
   const batchId = batchIdForHash(fileHash);
+  // b90 FX-1: each trade-date rate is fetched up front (full lookup timeout), so the broker's
+  // rate is checked against the trade date, never against today's rate.
+  const tradeDateFx: Record<string, number | null> = {};
+  for (const row of preview.toWrite) {
+    if (row.currency === "NZD") continue;
+    const key = `${row.currency}|${row.date}`;
+    if (!(key in tradeDateFx)) tradeDateFx[key] = await historicalNzdPerUnit(row.currency, row.date);
+  }
   const label = preview.label || "broker";
   const written: ImportRow[] = [];
   // b85 H-10: all or nothing. A failure removes every row this commit saved, newest first.
@@ -283,6 +291,7 @@ export async function runH10Import(user: ImportUser, text: string, body: unknown
         fx_rate: row.fx,
         fx_source: "broker-file",
         fill_currency: row.currency,
+        trade_date_fx: row.currency === "NZD" ? undefined : tradeDateFx[`${row.currency}|${row.date}`] ?? undefined,
         executed_at: row.date,
         trade_date: row.date,
         price_source: "broker_import",
