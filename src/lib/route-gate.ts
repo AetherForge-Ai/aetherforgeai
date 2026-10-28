@@ -111,5 +111,7 @@ export function documentAccess(pathname: string): "public" | "member" | "missing
  */
 export function sharingPageHidden(pathname: string, env: Record<string, string | undefined> = process.env): boolean {
   const onShared = pathname === "/shared" || pathname.startsWith("/shared/");
+  // b91 G-27: with test hooks on (preview), the page itself decides (404 unless an allow-listed test account).
+  if (env.GOAL_TEST_HOOKS === "1") return false;
   return onShared && String(env.PORTFOLIO_SHARING || "").trim().toLowerCase() !== "on";
 }

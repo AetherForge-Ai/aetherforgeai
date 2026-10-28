@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { aggregate, FUNNEL_EVENTS, type FunnelEvent } from "@/lib/onboarding/funnel-core";
 import { PRIVACY_OFFICER_EMAIL } from "@/lib/public-copy";
 import { ONBOARDING_FUNNEL_EVENT } from "@/lib/schema/onboarding-funnel.schema";
-import { flagOn } from "@/lib/schema/types";
+import { featureOnFor, storageUnavailable } from "@/lib/preview-grading";
+import { testHooksAllowedFor } from "@/lib/test-hooks";
 import { getCurrentUser } from "@/lib/session";
 import { totalumSdk } from "@/lib/totalum";
 
@@ -15,11 +16,13 @@ const NO_STORE = { "cache-control": "private, no-store, max-age=0" };
  */
 export async function GET() {
   const session = await getCurrentUser();
-  if (!session || session.email.trim().toLowerCase() !== PRIVACY_OFFICER_EMAIL.toLowerCase()) {
+  // b91 G-28: the site owner, or an allow-listed test account (preview grading); everyone else 404.
+  const owner = !!session && session.email.trim().toLowerCase() === PRIVACY_OFFICER_EMAIL.toLowerCase();
+  if (!session || !(owner || testHooksAllowedFor(session as never))) {
     return new NextResponse("Not found", { status: 404, headers: { "content-type": "text/plain; charset=utf-8", ...NO_STORE } });
   }
   // b86 G-28: with the flag off the summary does not exist (404), same as for non-owners.
-  if (!flagOn("ONBOARDING_FUNNEL_SERVER")) {
+  if (!featureOnFor("ONBOARDING_FUNNEL_SERVER", session as never)) {
     return new NextResponse("Not found", { status: 404, headers: { "content-type": "text/plain; charset=utf-8", ...NO_STORE } });
   }
   try {
@@ -39,8 +42,9 @@ export async function GET() {
       { ok: true, enabled: true, rowsRead: rows.length, capped: rows.length >= 5000, events: aggregate(rows.filter((r) => FUNNEL_EVENTS.includes(r.event))), steps, plans },
       { headers: NO_STORE }
     );
-  } catch {
+  } catch (err) {
     console.error("[admin/onboarding-funnel] read failed");
-    return NextResponse.json({ ok: false, error: "Funnel summary is unavailable just now." }, { status: 503, headers: NO_STORE });
+    const u = storageUnavailable("The funnel summary", "onboarding_funnel_event", err);
+    return NextResponse.json({ ok: false, error: u.error }, { status: u.status, headers: NO_STORE });
   }
 }
