@@ -25,6 +25,6 @@ describe("b74 M-7 one green for text", () => {
   });
 
   it("pins the build", () => {
-    expect(read("public/build-version.txt").trim()).toBe("v3-b90-2026-10-29");
+    expect(read("public/build-version.txt").trim()).toBe("v3-b91-2026-10-29");
   });
 });

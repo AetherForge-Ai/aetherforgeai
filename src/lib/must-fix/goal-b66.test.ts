@@ -30,7 +30,7 @@ const read = (p: string) => readFileSync(p, "utf8");
 const NOW = Date.parse("2026-10-24T06:00:00Z");
 
 describe("b66 build", () => {
-  it("build version", () => expect(read("public/build-version.txt").trim()).toBe("v3-b90-2026-10-29"));
+  it("build version", () => expect(read("public/build-version.txt").trim()).toBe("v3-b91-2026-10-29"));
 });
 
 describe("G-27 read-only share", () => {
@@ -115,12 +115,12 @@ describe("G-27 read-only share", () => {
   it("routes: flag-gated, no email, GET list + per-share read route refuses writes", () => {
     const route = read("src/app/api/share/route.ts");
     const one = read("src/app/api/share/[id]/route.ts");
-    expect(route).toContain('flagOn("PORTFOLIO_SHARING")');
-    expect(one).toContain('flagOn("PORTFOLIO_SHARING")');
+    expect(route).toContain('featureOnFor("PORTFOLIO_SHARING"');
+    expect(one).toContain('featureOnFor("PORTFOLIO_SHARING"');
     expect(route + one).not.toMatch(/sendMail|resend|nodemailer|sendEmail/i);
     expect(one).toMatch(/export const (POST|PUT|PATCH|DELETE) = refuseWrite/);
     expect(route + one).toContain("no-store");
-    expect(read("src/app/settings/sharing/page.tsx")).toContain('flagOn("PORTFOLIO_SHARING")');
+    expect(read("src/app/settings/sharing/page.tsx")).toContain('featureOnFor("PORTFOLIO_SHARING"');
     expect(documentAccess("/shared")).toBe("member");
     expect(documentAccess("/share/accept")).toBe("public");
   });
