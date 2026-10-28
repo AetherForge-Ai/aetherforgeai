@@ -16,6 +16,8 @@ import { getFxSnapshot } from "@/lib/fx";
 import type { FxRatesToNZD } from "@/lib/currency";
 import { PROJECTIONS_MEMBER_LINE, SECURITY_LINE } from "@/lib/public-copy";
 import { pageTitle } from "@/lib/page-title";
+import { getCurrentUser } from "@/lib/session";
+import { hasLiveSubscription } from "@/lib/billing-guard";
 import { Button } from "@/components/ui/button";
 import {
   ShieldCheck,
@@ -78,6 +80,14 @@ function PricingSchema() {
 }
 
 export default async function PricingPage() {
+  // b89: subscribers are known on the server so the trial copy never flashes for them.
+  let subscriber = false;
+  try {
+    const user = await getCurrentUser();
+    subscriber = hasLiveSubscription(user ? { plan: user.subscription_plan, status: user.subscription_status } : null);
+  } catch {
+    subscriber = false;
+  }
   let initialFx: { rates: FxRatesToNZD; asOf: string } | null = null;
   try {
     const snap = await getFxSnapshot();
@@ -108,11 +118,21 @@ export default async function PricingPage() {
           <h1 className="mt-4 font-display text-4xl font-extrabold tracking-tight sm:text-5xl">
             Simple pricing. <span className="text-gradient">Powerful market intelligence.</span>
           </h1>
+<SubscriberGate
+            initialSubscriber={subscriber}
+            subscriberView={
+              <p data-pricing-hero-subscriber className="mx-auto mt-5 max-w-2xl text-base text-muted-foreground sm:text-lg">
+                You already have a plan. Change or cancel it in{" "}
+                <Link href="/settings/billing" className="font-semibold text-primary hover:underline">Manage billing</Link>.
+              </p>
+            }
+          >
           <p className="mx-auto mt-5 max-w-2xl text-base text-muted-foreground sm:text-lg">
             3 reports a month free, no card. Pro is NZ$49/month — Stox, Koins and the full Headmaster. Free and Starter
             stay on the table. Reports are illustrative scenarios, not personalised advice, and you
             execute on your own broker.
           </p>
+          </SubscriberGate>
           <p className="mt-4 text-sm text-muted-foreground">
             Cancel anytime <span className="text-primary">•</span> Secure Stripe checkout{" "}
             <span className="text-primary">•</span> No hidden fees
@@ -141,7 +161,7 @@ export default async function PricingPage() {
         {/* 5 · Trust & guarantee bar */}
         <section className="mx-auto max-w-6xl px-4 pt-20 sm:px-6 lg:px-8">
           <div className="grid gap-3 rounded-3xl border border-border/70 bg-card/40 p-6 sm:grid-cols-2 lg:grid-cols-5">
-            {TRUST_ITEMS.map(({ icon: Icon, label }) => (
+            {TRUST_ITEMS.filter((item) => !(subscriber && /trial/i.test(item.label))).map(({ icon: Icon, label }) => (
               <div key={label} className="flex items-center gap-3 lg:flex-col lg:text-center">
                 <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/12 text-primary">
                   <Icon className="size-5" />
@@ -160,7 +180,7 @@ export default async function PricingPage() {
         {/* 7 · Final CTA */}
         <section className="mx-auto max-w-6xl px-4 pt-24 sm:px-6 lg:px-8">
           <div className="relative overflow-hidden rounded-3xl border border-primary/40 bg-gradient-to-br from-primary/15 via-card/60 to-gold/10 px-6 py-14 text-center shadow-glow sm:px-12">
-            <SubscriberGate>
+            <SubscriberGate initialSubscriber={subscriber}>
             <h2 className="mx-auto max-w-2xl font-display text-3xl font-extrabold tracking-tight sm:text-4xl">
               Start the 14-day Pro trial for the full research desk
             </h2>

@@ -1,4 +1,4 @@
-/** b88: AI-BUY-1 Buy/Sell labels + TT b87 P3 pricing gate. pull-check:v3-b88-2026-10-28 */
+/** b88: AI-BUY-1 Buy/Sell labels + TT b87 P3 pricing gate. pull-check:v3-b89-2026-10-29 */
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { directionLabel, FLAT_BAND_PCT, LABEL_TOOLTIP } from "@/lib/buy-label";
@@ -9,8 +9,8 @@ const call = (lo: number, hi: number) => ({ horizon: "7d", range: "", oddsPct: 5
 
 describe("b88 pins", () => {
   it("pins the build", () => {
-    expect(read("public/build-version.txt").trim()).toBe("v3-b88-2026-10-28");
-    expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-b88-2026-10-28");
+    expect(read("public/build-version.txt").trim()).toBe("v3-b89-2026-10-29");
+    expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-b89-2026-10-29");
   });
 });
 
@@ -52,10 +52,10 @@ describe("AI-BUY-1 direction labels", () => {
 describe("TT b87 P3 /pricing for subscribers", () => {
   it("final trial CTA (heading and buttons) sits inside SubscriberGate", () => {
     const p = read("src/app/pricing/page.tsx");
-    const gate = p.indexOf("<SubscriberGate>");
+    const gate = p.lastIndexOf("<SubscriberGate");
     expect(gate).toBeGreaterThan(0);
     expect(gate).toBeLessThan(p.indexOf("Start the 14-day Pro trial for the full research desk"));
-    expect(p.indexOf("</SubscriberGate>")).toBeGreaterThan(p.indexOf('<Link href="/register">Start Free</Link>'));
+    expect(p.lastIndexOf("</SubscriberGate>")).toBeGreaterThan(p.indexOf('<Link href="/register">Start Free</Link>'));
     expect(read("src/components/pricing/SubscriberGate.tsx")).toContain("hasLiveSubscription(j)");
   });
 });

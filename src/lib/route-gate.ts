@@ -40,6 +40,8 @@ const PUBLIC_DOCUMENT_ROUTES = [
   "/own-the-bots",
   "/docs",
   "/help",
+  // b89 START-2: the plain-words guide for brand-new members.
+  "/start-here",
   "/blog",
   "/changelog",
   "/status",

@@ -1,5 +1,5 @@
 /**
- * b86: G-19 / G-27 / G-28. pull-check:v3-b88-2026-10-28
+ * b86: G-19 / G-27 / G-28. pull-check:v3-b89-2026-10-29
  */
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
@@ -9,8 +9,8 @@ const read = (p: string) => readFileSync(p, "utf8");
 
 describe("b86 pins", () => {
   it("pins the build", () => {
-    expect(read("public/build-version.txt").trim()).toBe("v3-b88-2026-10-28");
-    expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-b88-2026-10-28");
+    expect(read("public/build-version.txt").trim()).toBe("v3-b89-2026-10-29");
+    expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-b89-2026-10-29");
   });
 });
 
