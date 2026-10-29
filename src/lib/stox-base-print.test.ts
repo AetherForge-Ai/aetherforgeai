@@ -249,7 +249,8 @@ describe("Stox base print", () => {
     expect(mah?.projected7dPct).toBe(mahReal.projected7dPct);
     expect(zip?.projected7dPct).toBe(zipReal.projected7dPct);
     expect(mah?.projected7dPct).not.toBe(zipReal.change1d);
-    expect(formatPercent(mahReal.projected7dPct)).toMatch(/^[+-]\d+\.\d{2}%$/);
+    // A flat tilt is a scored result when the trend readings do not agree.
+    expect(formatPercent(mahReal.projected7dPct)).toMatch(/^(?:[+-]\d+\.\d{2}%|0\.00%)$/);
   });
 });
 

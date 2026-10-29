@@ -252,7 +252,7 @@ export function ProjectionsPanel({
               label="MACD"
               value={sel.macdSignal}
               tone={sel.macdSignal === "Bullish" ? "up" : sel.macdSignal === "Bearish" ? "down" : "neutral"}
-              hint={`Hist ${sel.macdHistogram > 0 ? "+" : ""}${sel.macdHistogram}`}
+              hint={`Hist ${sel.macdHistogram > 0 ? "+" : ""}${sel.macdHistogram}%`}
             />
             <Indicator label="BB position" value={`${sel.bbPosition.toFixed(0)}%`} hint="within band" />
             <Indicator

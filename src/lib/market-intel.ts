@@ -812,30 +812,44 @@ function ema(series: number[], period: number): number[] {
   return out;
 }
 
+/** Wilder RSI. A one-window sum flips on a single spike; the smoothed average does not. */
 function computeRSI(series: number[], period = 14): number {
   if (series.length < period + 1) return 50;
-  let gains = 0;
-  let losses = 0;
-  for (let i = series.length - period; i < series.length; i++) {
+  let avgGain = 0;
+  let avgLoss = 0;
+  for (let i = 1; i <= period; i++) {
     const diff = series[i] - series[i - 1];
-    if (diff >= 0) gains += diff;
-    else losses -= diff;
+    if (diff >= 0) avgGain += diff;
+    else avgLoss -= diff;
   }
-  const avgGain = gains / period;
-  const avgLoss = losses / period;
+  avgGain /= period;
+  avgLoss /= period;
+  for (let i = period + 1; i < series.length; i++) {
+    const diff = series[i] - series[i - 1];
+    const gain = diff > 0 ? diff : 0;
+    const loss = diff < 0 ? -diff : 0;
+    avgGain = (avgGain * (period - 1) + gain) / period;
+    avgLoss = (avgLoss * (period - 1) + loss) / period;
+  }
   if (avgLoss === 0) return 100;
   const rs = avgGain / avgLoss;
   return round(100 - 100 / (1 + rs), 1);
 }
 
+/**
+ * MACD on log price, reported in percent. A price-level MACD calls a steady
+ * percentage decline "bullish" once the absolute drops get smaller.
+ */
 function computeMACD(series: number[]): { macd: number; signal: number; histogram: number } {
-  const emaFast = ema(series, 12);
-  const emaSlow = ema(series, 26);
+  const logs = series.map((v) => Math.log(Math.max(v, 1e-8)));
+  const emaFast = ema(logs, 12);
+  const emaSlow = ema(logs, 26);
   const macdLine = emaFast.map((v, i) => v - emaSlow[i]);
   const signalLine = ema(macdLine, 9);
   const macd = macdLine[macdLine.length - 1];
   const signal = signalLine[signalLine.length - 1];
-  return { macd: round(macd, 3), signal: round(signal, 3), histogram: round(macd - signal, 3) };
+  const toPct = (v: number) => round(v * 100, 3);
+  return { macd: toPct(macd), signal: toPct(signal), histogram: toPct(macd - signal) };
 }
 
 function computeBollinger(series: number[], period = 20, mult = 2) {
@@ -856,72 +870,19 @@ function clamp(v: number, lo: number, hi: number): number {
 /* ------------------------------ Projection ------------------------------ */
 
 /**
- * 7-day forward projection via **Ridge regression** (L2-regularized least
- * squares) on the last 30 sessions, blended with an RSI-driven mean-reversion
- * nudge. The time feature is standardised so the ridge penalty `lambda` is
- * scale-free; the penalty shrinks the trend toward flat when the recent tape is
- * noisy, which is materially more robust than plain OLS on volatile (esp.
- * crypto) series. Confidence is derived from the ridge fit's R².
- *
- * Closed form (centred/standardised x, so intercept = mean(y)):
- *   b_z = Σ(z·y') / (Σ(z²) + lambda)      where z = (x − x̄)/σ_x, y' = y − ȳ
+ * Seven equal percent steps from the last close to the shrunk 7-day tilt.
+ * The point forecast is chosen upstream. This only draws a path that matches it.
  */
-function projectForward(
-  series: number[],
-  rsi: number,
-  opts: { lambda?: number; volScale?: number } = {}
-): { path: number[]; pct: number; confidence: number } {
-  const lambda = opts.lambda ?? 2.5; // ridge penalty (on standardised time units)
-  const volScale = opts.volScale ?? 1;
-  const window = series.slice(-30);
-  const n = window.length;
-  const meanX = (n - 1) / 2;
-  const meanY = average(window);
-
-  // Standardise the time axis so the penalty is independent of window length.
-  const sigmaX = Math.sqrt(window.reduce((s, _, i) => s + (i - meanX) ** 2, 0) / n) || 1;
-
-  let sZY = 0;
-  let sZZ = 0;
-  window.forEach((y, i) => {
-    const z = (i - meanX) / sigmaX;
-    sZY += z * (y - meanY);
-    sZZ += z * z;
-  });
-  const slopeZ = sZZ + lambda === 0 ? 0 : sZY / (sZZ + lambda); // price per 1σ of time
-  const dailySlope = slopeZ / sigmaX; // price move per session
-
-  // R² of the ridge fit as a confidence proxy.
-  let ssRes = 0;
-  let ssTot = 0;
-  window.forEach((y, i) => {
-    const pred = meanY + slopeZ * ((i - meanX) / sigmaX);
-    ssRes += (y - pred) ** 2;
-    ssTot += (y - meanY) ** 2;
-  });
-  const r2 = ssTot === 0 ? 0 : clamp(1 - ssRes / ssTot, 0, 1);
-
-  // Mean-reversion: overbought (RSI>70) drags the slope down, oversold lifts it.
-  const reversion = (50 - rsi) / 50; // +ve when oversold
-  const last = series[series.length - 1];
-  const adjSlope = dailySlope * 0.8 + last * 0.004 * reversion;
-
+function pathFromMove(last: number, pct: number): number[] {
+  const safeLast = last > 0 ? last : 0.01;
+  const end = Math.max(0.0001, safeLast * (1 + pct / 100));
+  const dp = safeLast < 5 ? 4 : 2;
   const path: number[] = [];
-  let p = last;
   for (let d = 1; d <= 7; d++) {
-    p = Math.max(0.01, p + adjSlope);
-    path.push(round(p, last < 5 ? 4 : 2));
+    const price = safeLast * Math.pow(end / safeLast, d / 7);
+    path.push(round(Math.max(0.0001, price), dp));
   }
-  const rawPct = ((path[path.length - 1] - last) / last) * 100;
-  // Penny-priced series can imply +1000% in a week. Cap the claim and drop
-  // confidence so a wild slope is not shown as a high score.
-  const cap = 25 * volScale;
-  const extreme = Math.abs(rawPct) > cap;
-  const pct = round(clamp(rawPct, -cap, cap), 2);
-  const swingBudget = 10 * volScale;
-  let confidence = Math.round(clamp(45 + r2 * 45 + (swingBudget - Math.abs(pct)) * 0.5, 40, 96));
-  if (extreme) confidence = Math.min(confidence, 40);
-  return { path, pct, confidence };
+  return path;
 }
 
 /* -------------------------- Volatility & structure ---------------------- */
@@ -1007,20 +968,18 @@ function computeLevels(
   return { support: round(support, dp), resistance: round(resistance, dp), pivot: round(pivot, dp) };
 }
 
-/** Classify the trend/volatility regime from trend alignment + realised vol. */
+/** Regime describes the tape already in hand. It does not depend on the 7-day tilt. */
 function deriveRegime(input: {
   vsSma20: number;
   vsSma50: number;
   dailyVolPct: number;
-  projected7dPct: number;
   assetClass: AssetClass;
 }): MarketRegime {
-  const { vsSma20, vsSma50, dailyVolPct, projected7dPct, assetClass } = input;
-  // Volatility that is high relative to the asset class dominates the label.
+  const { vsSma20, vsSma50, dailyVolPct, assetClass } = input;
   const volHot = assetClass === "crypto" ? dailyVolPct > 5 : dailyVolPct > 2.6;
   if (volHot) return "High Volatility";
-  const trendUp = vsSma20 > 1.2 && vsSma50 > 0 && projected7dPct > 0.4;
-  const trendDown = vsSma20 < -1.2 && vsSma50 < 0 && projected7dPct < -0.4;
+  const trendUp = vsSma20 > 1.2 && vsSma50 > 0;
+  const trendDown = vsSma20 < -1.2 && vsSma50 < 0;
   if (trendUp) return "Trending Up";
   if (trendDown) return "Trending Down";
   return "Range-Bound";
@@ -1030,26 +989,25 @@ function deriveRegime(input: {
  * Build a volatility-scaled, regime-aware probabilistic 7-day outlook. Models
  * the 7-day return as roughly Normal(drift, σ7): the Base case is the ~50%
  * interquartile band (drift ± 0.674σ7); Bull/Bear are the tails out to the
- * ~10th/90th percentiles (±1.282σ7). Tail probabilities are skewed by the
- * signal score so a stronger regime tilts the odds — never a point target.
+ * ~10th/90th percentiles (±1.282σ7). The tail split moves only when the shrunk
+ * drift is large next to a normal week — never a point target.
  */
 function buildOutlook(input: {
   price: number;
   projected7dPct: number;
   dailyVolPct: number;
-  score: number;
   regime: MarketRegime;
 }): ProbabilisticOutlook {
-  const { price, projected7dPct: drift, dailyVolPct, score, regime } = input;
+  const { price, projected7dPct: drift, dailyVolPct, regime } = input;
   const dp = price < 5 ? 4 : 2;
   const sigma7 = Math.max(0.6, dailyVolPct * Math.sqrt(7)); // 1σ 7-day move, %
   const IQR = 0.674 * sigma7; // 25th–75th percentile half-width
   const TAIL = 1.282 * sigma7; // ~10th/90th percentile
 
-  // Directional skew from the signal score (−1 bearish … +1 bullish).
-  const bias = clamp((score - 50) / 50, -1, 1);
-  const bullProb = Math.round(clamp(25 + bias * 12, 12, 40));
-  const bearProb = 50 - bullProb; // Base is fixed at ~50%
+  // A drift inside a normal week barely moves the 25/50/25 split.
+  const z = sigma7 > 0 ? clamp(drift / sigma7, -1, 1) : 0;
+  const bullProb = Math.round(clamp(25 + z * 6, 18, 32));
+  const bearProb = 50 - bullProb;
   const baseProb = 50;
 
   const toPrice = (pct: number) => round(price * (1 + pct / 100), dp);
@@ -1096,62 +1054,117 @@ function deriveConviction(input: {
 
 /* ------------------------------ Signal logic ---------------------------- */
 
-function deriveSignal(input: {
+/**
+ * Score and 7-day tilt.
+ *
+ * A walk-forward on five years of daily closes (shares and the mapped coins),
+ * split into an earlier half and a later half, kept only the readings whose
+ * edge had the same sign in both halves:
+ * - Shares rise only when RSI is at least 70, price is above the 20-day average,
+ *   and the MACD histogram is bullish. The same RSI with a flat histogram did
+ *   not. RSI at 32 or below with price under that average lagged.
+ * - Coins rise only when that same confluence also has price more than 15%
+ *   above the 20-day average. The looser "above both averages" reading had a
+ *   positive average, but the typical week in the later half did not. A deep
+ *   slide on its own flipped sign. Large day-to-day moves while price is below
+ *   both averages, and not already in that deep slide, lagged.
+ * Extrapolating the last slope, and buying an oversold RSI, did not beat a
+ * flat 7-day forecast. When the readings disagree the tilt is 0 and the score
+ * stays 50. Point forecasts stay inside ±2% for shares and ±6% for coins.
+ * Bollinger position is still calculated for the panel.
+ */
+function readSetup(input: {
+  assetClass: AssetClass;
   rsi: number;
-  macdHistogram: number;
   vsSma20: number;
-  projected7dPct: number;
-  bbPosition: number;
-}): { score: number; reasoning: string } {
-  const { rsi, macdHistogram, vsSma20, projected7dPct, bbPosition } = input;
-  let score = 50;
-  const notes: string[] = [];
+  vsSma50: number;
+  ret20: number;
+  macdSignal: SecurityIntel["macdSignal"];
+  dailyVolPct: number;
+}): { score: number; projected7dPct: number; confidence: number; reasoning: string } {
+  const { assetClass, rsi, vsSma20, vsSma50, ret20, macdSignal, dailyVolPct } = input;
+  const rsiLabel = `RSI ${Math.round(rsi)}`;
+  const sentence = (notes: string[]) => {
+    const text = notes.filter(Boolean).join("; ");
+    return text ? `${text}.` : "";
+  };
 
-  // Momentum (MACD)
-  if (macdHistogram > 0) {
-    score += 10;
-    notes.push("MACD histogram is positive (bullish momentum)");
-  } else {
-    score -= 10;
-    notes.push("MACD histogram is negative (fading momentum)");
+  if (assetClass === "crypto") {
+    const strict =
+      macdSignal !== "Bearish" &&
+      vsSma20 > 15 &&
+      vsSma50 > 3 &&
+      ret20 > 8 &&
+      rsi > 55 &&
+      dailyVolPct < 4.5;
+    // A deep slide was not stable across both halves, so it does not lower the score.
+    const deepSlide = vsSma20 < -6 && vsSma50 < 0 && ret20 < 0;
+    const hotBelow = dailyVolPct > 5.5 && vsSma20 < 0 && vsSma50 < 0 && !deepSlide;
+    if (strict) {
+      return {
+        score: 74,
+        projected7dPct: 1.6,
+        confidence: 66,
+        reasoning: sentence([
+          rsiLabel,
+          "price is above the 20-day and 50-day averages",
+          "the 20-day change is positive",
+          "day-to-day volatility is contained",
+          "the 7-day tilt stays small",
+        ]),
+      };
+    }
+    if (hotBelow) {
+      return {
+        score: 32,
+        projected7dPct: -0.8,
+        confidence: 58,
+        reasoning: sentence([
+          rsiLabel,
+          "volatility is elevated while price is below both averages",
+          "the 7-day tilt stays small",
+        ]),
+      };
+    }
+    return {
+      score: 50,
+      projected7dPct: 0,
+      confidence: 48,
+      reasoning: sentence([rsiLabel, "the trend readings do not agree, so the 7-day tilt stays flat"]),
+    };
   }
 
-  // Trend vs SMA20
-  if (vsSma20 > 2) {
-    score += 8;
-    notes.push(`trading ${round(vsSma20, 1)}% above its 20-day average`);
-  } else if (vsSma20 < -2) {
-    score -= 8;
-    notes.push(`trading ${round(Math.abs(vsSma20), 1)}% below its 20-day average`);
+  const strength = rsi >= 70 && vsSma20 > 0 && macdSignal === "Bullish";
+  const washed = rsi <= 32 && vsSma20 < 0;
+  if (strength) {
+    return {
+      score: 64,
+      projected7dPct: 0.4,
+      confidence: 58,
+      reasoning: sentence([
+        `${rsiLabel} with price ${round(vsSma20, 1)}% above its 20-day average`,
+        "the MACD histogram is bullish",
+        "the 7-day tilt stays small because most of one week is noise",
+      ]),
+    };
   }
-
-  // RSI extremes
-  if (rsi >= 70) {
-    score -= 12;
-    notes.push(`RSI ${round(rsi, 0)} is overbought — pullback risk`);
-  } else if (rsi <= 30) {
-    score += 12;
-    notes.push(`RSI ${round(rsi, 0)} is oversold — mean-reversion setup`);
-  } else {
-    notes.push(`RSI ${round(rsi, 0)} is neutral`);
+  if (washed) {
+    return {
+      score: 36,
+      projected7dPct: -0.35,
+      confidence: 56,
+      reasoning: sentence([
+        `${rsiLabel} with price ${round(Math.abs(vsSma20), 1)}% below its 20-day average`,
+        "the 7-day tilt stays small",
+      ]),
+    };
   }
-
-  // Bollinger position
-  if (bbPosition >= 92) {
-    score -= 6;
-    notes.push("price is pinned to the upper Bollinger band");
-  } else if (bbPosition <= 8) {
-    score += 6;
-    notes.push("price is pressing the lower Bollinger band");
-  }
-
-  // Forward projection still moves the score. The old "+X%" sentence is not built.
-  score += clamp(projected7dPct * 3, -22, 22);
-
-  score = Math.round(clamp(score, 2, 98));
-
-  const reasoning = notes.length ? `${notes.join("; ")}.` : "";
-  return { score, reasoning };
+  return {
+    score: 50,
+    projected7dPct: 0,
+    confidence: 50,
+    reasoning: sentence([rsiLabel, "the trend readings do not agree, so the 7-day tilt stays flat"]),
+  };
 }
 
 /* --------------------------- Per-security intel ------------------------- */
@@ -1263,61 +1276,66 @@ export function analyzeSecurity(
 
   if (!cleanReal) return heldSecurity(ticker, livePrice, name, market, sector);
 
-  const volScale = assetClass === "crypto" ? 2.2 : 1;
   const series =
     priceOverride && priceOverride > 0 ? [...cleanReal.slice(0, -1), priceOverride] : cleanReal;
   const last = series[series.length - 1];
   const prev = series[series.length - 2] ?? last;
   const wk = series[series.length - 8] ?? last;
   const mo = series[series.length - 31] ?? series[0];
+  const ago20 = series[series.length - 21] ?? series[0];
 
   const rsi = computeRSI(series);
   const macd = computeMACD(series);
   const boll = computeBollinger(series);
   const sma20 = sma(series, 20);
-  const vsSma20 = round(((last - sma20) / sma20) * 100, 2);
+  const vsSma20 = sma20 > 0 ? round(((last - sma20) / sma20) * 100, 2) : 0;
   const sma50 = sma(series, 50);
-  const vsSma50 = round(((last - sma50) / sma50) * 100, 2);
-  const projection = projectForward(series, rsi, { volScale });
+  const vsSma50 = sma50 > 0 ? round(((last - sma50) / sma50) * 100, 2) : 0;
+  const ret20 = ago20 > 0 ? ((last - ago20) / ago20) * 100 : 0;
 
-  const macdSignal: SecurityIntel["macdSignal"] =
-    macd.histogram > 0.001 ? "Bullish" : macd.histogram < -0.001 ? "Bearish" : "Neutral";
-
-  // Volatility & structural levels.
   const atrPct = computeATRpct(series);
   const vol = computeRealizedVol(series, 30);
   const levels = computeLevels(series, last);
+  // Histogram is already a percent of price. Ignore a wiggle smaller than recent volatility.
+  const macdHistPct = macd.histogram;
+  const macdDeadband = Math.max(0.05, vol.daily * 0.12);
+  const macdSignal: SecurityIntel["macdSignal"] =
+    macdHistPct > macdDeadband ? "Bullish" : macdHistPct < -macdDeadband ? "Bearish" : "Neutral";
 
-  const { score, reasoning } = deriveSignal({
+  const setup = readSetup({
+    assetClass,
     rsi,
-    macdHistogram: macd.histogram,
     vsSma20,
-    projected7dPct: projection.pct,
-    bbPosition: boll.position,
+    vsSma50,
+    ret20,
+    macdSignal,
+    dailyVolPct: vol.daily,
   });
+  const pointCap = assetClass === "crypto" ? 6 : 2;
+  const projected7dPct = round(clamp(setup.projected7dPct, -pointCap, pointCap), 2);
+  const projectionPath = pathFromMove(last, projected7dPct);
+  const { score, reasoning } = setup;
 
   const regime = deriveRegime({
     vsSma20,
     vsSma50,
     dailyVolPct: vol.daily,
-    projected7dPct: projection.pct,
     assetClass,
   });
   const outlook = buildOutlook({
     price: last,
-    projected7dPct: projection.pct,
+    projected7dPct,
     dailyVolPct: vol.daily,
-    score,
     regime,
   });
-  const conviction = deriveConviction({ score, confidence: projection.confidence, regime });
+  const conviction = deriveConviction({ score, confidence: setup.confidence, regime });
 
   const dp = last < 5 ? 4 : 2;
   const history: SeriesPoint[] = series.slice(-30).map((p, i) => ({
     label: `D-${29 - i}`,
     price: round(p, dp),
   }));
-  const projPath: SeriesPoint[] = projection.path.map((p, i) => ({
+  const projPath: SeriesPoint[] = projectionPath.map((p, i) => ({
     label: `+${i + 1}d`,
     price: p,
     projected: true,
@@ -1336,8 +1354,8 @@ export function analyzeSecurity(
     change30d: round(((last - mo) / mo) * 100, 2),
     history,
     projection: projPath,
-    projected7dPct: projection.pct,
-    confidence: projection.confidence,
+    projected7dPct,
+    confidence: setup.confidence,
     rsi,
     macd: macd.macd,
     macdSignalLine: macd.signal,
