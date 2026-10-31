@@ -156,6 +156,9 @@ export function checkFillSanity(input: FillSanityInput): FillSanityResult {
     }
   }
 
+  // b94 H-10: a dated broker file is checked against its own fill, not today's live spot.
+  const datedImport = input.priceSource === "broker_import" && !!input.tradeDate && input.tradeDate < aucklandDateISO();
+
   // Crypto implied price from cash/qty.
   if (
     input.assetType === "crypto" &&
@@ -164,7 +167,19 @@ export function checkFillSanity(input: FillSanityInput): FillSanityResult {
     qty > 0
   ) {
     const implied = Number(input.cashOrNotional) / qty;
-    if (live && live > 0) {
+    if (datedImport) {
+      // cash/qty must agree with the file's own fill price (catches unit slips), never with today's quote.
+      if (Math.abs(implied / fill - 1) > SANITY_RATIO_SOFT) {
+        return {
+          ok: false,
+          blocked: true,
+          code: "implied_mismatch",
+          message: `${ticker}: implied price from cash/qty = ${round(implied, 8)} vs the file's fill ${fill} (>${SANITY_RATIO_SOFT * 100}% off). Cash ${input.cashOrNotional}, qty ${qty}. ${ADVISORY_NOTE}`,
+          impliedPrice: implied,
+          ratio: implied / fill,
+        };
+      }
+    } else if (live && live > 0) {
       const impRatio = implied / live;
       if (Math.abs(impRatio - 1) > SANITY_RATIO_SOFT) {
         return {
@@ -187,7 +202,7 @@ export function checkFillSanity(input: FillSanityInput): FillSanityResult {
 
   // A dated broker file records what was paid, not today's quote. The 10×
   // live-spot guard is for a same-session fill typed in the wrong units.
-  if (input.priceSource === "broker_import" && input.tradeDate && input.tradeDate < aucklandDateISO()) {
+  if (datedImport) {
     return { ok: true, blocked: false };
   }
 
