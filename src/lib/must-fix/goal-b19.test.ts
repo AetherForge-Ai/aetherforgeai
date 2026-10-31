@@ -11,12 +11,12 @@ import type { SnapshotLedgerLine } from "@/lib/portfolio-snapshot";
 const read = (p: string) => readFileSync(p, "utf8");
 
 describe("goal b19", () => {
-  it("pins the build", () => expect(read("public/build-version.txt").trim()).toMatch(/^v3-(?:(?:goal|h1|g24|dedupe|g10|del404|fix|m7|cr6|g18|cr6b|dashclean|dashclean-d|dashclean-e)-)?b\d+[a-z]?-2026-10-\d\d$/));
+  it("pins the build", () => expect(read("public/build-version.txt").trim()).toMatch(/^v3-(?:(?:goal|h1|g24|dedupe|g10|del404|fix|m7|cr6|g18|cr6b|dashclean|dashclean-d|dashclean-e)-)?b\d+[a-z]?-2026-1[01]-\d\d$/));
 
   it("M-1: ticker and toaster load lazily with a height-holding placeholder", () => {
     expect(read("src/app/page.tsx")).toMatch(/LazyMarketTicker/);
     expect(read("src/app/layout.tsx")).toMatch(/LazyToaster/);
-    expect(read("src/components/LazyMarketTicker.tsx")).toMatch(/min-h-\[231px\]/);
+    expect(read("src/components/LazyMarketTicker.tsx")).toMatch(/min-h-\[255px\]/);
   });
 
   it("CR-6: new holding runs the server dry run before anything paints", () => {

@@ -11,7 +11,7 @@ const read = (p: string) => readFileSync(p, "utf8");
 
 describe("b89 pins", () => {
   it("pins the build", () => {
-    expect(read("public/build-version.txt").trim()).toMatch(/^v3-b(89|9[01])-2026-10-29$|^v3-b93-2026-10-31$/);
+    expect(read("public/build-version.txt").trim()).toMatch(/^v3-b(89|9[01])-2026-10-29$|^v3-b9[23]-2026-10-31$|^v3-b94-2026-11-01$/);
     expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-b89-2026-10-29");
   });
 });

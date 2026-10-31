@@ -116,7 +116,7 @@ describe("b72 dashboard wiring", () => {
   });
 
   it("pins the build and the pull-check", () => {
-    expect(read("public/build-version.txt").trim()).toMatch(/^v3-(?:(fix|g10|m7|h1|cr6|g18|cr6b|dashclean|dashclean-d|dashclean-e)-)?b[789]\d-2026-10-(2[789]|3[01])$/);
+    expect(read("public/build-version.txt").trim()).toMatch(/^v3-(?:(fix|g10|m7|h1|cr6|g18|cr6b|dashclean|dashclean-d|dashclean-e)-)?b[789]\d-2026-10-(2[789]|3[01])$|^v3-b94-2026-11-01$/);
     expect(read("qa/PULL-CHECK-2026-10-12.md")).toMatch(/Goal b72[^\n]*pull-check:v3-b89-2026-10-29/);
   });
 });

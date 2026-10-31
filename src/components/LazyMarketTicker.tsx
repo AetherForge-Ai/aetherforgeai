@@ -14,7 +14,7 @@ function TickerPlaceholder() {
     <div
       aria-hidden="true"
       data-ticker-placeholder
-      className="w-full min-h-[231px] border-b border-emerald-500/20 bg-zinc-950 md:min-h-[190px] lg:min-h-[149px]"
+      className="w-full min-h-[255px] border-b border-emerald-500/20 bg-zinc-950 md:min-h-[194px] lg:min-h-[178px]"
     />
   );
 }
