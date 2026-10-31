@@ -30,7 +30,7 @@ const read = (p: string) => readFileSync(p, "utf8");
 const NOW = Date.parse("2026-10-24T06:00:00Z");
 
 describe("b66 build", () => {
-  it("build version", () => expect(read("public/build-version.txt").trim()).toBe("v3-b94-2026-11-01"));
+  it("build version", () => expect(read("public/build-version.txt").trim()).toBe("v3-b95-2026-11-01"));
 });
 
 describe("G-27 read-only share", () => {

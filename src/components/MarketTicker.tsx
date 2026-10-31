@@ -86,7 +86,7 @@ function TickerCell({
   });
   return (
     <span className="inline-flex items-center gap-2 px-4 py-0.5 whitespace-nowrap">
-      <span className="font-display text-[0.78rem] font-semibold tracking-tight text-emerald-300">
+      <span className="font-display text-[0.78rem] font-semibold tracking-tight text-gain">
         {q.symbol}
       </span>
       <span
@@ -148,10 +148,10 @@ function TickerRow({
   quotes = quotes.filter((q) => Number.isFinite(q.price) && q.price > 0);
   return (
     <div className="relative flex items-center overflow-hidden border-b border-emerald-500/20 bg-zinc-950">
-      <span className="z-10 inline-flex shrink-0 items-center gap-1.5 border-r border-emerald-500/20 bg-zinc-950 px-3 py-1.5 font-display text-[0.62rem] font-bold uppercase tracking-[0.18em] text-emerald-300 backdrop-blur">
+      <span className="z-10 inline-flex shrink-0 items-center gap-1.5 border-r border-emerald-500/20 bg-zinc-950 px-3 py-1.5 font-display text-[0.62rem] font-bold uppercase tracking-[0.18em] text-gain backdrop-blur">
         {label}
         {live ? (
-          <span className="rounded bg-emerald-500/20 px-1 py-px text-[0.55rem] tracking-wide text-emerald-300">
+          <span className="rounded bg-emerald-500/20 px-1 py-px text-[0.55rem] tracking-wide text-gain">
             Live
           </span>
         ) : status ? (
@@ -243,7 +243,7 @@ function MetalsSpotBanner({ initial = null }: { initial?: MetalsSpotFeed | null 
 
   return (
     <div className="flex items-center overflow-hidden border-b border-emerald-500/20 bg-zinc-950">
-      <span className="z-10 shrink-0 border-r border-emerald-500/20 bg-zinc-950 px-3 py-1.5 font-display text-[0.62rem] font-bold uppercase tracking-[0.18em] text-emerald-300 backdrop-blur">
+      <span className="z-10 shrink-0 border-r border-emerald-500/20 bg-zinc-950 px-3 py-1.5 font-display text-[0.62rem] font-bold uppercase tracking-[0.18em] text-gain backdrop-blur">
         Metals
       </span>
       <div className="flex flex-1 flex-wrap items-center justify-center gap-x-8 gap-y-1 px-4 py-1.5">
@@ -456,7 +456,7 @@ export function MarketTicker({ className, compact = false, initial = null, initi
           {loaded && feedBadge.tone !== "green" ? <span className="text-[0.6rem]">{feedBadge.why}</span> : null}
           <button
             type="button"
-            className="min-h-11 rounded border border-emerald-500/30 md:min-h-6 px-2 py-0.5 font-semibold text-emerald-200 disabled:opacity-50"
+            className="min-h-11 rounded border border-emerald-500/30 md:min-h-6 px-2 py-0.5 font-semibold text-gain disabled:opacity-50"
             disabled={!fxReady}
             aria-pressed={display === "NZD"}
             onClick={() => setShowNzd((on) => !on)}
@@ -509,9 +509,10 @@ export function MarketTicker({ className, compact = false, initial = null, initi
         failedRefreshes={cryptoMisses}
         emptyText={emptyText}
       />
-      {loaded && feedBadge.tone !== "green" ? (
-        <p className="border-b border-emerald-500/20 bg-zinc-950 px-3 py-1 text-[0.65rem] text-muted-foreground">{feedBadge.why}</p>
-      ) : null}
+      {/* b95 CLS: the feed note always holds its one-line slot, so a late amber/red note can't push the metals band and page down (0.024 at 390/768px). */}
+      <p data-feed-note className="h-[1.625rem] truncate border-b border-emerald-500/20 bg-zinc-950 px-3 py-1 text-[0.65rem] leading-[1.125rem] text-muted-foreground">
+        {loaded && feedBadge.tone !== "green" ? feedBadge.why : equityDelay}
+      </p>
       <MetalsSpotBanner initial={initialMetals} />
       <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 border-b border-emerald-500/20 bg-zinc-950 px-3 py-1.5 text-[0.6rem] text-muted-foreground">
         <span className="inline-flex items-center gap-1">
@@ -534,7 +535,7 @@ export function MarketTicker({ className, compact = false, initial = null, initi
         )}
         <button
           type="button"
-          className="min-h-11 rounded border border-emerald-500/30 md:min-h-6 px-2 py-0.5 font-semibold text-emerald-200 hover:text-white disabled:opacity-50"
+          className="min-h-11 rounded border border-emerald-500/30 md:min-h-6 px-2 py-0.5 font-semibold text-gain hover:text-white disabled:opacity-50"
           disabled={!fxReady}
           aria-pressed={display === "NZD"}
           onClick={() => setShowNzd((on) => !on)}
