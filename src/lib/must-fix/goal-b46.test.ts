@@ -75,6 +75,6 @@ describe("b46 P3", () => {
     expect(read("src/components/dashboard/RecordTransactionPanel.tsx")).toContain("focus-visible:opacity-100");
   });
   it("build marker", () => {
-    expect(read("public/build-version.txt")).toContain("v3-b91-2026-10-29");
+    expect(read("public/build-version.txt")).toContain("v3-b92-2026-10-31");
   });
 });

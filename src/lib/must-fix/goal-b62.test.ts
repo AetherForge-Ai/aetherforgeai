@@ -89,6 +89,6 @@ describe("b62 TT P2: /status DEX row", () => {
     expect(wf).not.toMatch(/echo.*\$\{?CRON_SECRET/);
   });
   it("pins the build", () => {
-    expect(read("public/build-version.txt")).toContain("v3-b91-2026-10-29");
+    expect(read("public/build-version.txt")).toContain("v3-b92-2026-10-31");
   });
 });
