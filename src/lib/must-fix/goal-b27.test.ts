@@ -76,7 +76,7 @@ describe("b27 H-9 FIF threshold config", () => {
 
 describe("b27 version bump", () => {
   it("pins the build everywhere", () => {
-    expect(read("public/build-version.txt").trim()).toBe("v3-b92-2026-10-31");
+    expect(read("public/build-version.txt").trim()).toBe("v3-b93-2026-10-31");
     expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-b90-2026-10-29");
   });
 });
