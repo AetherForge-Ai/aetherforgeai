@@ -57,7 +57,7 @@ function assertUnique400(rows: CoinMarket[]) {
 
 describe("b69 build", () => {
   it("pins the build", () => {
-    expect(read("public/build-version.txt").trim()).toBe("v3-b94-2026-11-01");
+    expect(read("public/build-version.txt").trim()).toBe("v3-b95-2026-11-01");
     expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-b90-2026-10-29");
   });
 });

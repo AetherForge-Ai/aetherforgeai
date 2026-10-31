@@ -6,7 +6,7 @@ const read = (p: string) => readFileSync(p, "utf8");
 
 describe("b93 pins", () => {
   it("pins the build and keeps the b92 qa line", () => {
-    expect(read("public/build-version.txt").trim()).toBe("v3-b94-2026-11-01");
+    expect(read("public/build-version.txt").trim()).toBe("v3-b95-2026-11-01");
     const qa = read("qa/PULL-CHECK-2026-10-12.md");
     expect(qa).toContain("pull-check:v3-b93-2026-10-31 — b93:");
     expect(qa).toContain("pull-check:v3-b92-2026-10-31 — b92:");

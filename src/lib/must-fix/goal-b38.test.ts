@@ -15,7 +15,7 @@ function mem() {
 
 describe("b38 build", () => {
   it("pins the build", () => {
-    expect(read("public/build-version.txt").trim()).toBe("v3-b94-2026-11-01");
+    expect(read("public/build-version.txt").trim()).toBe("v3-b95-2026-11-01");
   });
 });
 
@@ -257,7 +257,7 @@ describe("b38 H-1 (c), H-4, session, M-2, M-6, tape marker", () => {
 describe("b38 CLS — ticker placeholder matches rendered tape height", () => {
   it("reserves 231/190/149 px in both placeholders", () => {
     for (const f of ["src/components/LazyMarketTicker.tsx", "src/app/page.tsx"]) {
-      expect(read(f)).toMatch(/min-h-\[255px\][^"]*md:min-h-\[194px\][^"]*lg:min-h-\[178px\]/);
+      expect(read(f)).toMatch(/min-h-\[284px\][^"]*md:min-h-\[201px\][^"]*lg:min-h-\[179px\]/);
     }
   });
 });

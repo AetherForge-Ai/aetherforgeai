@@ -743,3 +743,4 @@ Must-fix batch 7 (TT b6 retest: CR-2 CR-5 H-5 H-13 M-3 M-6): marker `pull-check:
 - pull-check:v3-b92-2026-10-31 — b92: Build 3. M-3 copy (repeated plan sentences removed from /headmaster and /koins intros); G-01 dividends ledger, G-08 0.01 oz Held row and G-12 FIF cent tests; BS-02 unchanged (needs an InvestNow export from Lukas).
 - pull-check:v3-b93-2026-10-31 — b93: H-10 ASB, Jarden, CommSec, Swyftx and Easy Crypto fixtures on the import-preview hook; commit, duplicate re-upload and undo to the cent (AUD rows on ECB trade-date rates).
 - pull-check:v3-b94-2026-11-01 — H-10 seven-broker commit totals, Easy Crypto dated-import check, H-9 CV via paper, BS-01 e2e, P3 ticker height.
+- pull-check:v3-b95-2026-11-01 — GATE-1 repo-side release gate, M-7 ticker/dashboard text-gain, G-02 period XIRR opening value + short-period solver range, G-09 lock-label coverage, CLS feed-note slot.
