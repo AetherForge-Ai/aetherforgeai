@@ -42,7 +42,7 @@ const KOINS_PARAS = [
   "Koins is the crypto bot. It reads the coins you enter on the paper book and writes a plain-English note about those coins.",
   "Crypto quotes are delayed or indicative. The page shows an as-of time when it has one. Koins does not place a trade and does not connect to an exchange login.",
   "Crypto projections stay paused. A Koins note is not a projection and it is not a signal to buy or sell.",
-  "Free and Starter include one of Stox or Koins. Pro includes both, and the Headmaster can read the latest Stox and Koins findings when that book is available.",
+  "The Headmaster can read the latest Koins findings when that book is available.",
   "How a note is put together. When you ask Koins about a coin, the app looks up the latest indicative price it has for that coin, the time of that price, and the venue or service it came from. It adds what is already on your paper book for that coin: the quantity you entered, your average cost, and the NZ$ value when the day's exchange rate is available. Your question, or a short default question, goes in last. The note that comes back is plain English and shows the as-of time it used.",
   "Where the prices come from. Coin prices are gathered from public crypto price services, such as a crypto exchange's public price list and CoinGecko. They are indicative, not a quote you could trade at. When one service does not return a price, the app tries the next one. When none returns a usable price, the coin shows a dash with a reason rather than an invented number. A coin whose price is under review is flagged on the page.",
   "What a note will not do. Koins does not tell you to buy, sell or hold a coin. It does not forecast where a price will go, and crypto projections stay paused across the product. It does not connect to an exchange account, does not ask for a wallet key, and does not move coins. Everything Koins reads is the information you typed into the paper book plus the public price it looked up.",
@@ -69,7 +69,7 @@ const SMITTY = SMITTY_PARAS.join(" ");
 
 const HEADMASTER_PARAS = [
   "The Headmaster is the planning bot. It looks across the paper book you have entered: shares, coins and cash, when those rows exist.",
-  "Starter includes a basic Headmaster. Pro and Ultimate include the full planner. A signed-out visitor sees this explanation and the example book. The member console stays behind sign-in.",
+  "A signed-out visitor sees this explanation and the example book. The member console stays behind sign-in.",
   "The Headmaster chat can send the totals, the cash weight, the allocation and the top positions already on the book. It can send a plan you typed. It does not send a card number. It does not place a trade.",
   "Stress figures and scenario pathways, when the member console shows them, are illustrations from the book you entered. They are general information, not advice.",
   "What it reads. The Headmaster works from the paper book you have entered: each share, coin and metal line, your cash, and the entries behind them. From those it can describe how the book is split between shares, crypto, metal and cash, which positions are largest. It can also read the latest Stox and Koins findings for the same book when your plan includes them.",

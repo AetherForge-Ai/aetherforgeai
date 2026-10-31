@@ -11,7 +11,7 @@ const HOOKS = { GOAL_TEST_HOOKS: "1", GOAL_TEST_HOOK_USER_IDS: "tt-1" };
 
 describe("b91 version and pull-check history", () => {
   it("build version is b91 and the qa file keeps the b85–b90 history lines", () => {
-    expect(read("public/build-version.txt").trim()).toBe("v3-b91-2026-10-29");
+    expect(read("public/build-version.txt").trim()).toBe("v3-b92-2026-10-31");
     const qa = read("qa/PULL-CHECK-2026-10-12.md");
     expect(qa).toContain("pull-check:v3-b91-2026-10-29");
     for (const b of ["b86", "b87", "b88", "b89"]) expect(qa).toContain(`pull-check:v3-b89-2026-10-29 (${b}:`);
