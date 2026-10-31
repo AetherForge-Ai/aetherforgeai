@@ -11,7 +11,7 @@ const read = (p: string) => readFileSync(p, "utf8");
 
 describe("b94 pins", () => {
   it("pins the build", () => {
-    expect(read("public/build-version.txt").trim()).toBe("v3-b94-2026-11-01");
+    expect(read("public/build-version.txt").trim()).toBe("v3-b95-2026-11-01");
     expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-b94-2026-11-01");
   });
 });
@@ -113,9 +113,9 @@ describe("b94 H-9 comparative value golden cases through the working paper", () 
 });
 
 describe("b94 P3 home ticker height", () => {
-  it("reserves the measured final ticker height at each breakpoint (255 / 194 / 178 px)", () => {
+  it("reserves the measured final ticker height at each breakpoint (284 / 201 / 179 px)", () => {
     for (const f of ["src/app/page.tsx", "src/components/LazyMarketTicker.tsx"]) {
-      expect(read(f)).toMatch(/min-h-\[255px\][^"]*md:min-h-\[194px\][^"]*lg:min-h-\[178px\]/);
+      expect(read(f)).toMatch(/min-h-\[284px\][^"]*md:min-h-\[201px\][^"]*lg:min-h-\[179px\]/);
     }
   });
 });

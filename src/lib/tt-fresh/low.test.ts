@@ -18,7 +18,7 @@ describe("TT fresh LOW", () => {
 });
 describe("TT fresh version pin", () => {
   it("build version and pull-check marker (fresh2 keeps the fresh marker)", () => {
-    expect(r("public/build-version.txt").trim()).toBe("v3-b94-2026-11-01");
+    expect(r("public/build-version.txt").trim()).toBe("v3-b95-2026-11-01");
     expect(r("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-tt-fresh-2026-10-15");
   });
 });

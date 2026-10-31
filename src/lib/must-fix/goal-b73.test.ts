@@ -75,7 +75,7 @@ describe("b73 G-10 priced cells on paint", () => {
   it("G-10 confirm wiring is unchanged and the build is pinned", () => {
     const d = read("src/components/dashboard/PortfolioDashboard.tsx");
     expect(d).toMatch(/paintConfirmedSnapshot\(current, guess, cashGuess\)/);
-    expect(read("public/build-version.txt").trim()).toBe("v3-b94-2026-11-01");
+    expect(read("public/build-version.txt").trim()).toBe("v3-b95-2026-11-01");
     expect(read("qa/PULL-CHECK-2026-10-12.md")).toMatch(/Goal b73[^\n]*pull-check:v3-b89-2026-10-29/);
   });
 });

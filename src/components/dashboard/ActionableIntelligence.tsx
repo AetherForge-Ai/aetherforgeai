@@ -169,8 +169,8 @@ export function ActionableIntelligence({
         <div className="flex items-start gap-3 rounded-2xl border border-emerald-500/30 bg-emerald-500/8 px-5 py-4">
           <Shield className="mt-0.5 size-5 shrink-0 text-gain" />
           <div>
-            <p className="font-display font-bold text-emerald-200">No urgent exits</p>
-            <p className="text-sm text-emerald-200/80">
+            <p className="font-display font-bold text-gain">No urgent exits</p>
+            <p className="text-sm text-foreground/80">
               None of your current holdings flag a full-exit scenario this session. Market snapshots
               are listed below. They are not an instruction to deploy cash.
             </p>
