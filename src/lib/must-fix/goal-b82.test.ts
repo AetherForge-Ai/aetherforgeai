@@ -13,7 +13,7 @@ const coin = (id: string, name: string, symbol: string, rank: number, source: st
 
 describe("DASH-CLEAN-D b82", () => {
   it("pins the build", () => {
-    expect(read("public/build-version.txt").trim()).toBe("v3-b92-2026-10-31");
+    expect(read("public/build-version.txt").trim()).toBe("v3-b93-2026-10-31");
     expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-b90-2026-10-29");
   });
 

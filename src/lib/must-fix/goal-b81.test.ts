@@ -8,7 +8,7 @@ const read = (p: string) => readFileSync(p, "utf8");
 
 describe("DASH-CLEAN b81: signed-out dashboard tap targets", () => {
   it("ships the b81 build version", () => {
-    expect(read("public/build-version.txt").trim()).toBe("v3-b92-2026-10-31");
+    expect(read("public/build-version.txt").trim()).toBe("v3-b93-2026-10-31");
   });
   it("gives the signed-out prompt, header CTA, logo and dialog close 44px on mobile", () => {
     const prompt = read("src/components/dashboard/MemberDashboardPrompt.tsx");
