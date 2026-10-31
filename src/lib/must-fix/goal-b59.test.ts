@@ -102,6 +102,6 @@ describe("b59 H-9c: split correction rows restate positions", () => {
   });
 
   it("build pin", () => {
-    expect(readFileSync("public/build-version.txt", "utf8").trim()).toBe("v3-b93-2026-10-31");
+    expect(readFileSync("public/build-version.txt", "utf8").trim()).toBe("v3-b94-2026-11-01");
   });
 });

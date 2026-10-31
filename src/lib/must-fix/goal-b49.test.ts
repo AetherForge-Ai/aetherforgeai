@@ -138,6 +138,6 @@ describe("b49 M-2: /status crypto Last OK falls back to the snapshot time", () =
 
 describe("b49 build marker", () => {
   it("pins the build", () => {
-    expect(read("public/build-version.txt")).toContain("v3-b93-2026-10-31");
+    expect(read("public/build-version.txt")).toContain("v3-b94-2026-11-01");
   });
 });
