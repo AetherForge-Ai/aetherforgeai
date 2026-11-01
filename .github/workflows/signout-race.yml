@@ -39,7 +39,7 @@ jobs:
           node qa/local-harness/signout-prod.mjs 2>&1 | tee "$OUT/console.log"
       - name: Upload log and screenshots
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: signout-race-${{ github.run_id }}
           path: signout-race-out/

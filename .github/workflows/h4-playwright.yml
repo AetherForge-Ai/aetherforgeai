@@ -53,7 +53,7 @@ jobs:
       # b46: the log is uploaded like signout-race; the spec prints timings only, never the credentials.
       - name: Upload log
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: h4-playwright-${{ github.run_id }}
           path: h4-out/

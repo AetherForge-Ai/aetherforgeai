@@ -55,7 +55,7 @@ jobs:
           awk -v p="$P95" 'BEGIN{exit !(p < 2.0)}' && test "$BAD" -eq 0
       - name: Save built Worker (artifact)
         if: success()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: opennext-worker
           path: .open-next
