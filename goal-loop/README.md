@@ -2,7 +2,7 @@
 
 A build is only READY_TO_PUBLISH when both files below are on the release branch:
 
-1. `goal-loop/preview-bNN-<anything>.md`: TT's local-preview grade for the build. It must name the
+1. `goal-loop/preview-bNN.md` or `goal-loop/preview-bNN-<anything>.md` (b96: both names count; `preview-bNNN.md` does not): TT's local-preview grade for the build. It must name the
    build id (for example `v3-b95-2026-11-01`) and include the lines `P0: 0` and `P1: 0`.
 2. `goal-loop/READY_TO_PUBLISH`: one line with the same build id as `public/build-version.txt`.
 
