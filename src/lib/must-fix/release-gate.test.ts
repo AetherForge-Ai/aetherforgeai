@@ -46,4 +46,18 @@ describe("GATE-1 release gate", () => {
     const r = checkReleaseGate(fake({ [V]: "v3-b95-2026-11-01", "goal-loop/READY_TO_PUBLISH": "v3-b95-2026-11-01", "goal-loop/preview-b95-2026-11-01.md": "# TT preview grade v3-b95-2026-11-01\n- **P0**: 0\n- **P1**: 0\n- P2: 3" }));
     expect(r).toEqual({ ok: true, ready: true, grade: "goal-loop/preview-b95-2026-11-01.md" });
   });
+  it("b96 TT P3: a bare preview-bNN.md counts, preview-bNNN.md does not", () => {
+    const base = { [V]: "v3-b96-2026-11-02", "goal-loop/READY_TO_PUBLISH": "v3-b96-2026-11-02" };
+    const g = "# TT preview grade v3-b96-2026-11-02\nP0: 0\nP1: 0";
+    expect(checkReleaseGate(fake({ ...base, "goal-loop/preview-b96.md": g }))).toEqual({ ok: true, ready: true, grade: "goal-loop/preview-b96.md" });
+    expect(checkReleaseGate(fake({ ...base, "goal-loop/preview-b961.md": g })).ok).toBe(false);
+    expect(checkReleaseGate(fake({ ...base, "goal-loop/preview-b96.txt": g })).ok).toBe(false);
+  });
+  it("b96: TT's committed grade would pass the gate if b96 were marked (no marker is committed)", () => {
+    expect(existsSync("goal-loop/READY_TO_PUBLISH")).toBe(false);
+    const withMarker: GateFiles = { read: (p) => (p === "goal-loop/READY_TO_PUBLISH" ? "v3-b96-2026-11-02\n" : repo.read(p)), list: repo.list };
+    const r = checkReleaseGate(withMarker);
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.grade).toMatch(/^goal-loop\/preview-b96(-tt)?\.md$/);
+  });
 });
