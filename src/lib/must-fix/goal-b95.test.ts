@@ -1,4 +1,4 @@
-/** b95: GATE-1 release gate, M-7 one text green, G-02 per-period maths vs independent calculations, G-09 CSV lock, CLS feed-note slot. pull-check:v3-b95-2026-11-01 */
+/** b95: GATE-1 release gate, M-7 one text green, G-02 per-period maths vs independent calculations, G-09 CSV lock, CLS feed-note slot. pull-check:v3-b96-2026-11-02 */
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { performanceReport, type BookPoint, type PerformanceInput, type PerformancePeriod } from "@/lib/performance-math";
@@ -9,8 +9,8 @@ const read = (p: string) => readFileSync(p, "utf8");
 
 describe("b95 pins", () => {
   it("pins the build", () => {
-    expect(read("public/build-version.txt").trim()).toBe("v3-b95-2026-11-01");
-    expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-b95-2026-11-01");
+    expect(read("public/build-version.txt").trim()).toMatch(/^v3-b95-2026-11-01$|^v3-b96-2026-11-02$/);
+    expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-b96-2026-11-02");
   });
   it("GATE-1 runs repo-side in the unit job and is documented", () => {
     expect(read("src/lib/must-fix/release-gate.test.ts")).toContain("checkReleaseGate(repo)");

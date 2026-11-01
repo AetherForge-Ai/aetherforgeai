@@ -21,7 +21,7 @@ const pageCell = (v: number) => formatNzd(v).replace(/[^0-9.-]/g, "");
 
 describe("b92 version", () => {
   it("build version is b92 and the qa file keeps the b91 line", () => {
-    expect(read("public/build-version.txt").trim()).toBe("v3-b95-2026-11-01");
+    expect(read("public/build-version.txt").trim()).toBe("v3-b96-2026-11-02");
     const qa = read("qa/PULL-CHECK-2026-10-12.md");
     expect(qa).toContain("pull-check:v3-b92-2026-10-31 — b92:");
     expect(qa).toContain("pull-check:v3-b91-2026-10-29");
