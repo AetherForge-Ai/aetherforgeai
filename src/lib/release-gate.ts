@@ -5,7 +5,7 @@
  * passing grade. No marker means the build is not claimed READY, and the gate passes.
  *
  * Marker: goal-loop/READY_TO_PUBLISH, one line holding the build id (v3-bNN-yyyy-mm-dd).
- * Grade:  goal-loop/preview-bNN-*.md, which must name the build id and carry the lines
+ * Grade:  goal-loop/preview-bNN.md or goal-loop/preview-bNN-*.md (b96: both), which must name the build id and carry the lines
  *         "P0: 0" and "P1: 0".
  */
 export const READY_MARKER = "goal-loop/READY_TO_PUBLISH";
@@ -35,9 +35,10 @@ export function checkReleaseGate(files: GateFiles): GateResult {
   if (!m) return { ok: false, reason: `${READY_MARKER} must hold a build id like v3-b96-2026-11-02, not "${build}".` };
   const current = (files.read("public/build-version.txt") || "").trim();
   if (build !== current) return { ok: false, reason: `${READY_MARKER} names ${build} but public/build-version.txt is ${current || "missing"}.` };
-  const prefix = `preview-b${m[1]}-`;
-  const grades = files.list(GRADE_DIR).filter((n) => n.startsWith(prefix) && n.endsWith(".md")).sort();
-  if (!grades.length) return { ok: false, reason: `No TT preview grade file ${GRADE_DIR}/${prefix}*.md for ${build}.` };
+  const prefix = `preview-b${m[1]}`;
+  // b96 TT P3: "preview-b96.md" counts as well as "preview-b96-tt.md"; "preview-b961.md" does not.
+  const grades = files.list(GRADE_DIR).filter((n) => n === `${prefix}.md` || (n.startsWith(`${prefix}-`) && n.endsWith(".md"))).sort();
+  if (!grades.length) return { ok: false, reason: `No TT preview grade file ${GRADE_DIR}/${prefix}.md or ${prefix}-*.md for ${build}.` };
   for (const name of grades) {
     const text = files.read(`${GRADE_DIR}/${name}`) || "";
     if (!text.includes(build)) continue;
