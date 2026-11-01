@@ -272,7 +272,9 @@ function MetalsSpotBanner({ initial = null }: { initial?: MetalsSpotFeed | null 
         ))}
         <span
           className={cn(
-            "rounded-full px-2 py-0.5 text-[0.58rem] font-bold uppercase tracking-wide",
+            // b96 CLS-2: the badge holds a fixed one-line box sized for "Spot · updated 11:27 am NZ", so the
+            // late text can't grow it or re-wrap the band (0.0365 at 768px).
+            "inline-flex h-[1.125rem] min-w-[10.5rem] items-center justify-center whitespace-nowrap rounded-full px-2 text-[0.58rem] font-bold uppercase leading-none tracking-wide",
             spot?.live ? "bg-emerald-500/15 text-gain" : "bg-muted text-muted-foreground"
           )}
           title={spot?.live ? "Spot price" : "Estimated price"}

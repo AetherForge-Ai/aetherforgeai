@@ -32,7 +32,7 @@ export function checkReleaseGate(files: GateFiles): GateResult {
   if (marker == null) return { ok: true, ready: false };
   const build = marker.trim().split(/\s+/)[0] || "";
   const m = BUILD_RE.exec(build);
-  if (!m) return { ok: false, reason: `${READY_MARKER} must hold a build id like v3-b95-2026-11-01, not "${build}".` };
+  if (!m) return { ok: false, reason: `${READY_MARKER} must hold a build id like v3-b96-2026-11-02, not "${build}".` };
   const current = (files.read("public/build-version.txt") || "").trim();
   if (build !== current) return { ok: false, reason: `${READY_MARKER} names ${build} but public/build-version.txt is ${current || "missing"}.` };
   const prefix = `preview-b${m[1]}-`;
