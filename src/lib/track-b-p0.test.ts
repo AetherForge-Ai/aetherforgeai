@@ -74,10 +74,11 @@ describe("Track B P0", () => {
       let listed = "";
       try {
         // SEC listing names are generated data. A company name can contain the
-        // scanned word. Site copy and code stay in the scan.
+        // scanned word. Site copy and code stay in the scan. b97: public/import-reader is
+        // unmodified third-party pdf.js/tesseract.js builds whose minified numbers can match.
         listed = execFileSync(
           "git",
-          ["grep", "-i", "-l", "-F", "-e", word, "--", ".", ":(exclude)src/data/listings"],
+          ["grep", "-i", "-l", "-F", "-e", word, "--", ".", ":(exclude)src/data/listings", ":(exclude)public/import-reader"],
           { encoding: "utf8" }
         );
       } catch (error) {
