@@ -645,3 +645,25 @@ export function fillDexDetailIds(rows: DexTokenRow[], index: Map<string, string>
     return id ? { ...row, detailId: id } : row;
   });
 }
+
+/**
+ * b97 DEX-1: drop repeat DEX rows (same network and pool/token key), keeping the first. The table and
+ * its "Showing N of up to 400" lines both use this list, so the count equals the rows rendered.
+ */
+export function dedupeDexRows<T extends { key: string }>(rows: readonly T[]): T[] {
+  const seen = new Set<string>();
+  const out: T[] = [];
+  for (const row of rows) {
+    const k = row.key.toLowerCase();
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(row);
+  }
+  return out;
+}
+
+/** b97 DEX-1: the server notice counted its own list; restate its "Showing N of up to 400." with the rows shown. */
+export function dexNoticeForShown(notice: string | null | undefined, shown: number): string | null {
+  if (!notice) return notice ?? null;
+  return notice.replace(/Showing \d+ of up to 400\./, `Showing ${Math.max(0, Math.round(shown))} of up to 400.`);
+}
