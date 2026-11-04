@@ -19,7 +19,7 @@ import { BuyDialog, type BuyTarget } from "@/components/dashboard/BuyDialog";
 import { columnHasFigure, cryptoCountLine, cryptoFooterLine, cryptoHeaderCount, dexCoverageLine, dexTabLabel } from "@/lib/crypto-coverage";
 import { coingeckoSupplied, countLine, stripLastGoodCell } from "@/lib/crypto-board";
 import { sourceLabel } from "@/lib/crypto-price-chain";
-import { DEX_EMPTY_NOTICE } from "@/lib/crypto-dex";
+import { DEX_EMPTY_NOTICE, dedupeDexRows, dexNoticeForShown } from "@/lib/crypto-dex";
 import { explorerDetailHref, marketsTabHref, type MarketsTab } from "@/lib/market-detail-routes";
 import type { PublicPriceRow } from "@/lib/public-market-types";
 import { paperAddSignupHref } from "@/lib/paper-add-link";
@@ -553,10 +553,11 @@ export function MarketsExplorer({
     }
   }
 
-  // Normalize the active data source (stock exchange OR crypto) into DisplayRow[].
-  const rows = useMemo<DisplayRow[]>(() => {
+  // b97 DEX-1: the DEX list the table renders, deduped once. The "Showing N of up to 400" lines count this
+  // same list, so the label always equals the rows on screen (TT saw 35/51 shown against 77 rendered).
+  const dexAll = useMemo<DisplayRow[]>(() => {
+    if (!isDexTab) return [];
     let all: DisplayRow[];
-    if (isDexTab) {
       if ((!dex.rows.length && seedDex.length) || (seedDex.length > dex.rows.length && seedDex.length > 0)) {
         all = seedDisplayRows(seedDex, "DEX");
       } else
@@ -581,6 +582,14 @@ export function MarketsExplorer({
         paperMarket: "DEX" as const,
         priceUnavailable: row.priceUnavailable || !(row.price != null && row.price > 0),
       }));
+    return dedupeDexRows(all);
+  }, [isDexTab, dex.rows, seedDex]);
+
+  // Normalize the active data source (stock exchange OR crypto) into DisplayRow[].
+  const rows = useMemo<DisplayRow[]>(() => {
+    let all: DisplayRow[];
+    if (isDexTab) {
+      all = dexAll;
     } else if (isCoinTab) {
       if ((!crypto.coins.length && seedCrypto.length) || (seedCrypto.length > crypto.coins.length && seedCrypto.length > 0)) {
         all = seedDisplayRows(seedCrypto, "Crypto");
@@ -663,7 +672,7 @@ export function MarketsExplorer({
       if (bv == null) return -1;
       return (av - bv) * dir;
     });
-  }, [isCoinTab, isDexTab, isCryptoTab, userSorted, crypto.coins, dex.rows, seedCrypto, seedDex, data, query, sortKey, sortDir, remoteHits]);
+  }, [isCoinTab, isDexTab, isCryptoTab, userSorted, crypto.coins, dexAll, seedCrypto, data, query, sortKey, sortDir, remoteHits]);
 
   // Live-price formatter — crypto needs micro-price precision, stocks are currency-aware.
   const showNzd = isCryptoTab && cryptoInNzd && fxReady;
@@ -695,7 +704,7 @@ export function MarketsExplorer({
   const cryptoFullList = isCoinTab
     ? crypto.coins.length || seedCryptoTab?.listCount || seedCrypto.filter((row) => (row.usd ?? 0) > 0).length
     : isDexTab
-      ? dex.rows.length || seedDexTab?.listCount || seedDex.filter((row) => (row.usd ?? 0) > 0).length
+      ? dexAll.length
       : 0;
   const total = isCryptoTab ? cryptoListed : data?.total ?? 0;
   const liveCount = isCryptoTab ? cryptoListed : data?.liveCount ?? 0;
@@ -946,7 +955,7 @@ export function MarketsExplorer({
         <p className="px-1 pb-1 text-xs text-muted-foreground" data-testid="dex-printed-at">{dexPrintedLabel(dex.printedAt)}</p>
       ) : null}
       {isCryptoTab && (isDexTab ? dex.notice || seedDexAsOf : crypto.notice || seedCryptoAsOf) ? (
-        <p className="px-1 pb-2 text-xs text-muted-foreground">{isDexTab ? dex.notice || seedDexAsOf : crypto.notice || seedCryptoAsOf}</p>
+        <p className="px-1 pb-2 text-xs text-muted-foreground">{isDexTab ? dexNoticeForShown(dex.notice, dexAll.length) || seedDexAsOf : crypto.notice || seedCryptoAsOf}</p>
       ) : null}
 
       {/* Table — scrolls on BOTH axes so wide rows never push the page sideways on mobile */}
