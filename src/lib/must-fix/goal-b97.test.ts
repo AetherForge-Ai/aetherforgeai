@@ -19,4 +19,8 @@ describe("b97", () => {
     const r = checkReleaseGate({ read: (p) => (existsSync(p) ? read(p) : null), list: (d) => readdirSync(d) });
     expect(r).toEqual({ ok: true, ready: false });
   });
+  it("dry run: TT's b97 grade passes the gate if b97 were marked READY", () => {
+    const r = checkReleaseGate({ read: (p) => (p === "goal-loop/READY_TO_PUBLISH" ? "v3-b97-2026-11-05\n" : existsSync(p) ? read(p) : null), list: (d) => readdirSync(d) });
+    expect(r).toEqual({ ok: true, ready: true, grade: "goal-loop/preview-b97-tt.md" });
+  });
 });
