@@ -15,7 +15,7 @@ function mem() {
 
 describe("b38 build", () => {
   it("pins the build", () => {
-    expect(read("public/build-version.txt").trim()).toBe("v3-b96-2026-11-02");
+    expect(read("public/build-version.txt").trim()).toBe("v3-b97-2026-11-05");
   });
 });
 

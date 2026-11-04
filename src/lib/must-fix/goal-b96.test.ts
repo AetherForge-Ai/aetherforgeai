@@ -1,4 +1,4 @@
-// pull-check:v3-b96-2026-11-02
+// pull-check:v3-b97-2026-11-05
 import { describe, expect, it } from "vitest";
 import data from "@/lib/import/fixtures/g24-visual/samples.json";
 import { commitImport, emptyBook } from "@/lib/import/book";
@@ -71,7 +71,7 @@ const read = (f: string) => readFileSync(f, "utf8");
 
 describe("b96 CLS-2 home ticker", () => {
   it("pins the build", () => {
-    expect(read("public/build-version.txt").split("\n")[0].trim()).toBe("v3-b96-2026-11-02");
+    expect(read("public/build-version.txt").split("\n")[0].trim()).toBe("v3-b97-2026-11-05");
   });
   it("gives the metals badge a fixed one-line box so late text can't re-wrap the band (768px)", () => {
     expect(read("src/components/MarketTicker.tsx")).toMatch(/inline-flex h-\[1\.125rem\] min-w-\[10\.5rem\][^"]*whitespace-nowrap/);

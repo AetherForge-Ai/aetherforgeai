@@ -55,7 +55,8 @@ describe("GATE-1 release gate", () => {
   });
   it("b96: TT's committed grade would pass the gate if b96 were marked (no marker is committed)", () => {
     expect(existsSync("goal-loop/READY_TO_PUBLISH")).toBe(false);
-    const withMarker: GateFiles = { read: (p) => (p === "goal-loop/READY_TO_PUBLISH" ? "v3-b96-2026-11-02\n" : repo.read(p)), list: repo.list };
+    // b97: the repo has moved on to v3-b97, so pin the b96 build id for this historical check.
+    const withMarker: GateFiles = { read: (p) => (p === "goal-loop/READY_TO_PUBLISH" ? "v3-b96-2026-11-02\n" : p === "public/build-version.txt" ? "v3-b96-2026-11-02\n" : repo.read(p)), list: repo.list };
     const r = checkReleaseGate(withMarker);
     expect(r.ok).toBe(true);
     if (r.ok) expect(r.grade).toMatch(/^goal-loop\/preview-b96(-tt)?\.md$/);
