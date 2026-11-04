@@ -6,6 +6,7 @@ import { readCachedBook } from "@/lib/client-user-state";
 import { useLiveSessionUser } from "@/lib/use-live-session";
 import { withRowDates } from "@/lib/paste-date";
 import { pasteAiNote, readMemberSwitch, writeMemberSwitch } from "@/lib/paste-ai-switch";
+import { VISUAL_ACCEPT, readVisualFile } from "@/lib/import/visual-reader";
 import {
   PASTE_COLUMN_MAP,
   PASTE_IMPORT_AI_ENABLED,
@@ -190,18 +191,36 @@ export function PasteTradesBox({
     };
   }, [rows, rates]);
 
-  function read() {
-    const { rows: found, unread } = parsePastedTrades(pasted);
+  const [reading, setReading] = useState(false);
+  // b97 G-24: a PDF or screenshot is read in this browser (pdf.js / tesseract.js, served from this site),
+  // its text goes into the box, and the same review table follows. Nothing is uploaded or saved here.
+  async function readFile(file: File | undefined) {
+    if (!file) return;
+    setReading(true);
+    setNote(`Reading ${file.name} on this device…`);
+    const out = await readVisualFile(file);
+    setReading(false);
+    if ("error" in out) {
+      setRows([]);
+      setNote(out.error);
+      return;
+    }
+    setPasted(out.text);
+    read(out.text, out.kind === "pdf" ? "the PDF" : "the screenshot");
+  }
+
+  function read(text: string = pasted, from = "the text") {
+    const { rows: found, unread } = parsePastedTrades(text);
     setRowDates({});
     if (!found.length) {
       setRows([]);
-      setNote("No trades found in that text. Paste lines like “Bought 25 FPH.NZ at NZ$28.50 on 13 Oct 2026”.");
+      setNote(from !== "the text" ? `No trades found in ${from}. You can edit the text above and read it again.` : "No trades found in that text. Paste lines like “Bought 25 FPH.NZ at NZ$28.50 on 13 Oct 2026”.");
       return;
     }
     const dateless = found.filter((r) => !r.date).length;
     setRows(found);
     setNote(
-      `${found.length} row${found.length === 1 ? "" : "s"} read from the text${unread.length ? `; ${unread.length} part${unread.length === 1 ? "" : "s"} could not be read` : ""}. Review them below before anything is saved.${dateless ? ` Date missing on ${dateless} row${dateless === 1 ? "" : "s"}: set each date below.` : ""}`
+      `${found.length} row${found.length === 1 ? "" : "s"} read from ${from}${unread.length ? `; ${unread.length} part${unread.length === 1 ? "" : "s"} could not be read` : ""}. Review them below before anything is saved.${from !== "the text" ? " Check every figure against your document." : ""}${dateless ? ` Date missing on ${dateless} row${dateless === 1 ? "" : "s"}: set each date below.` : ""}`
     );
   }
 
@@ -231,15 +250,32 @@ export function PasteTradesBox({
         placeholder="Bought 25 FPH.NZ at NZ$28.50 on 13 Oct 2026. Brokerage: $5.00"
       />
       <div className="mt-2 flex flex-wrap gap-2">
-        <button type="button" onClick={read} disabled={!pasted.trim()} className="h-9 rounded-md border px-3 text-sm font-semibold disabled:opacity-50">
+        <button type="button" onClick={() => read()} disabled={!pasted.trim() || reading} className="h-9 rounded-md border px-3 text-sm font-semibold disabled:opacity-50">
           Read trades from text
         </button>
+        <label className={`inline-flex h-9 cursor-pointer items-center rounded-md border px-3 text-sm font-semibold${reading ? " opacity-50" : ""}`} data-paste-file>
+          {reading ? "Reading…" : "Read a PDF or screenshot"}
+          <input
+            type="file"
+            accept={VISUAL_ACCEPT}
+            className="sr-only"
+            disabled={reading}
+            aria-describedby={`${idPrefix}-file-note`}
+            onChange={(e) => {
+              void readFile(e.target.files?.[0]);
+              e.target.value = "";
+            }}
+          />
+        </label>
         {pasted || rows.length ? (
           <button type="button" onClick={cancel} className="h-9 rounded-md border px-3 text-sm" data-paste-cancel>
             Cancel
           </button>
         ) : null}
       </div>
+      <p id={`${idPrefix}-file-note`} className="mt-1 text-xs text-muted-foreground">
+        PDFs and screenshots are read on this device by fixed rules, not AI, and are not uploaded.
+      </p>
       {note ? <p className="mt-2 text-sm" role="status">{note}</p> : null}
       {rows.length ? (
         <>
