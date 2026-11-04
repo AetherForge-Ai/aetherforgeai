@@ -1,9 +1,10 @@
 # TT preview grade b97 (develop 3f99d450, localhost:8794), 5 Nov 2026 ~10:00 NZDT, read-only, signed out
+Build: v3-b97-2026-11-05
 P0: 0
 P1: 0
 P2: 0
 P3: 1 (build-version not bumped)
-Build: preview cwd /workspace/b94prev HEAD `3f99d450` (#641, above 22a51d20 #640). The served `.open-next` bundle contains the b97 code (visual-reader, DEX-1). Method: same as preview-b96: headless Chrome via puppeteer-core plus the box Lighthouse CLI. Proof is in preview-b97/.
+Source: preview cwd /workspace/b94prev HEAD `3f99d450` (#641, above 22a51d20 #640). The served `.open-next` bundle contains the b97 code (visual-reader, DEX-1). Method: same as preview-b96: headless Chrome via puppeteer-core plus the box Lighthouse CLI. Proof is in preview-b97/.
 
 | Item | Grade | Sev |
 |---|---|---|
