@@ -1,5 +1,6 @@
 "use client";
 
+import { VISUAL_ACCEPT, readVisualFile } from "@/lib/import/visual-reader";
 import { workbookToCsv } from "@/lib/import/xlsx";
 import { importFileProblem } from "@/lib/import-limits";
 import { useEffect, useRef, useState } from "react";
@@ -172,13 +173,30 @@ export function BrokerImportPanel({
   // review screen below. Nothing is saved until the member confirms there.
   const pastedDatesMissing = pastedRows.filter((r, i) => !r.date && !(rowDates[i] || missingDate)).length;
 
-  function readPasted() {
-    const { rows, unread } = parsePastedTrades(pasted);
+  function readPasted(body: string = pasted, name = "Pasted text") {
+    const { rows, unread } = parsePastedTrades(body);
     if (!rows.length) {
-      setPasteNote("No trades found in that text. Paste lines like “Bought 25 FPH.NZ at NZ$28.50 on 13 Oct 2026”.");
+      setPasteNote(name === "Pasted text" ? "No trades found in that text. Paste lines like “Bought 25 FPH.NZ at NZ$28.50 on 13 Oct 2026”." : `No trades found in ${name}. You can edit the text above and read it again.`);
       return;
     }
-    adoptPasted(rows, unread, "Pasted text");
+    adoptPasted(rows, unread, name);
+  }
+
+  // b97 G-24: a PDF or screenshot is read on this device into the text box, then reviewed like pasted text.
+  const [visualReading, setVisualReading] = useState(false);
+  async function readVisual(file: File | undefined) {
+    if (!file) return;
+    setVisualReading(true);
+    setPasteNote(`Reading ${file.name} on this device…`);
+    const out = await readVisualFile(file);
+    setVisualReading(false);
+    if ("error" in out) {
+      setPasteNote(out.error);
+      return;
+    }
+    setPasted(out.text);
+    setPasteNote("");
+    readPasted(out.text, file.name);
   }
 
   function adoptPasted(rows: PastedRow[], unread: string[], name: string) {
@@ -434,7 +452,13 @@ export function BrokerImportPanel({
               onChange={(e) => setPasted(e.target.value)}
               placeholder="Bought 25 FPH.NZ at NZ$28.50 on 13 Oct 2026. Brokerage: $5.00"
             />
-            <button type="button" onClick={readPasted} className="mt-2 h-9 rounded-md border px-3 text-sm font-semibold">Read trades from text</button>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <button type="button" onClick={() => readPasted()} disabled={visualReading} className="h-9 rounded-md border px-3 text-sm font-semibold disabled:opacity-50">Read trades from text</button>
+              <label className={`inline-flex h-9 cursor-pointer items-center rounded-md border px-3 text-sm font-semibold${visualReading ? " opacity-50" : ""}`} data-paste-file>
+                {visualReading ? "Reading…" : "Read a PDF or screenshot"}
+                <input type="file" accept={VISUAL_ACCEPT} className="sr-only" disabled={visualReading} onChange={(e) => { void readVisual(e.target.files?.[0]); e.target.value = ""; }} />
+              </label>
+            </div>
             {pasteNote ? <p className="mt-2 text-sm" role="status">{pasteNote}</p> : null}
             {pastedRows.some((r) => !r.date) ? (
               <div className="mt-2 space-y-1 text-sm" data-paste-date-missing>
@@ -467,8 +491,8 @@ export function BrokerImportPanel({
             ) : null}
             <p className="mt-2 text-xs text-muted-foreground">
               {PASTE_IMPORT_AI_ENABLED
-                ? "AI reading of PDFs and screenshots is switched on."
-                : "AI reading is off: only pasted text is read, in the app, by fixed rules. PDFs and screenshots are not read."}
+                ? "AI reading of pasted text is switched on. PDFs and screenshots are read on this device, not uploaded."
+                : "AI reading is off: pasted text, PDFs and screenshots are read on this device by fixed rules and are not uploaded."}
             </p>
           </details>
           )}
