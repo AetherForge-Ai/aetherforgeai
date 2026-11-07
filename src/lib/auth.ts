@@ -7,7 +7,7 @@ import { totalumSdk } from "@/lib/totalum";
 import { sendAuthResetPassword, sendAuthVerificationEmail } from "@/lib/auth-mail";
 import { APIError } from "better-auth/api";
 import { SIGNUP_CONSENT_ERROR, TERMS_VERSION, ageConfirmed, consentFields, signupCountry } from "@/lib/signup-consent";
-import { AuthSecretUnavailable, configuredAuthSecret, productionAuthClosed } from "@/lib/auth-secret";
+import { AuthSecretUnavailable, closedAuthResponse, configuredAuthSecret, productionAuthClosed } from "@/lib/auth-secret";
 
 // TESTING_MODE is set only by the test:serve script (npm run test:serve).
 // When active, use LOCAL_NEXTJS_PROJECT_TESTING_URL so that CORS, baseURL,
@@ -356,15 +356,6 @@ function createAuth(secret: string | undefined) {
 
 type AuthInstance = ReturnType<typeof betterAuth>;
 
-const CLOSED_MESSAGE = "Sign-in is unavailable.";
-
-function closedHandler(): Response {
-  return new Response(JSON.stringify({ message: CLOSED_MESSAGE }), {
-    status: 503,
-    headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" },
-  });
-}
-
 let opened: AuthInstance | undefined;
 let openedFor: string | undefined;
 
@@ -385,7 +376,7 @@ export const auth: AuthInstance = new Proxy({} as AuthInstance, {
   get(_target, prop) {
     if (prop === "then") return undefined;
     if (productionAuthClosed()) {
-      if (prop === "handler") return () => closedHandler();
+      if (prop === "handler") return () => closedAuthResponse();
       if (prop === "$context") return Promise.reject(new AuthSecretUnavailable());
       throw new AuthSecretUnavailable();
     }

@@ -32,3 +32,11 @@ export function configuredAuthSecret(env: NodeJS.ProcessEnv = process.env): stri
 export function productionAuthClosed(env: NodeJS.ProcessEnv = process.env): boolean {
   return env.NODE_ENV === "production" && configuredAuthSecret(env) === undefined;
 }
+
+/** Generic production response. No secret, no Set-Cookie, and not cacheable. */
+export function closedAuthResponse(): Response {
+  return new Response(JSON.stringify({ message: "Sign-in is unavailable." }), {
+    status: 503,
+    headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" },
+  });
+}
