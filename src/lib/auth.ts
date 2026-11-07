@@ -7,6 +7,7 @@ import { totalumSdk } from "@/lib/totalum";
 import { sendAuthResetPassword, sendAuthVerificationEmail } from "@/lib/auth-mail";
 import { APIError } from "better-auth/api";
 import { SIGNUP_CONSENT_ERROR, TERMS_VERSION, ageConfirmed, consentFields, signupCountry } from "@/lib/signup-consent";
+import { AuthSecretUnavailable, configuredAuthSecret, productionAuthClosed } from "@/lib/auth-secret";
 
 // TESTING_MODE is set only by the test:serve script (npm run test:serve).
 // When active, use LOCAL_NEXTJS_PROJECT_TESTING_URL so that CORS, baseURL,
@@ -16,7 +17,8 @@ const effectiveUrl =
     ? (process.env.LOCAL_NEXTJS_PROJECT_TESTING_URL || "http://localhost:3000")
     : (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000");
 
-export const auth = betterAuth({
+function createAuth(secret: string | undefined) {
+  return betterAuth({
   // Database adapter
   database: totalumAdapter(totalumSdk, {
     debugLogs: true,
@@ -95,8 +97,8 @@ export const auth = betterAuth({
     },
   },
 
-  // Security
-  secret: process.env.BETTER_AUTH_SECRET,
+  // Security. Production never reaches here with a missing or library-default secret.
+  secret,
   baseURL: effectiveUrl,
   basePath: "/api/auth",
 
@@ -349,10 +351,57 @@ export const auth = betterAuth({
       },
     },
   },
+  });
+}
+
+type AuthInstance = ReturnType<typeof betterAuth>;
+
+const CLOSED_MESSAGE = "Sign-in is unavailable.";
+
+function closedHandler(): Response {
+  return new Response(JSON.stringify({ message: CLOSED_MESSAGE }), {
+    status: 503,
+    headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" },
+  });
+}
+
+let opened: AuthInstance | undefined;
+let openedFor: string | undefined;
+
+function openAuth(): AuthInstance {
+  if (productionAuthClosed()) throw new AuthSecretUnavailable();
+  const secret = process.env.NODE_ENV === "production" ? configuredAuthSecret() : process.env.BETTER_AUTH_SECRET;
+  const key = secret ?? "\0unset";
+  if (!opened || openedFor !== key) {
+    opened = createAuth(secret);
+    openedFor = key;
+  }
+  return opened;
+}
+
+// Public pages import this module. Construction waits until an auth property
+// is used, so a production build without a secret does not install the library fallback.
+export const auth: AuthInstance = new Proxy({} as AuthInstance, {
+  get(_target, prop) {
+    if (prop === "then") return undefined;
+    if (productionAuthClosed()) {
+      if (prop === "handler") return () => closedHandler();
+      if (prop === "$context") return Promise.reject(new AuthSecretUnavailable());
+      throw new AuthSecretUnavailable();
+    }
+    const instance = openAuth();
+    const value = Reflect.get(instance, prop, instance);
+    return typeof value === "function" ? value.bind(instance) : value;
+  },
+  has(_target, prop) {
+    if (prop === "then") return false;
+    if (productionAuthClosed()) return prop === "handler" || prop === "$context";
+    return prop in openAuth();
+  },
 });
 
 // Base types from Better Auth
-export type Session = typeof auth.$Infer.Session;
+export type Session = AuthInstance["$Infer"]["Session"];
 export type User = Session["user"];
 
 // Extended user with subscription/billing fields (from additionalFields above)

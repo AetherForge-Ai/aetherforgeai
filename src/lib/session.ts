@@ -8,6 +8,7 @@ import { userRecordConflicts } from "@/lib/account-guard";
 import { normalizePlanKey } from "@/lib/entitlements";
 import { bookNotBeforeFromCookie } from "@/lib/book-write-mark";
 import { cookieValue, sessionExpiresInFuture, verifySignedSessionToken } from "@/lib/session-token";
+import { AuthSecretUnavailable } from "@/lib/auth-secret";
 
 export type BotAccessValue = "stock" | "crypto" | "both" | "none";
 
@@ -161,7 +162,16 @@ export async function revokeTokenEverywhere(ctx: Awaited<typeof auth.$context>, 
  * after a successful Confirm. A miss here is just "no user" — the cookie stays.
  */
 async function readTokenSession(cookieHeader: string | null, opts: { fresh?: boolean } = {}): Promise<TokenSession | null> {
-  const ctx = await auth.$context;
+  let ctx: Awaited<typeof auth.$context>;
+  try {
+    ctx = await auth.$context;
+  } catch (err) {
+    if (err instanceof AuthSecretUnavailable) {
+      recordSessionDecision({ cookie: false, signature: false, source: "none", storeMs: null, outcome: "signed-out" });
+      return null;
+    }
+    throw err;
+  }
   const raw = cookieValue(cookieHeader, ctx.authCookies.sessionToken.name);
   if (!raw) {
     recordSessionDecision({ cookie: false, signature: false, source: "none", storeMs: null, outcome: "signed-out" });
