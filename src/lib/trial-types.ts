@@ -41,6 +41,8 @@ export interface ForwardPrediction {
   expectedMovePct: number;
   confidence: number; // 0-100
   rationale: string; // grounded in the real numbers
+  /** Crypto projections stay paused, so the percent and the confidence are not shown. */
+  figureOmitted?: boolean;
 }
 
 export interface TrialHolding {

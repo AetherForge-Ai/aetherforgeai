@@ -21,6 +21,7 @@ import { dexRowToCoin } from "@/lib/crypto-dex";
 import { analyzeSecurity, NOT_ENOUGH_DAILY_HISTORY, staleDataHold, type SecurityIntel } from "@/lib/market-intel";
 import { labelIntel } from "@/lib/security-signal";
 import { resolveSevenDayChange, type CoinMarket } from "@/lib/crypto-market";
+import { yahooSymbolFor } from "@/lib/crypto-vendors";
 
 function round(v: number, dp = 2): number {
   const f = Math.pow(10, dp);
@@ -96,6 +97,28 @@ let cache: { at: number; value: SecurityIntel[] } | null = null;
 const TTL_MS = 60_000;
 
 /**
+ * Daily closes for coins whose Yahoo symbol is mapped. A guessed TICKER-USD
+ * symbol can be a different asset, so those coins stay unrated. The 7-day
+ * figure is still omitted by coinToIntel. The score, RSI and regime are not.
+ */
+async function mappedCoinHistories(symbols: string[]): Promise<Record<string, number[]>> {
+  const map: Record<string, string> = {};
+  for (const symbol of symbols) {
+    const yahoo = yahooSymbolFor(symbol);
+    if (!yahoo.mapped) continue;
+    map[symbol.toUpperCase()] = yahoo.symbol;
+  }
+  if (!Object.keys(map).length) return {};
+  try {
+    const { fetchYahooHistories } = await import("@/lib/yahoo-finance");
+    return await fetchYahooHistories(map, "6mo", "1d");
+  } catch (err) {
+    console.error("[koins-market] daily history unavailable — coins without 40 closes stay unrated:", err);
+    return {};
+  }
+}
+
+/**
  * Full live cryptocurrency-market technical intel — the COMPLETE top-500 market,
  * each coin run through the equities engine. This is the spine that gives the
  * Koins Full Report full-market parity with Stox and powers the "entire crypto
@@ -131,10 +154,9 @@ export async function fetchCryptoMarketIntel(limit = 800): Promise<SecurityIntel
   const coins = await liveCryptoUniverse();
   if (!coins.length) return [];
 
-  const intel = coins
-    .filter((c) => c && c.symbol && isFinite(c.price) && c.price > 0)
-    .slice(0, limit)
-    .map((c) => coinToIntel(c));
+  const kept = coins.filter((c) => c && c.symbol && isFinite(c.price) && c.price > 0).slice(0, limit);
+  const histories = await mappedCoinHistories(kept.map((c) => c.symbol));
+  const intel = kept.map((c) => coinToIntel(c, histories[c.symbol.toUpperCase()]));
 
   console.log(`[koins-market] Built full crypto-market intel for ${intel.length} coins`);
   cache = { at: Date.now(), value: intel };

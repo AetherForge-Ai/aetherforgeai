@@ -23,11 +23,11 @@ const STEPS = [
   },
   {
     title: "3. Indicators",
-    body: "The engine reads trend (20- and 50-day averages), momentum (RSI and MACD), position in the Bollinger band, and volatility (average true range). These readings are combined into one figure.",
+    body: "The engine reads the 20- and 50-day averages, RSI, the MACD histogram in percent (so a low-priced name and a high-priced name are treated the same), and how large the day-to-day moves have been. Bollinger band position and average true range are still calculated and shown. The score stays at 50 unless a small set of those readings agree. For shares, it rises only when RSI is 70 or higher, price is above the 20-day average, and the MACD histogram is bullish. A high RSI on its own does not raise the score. It falls when RSI is 32 or lower and price is under the 20-day average. An oversold RSI on its own does not raise it. For coins, it rises only when price is more than 15% above the 20-day average, also above the 50-day average, the 20-day change is positive, RSI is above 55, and day-to-day volatility is contained. A milder rise does not raise the score. It falls when day-to-day moves are large and price is below both averages, unless that coin is already in a deep slide. A smooth drop on its own does not move the score.",
   },
   {
     title: "4. The score and the range",
-    body: "The result is a 0–100 indicator and an illustrative 7-day range. It is a rules-based calculation, not a forecast of what will happen, and it does not know your goals or tax position.",
+    body: "The result is a 0–100 indicator. For shares, the page also shows an illustrative 7-day range centred on a small tilt. That tilt is shrunk toward no change, and it is capped, so a noisy week cannot print a double-digit point forecast. The range stays wide because most of one week is noise. Crypto projections stay paused, so Koins shows the score and the indicators without a 7-day figure. This is a rules-based calculation, not a forecast of what will happen, and it does not know your goals or tax position.",
   },
   {
     title: "5. The written note",

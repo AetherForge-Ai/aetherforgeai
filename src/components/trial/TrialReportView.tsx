@@ -118,6 +118,14 @@ function MomentumChart({ t }: { t: TrialTickerAnalysis }) {
 }
 
 function PredictionPill({ p }: { p: ForwardPrediction }) {
+  if (p.figureOmitted) {
+    return (
+      <div className="flex-1 rounded-xl border border-border/60 bg-background/40 p-3">
+        <div className="text-[0.62rem] uppercase tracking-wide text-muted-foreground">{p.horizon} outlook</div>
+        <p className="mt-1 text-[0.68rem] leading-snug text-muted-foreground">{p.rationale}</p>
+      </div>
+    );
+  }
   const Icon = p.direction === "up" ? ArrowUpRight : p.direction === "down" ? ArrowDownRight : Minus;
   const tone = p.direction === "up" ? "text-gain" : p.direction === "down" ? "text-rose-600" : "text-muted-foreground";
   return (

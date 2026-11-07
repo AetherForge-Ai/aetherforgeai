@@ -295,7 +295,8 @@ async function liveCoingeckoPrices(ids: { ticker: string; id: string }[]): Promi
 }
 
 async function liveCoingeckoHistory(id: string): Promise<number[]> {
-  const call = cgCall(`/coins/${encodeURIComponent(id)}/market_chart?vs_currency=usd&days=30`);
+  // 30 days cannot clear the 40-close scoring gate. 180 days of daily points can.
+  const call = cgCall(`/coins/${encodeURIComponent(id)}/market_chart?vs_currency=usd&days=180`);
   const res = await fetch(call.url, { headers: call.headers, cache: "no-store" });
   if (!res.ok) throw new Error(`CoinGecko history HTTP ${res.status} for ${id}`);
   const json = (await res.json()) as { prices?: Array<[number, number]> };

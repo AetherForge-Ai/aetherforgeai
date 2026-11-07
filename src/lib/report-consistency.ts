@@ -24,6 +24,11 @@ export interface RatingInput {
   projected7dPct?: number;
   outlook?: SecurityIntel["outlook"];
   confidence?: number;
+  /**
+   * Koins does not publish a 7-day figure. A zero there means "not published",
+   * not "the model expects no change", so it does not cancel a scored buy.
+   */
+  forwardOmitted?: boolean;
 }
 
 export interface TapeRead {
@@ -110,7 +115,12 @@ export function canonicalAction(input: RatingInput): CanonicalAction {
     }
   }
   const projection = ratingProjectionPct(input);
-  if ((action === "BUY" || action === "ACCUMULATE") && typeof projection === "number" && !(projection > 0)) {
+  if (
+    !input.forwardOmitted &&
+    (action === "BUY" || action === "ACCUMULATE") &&
+    typeof projection === "number" &&
+    !(projection > 0)
+  ) {
     return "HOLD";
   }
   return action;

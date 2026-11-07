@@ -28,8 +28,10 @@ import { readActivityEmailPrefs } from "@/lib/activity-email-server";
 import { createZenithCompletion, isZenithConfigured } from "@/lib/grok";
 import type { AiPrivacyMode } from "@/lib/ai-privacy";
 import { readAiPrivacyMode } from "@/lib/ai-privacy.server";
-import { analyzeSecurity, intelIsHeld, NOT_ENOUGH_DAILY_HISTORY, type MarketCode } from "@/lib/market-intel";
-import { fetchQuotesForAssetClass } from "@/lib/market-data";
+import { analyzeSecurity, intelIsHeld, NOT_ENOUGH_DAILY_HISTORY, type MarketCode, type SecurityIntel } from "@/lib/market-intel";
+import { CRYPTO_PROJECTIONS_PAUSE_MESSAGE } from "@/lib/projection-pause";
+import { fetchHistoriesForAssetClass, fetchQuotesForAssetClass } from "@/lib/market-data";
+import { yahooSymbolFor } from "@/lib/crypto-vendors";
 import {
   fetchTopCryptos,
   fetchCryptoChart12mo,
@@ -122,53 +124,66 @@ function seriesPct(points: MonthPoint[]): number {
   return round(((last - first) / first) * 100, 2);
 }
 
-/**
- * Build two fact-based forward predictions (7-day and 30-day) grounded in the
- * asset's real multi-window performance + momentum. This is a transparent,
- * reproducible blend — momentum continuation tempered by mean-reversion — not a
- * black box, so the rationale can cite the actual numbers.
- */
-function buildPredictions(input: {
-  change24h: number;
-  change7d: number;
-  change30d: number;
-  momentum12moPct: number;
-  rsi?: number | null;
-}): ForwardPrediction[] {
-  const { change24h, change7d, change30d, momentum12moPct, rsi } = input;
+/** Koins does not publish a 7-day figure while crypto projections are paused. */
+function pausedCryptoPredictions(): ForwardPrediction[] {
+  return [
+    {
+      horizon: "7-day",
+      direction: "flat",
+      expectedMovePct: 0,
+      confidence: 0,
+      figureOmitted: true,
+      rationale: CRYPTO_PROJECTIONS_PAUSE_MESSAGE,
+    },
+    {
+      horizon: "30-day",
+      direction: "flat",
+      expectedMovePct: 0,
+      confidence: 0,
+      figureOmitted: true,
+      rationale: "No 30-day point figure is published.",
+    },
+  ];
+}
 
-  // Short-term drift: recent windows weighted toward the freshest tape.
-  const shortDrift = change7d * 0.5 + change24h * 3 + change30d * 0.15;
-  // Mean-reversion: an extended RSI pulls the expected move back toward zero.
-  const rev = rsi != null ? (50 - rsi) / 50 : 0; // +ve when oversold
-  const weekly = round(clamp(shortDrift * 0.18 + rev * 3.2, -14, 16), 2);
-
-  // 30-day: blends the 30d trend with the 12-month structural momentum.
-  const monthly = round(clamp(change30d * 0.45 + momentum12moPct * 0.06 + rev * 2, -30, 34), 2);
-
-  const dir = (v: number): ForwardPrediction["direction"] => (v > 0.6 ? "up" : v < -0.6 ? "down" : "flat");
-
-  const wConf = Math.round(clamp(52 + Math.abs(change7d) * 0.6 + (rsi != null ? (100 - Math.abs(rsi - 50)) * 0.12 : 0), 45, 88));
-  const mConf = Math.round(clamp(48 + Math.abs(change30d) * 0.35 + Math.abs(momentum12moPct) * 0.08, 42, 82));
-
+/** The trial quotes the same 7-day tilt the live Stox engine scored. */
+function predictionsFromIntel(intel: SecurityIntel): ForwardPrediction[] {
+  const weekly = round(intel.projected7dPct, 2);
+  const dir = (v: number): ForwardPrediction["direction"] => (v > 0.15 ? "up" : v < -0.15 ? "down" : "flat");
   return [
     {
       horizon: "7-day",
       direction: dir(weekly),
       expectedMovePct: weekly,
-      confidence: wConf,
-      rationale: `7d tape ${change7d >= 0 ? "+" : ""}${change7d}% and 24h ${change24h >= 0 ? "+" : ""}${change24h}%${
-        rsi != null ? `, RSI ${Math.round(rsi)} ${rsi >= 70 ? "(overbought — reversion risk)" : rsi <= 30 ? "(oversold — snap-back setup)" : "(neutral)"}` : ""
-      } project a ${weekly >= 0 ? "continuation" : "pullback"} of ${weekly >= 0 ? "+" : ""}${weekly}%.`,
+      confidence: intel.confidence,
+      rationale: intel.reasoning || "The trend readings do not agree, so the 7-day tilt stays flat.",
     },
     {
       horizon: "30-day",
-      direction: dir(monthly),
-      expectedMovePct: monthly,
-      confidence: mConf,
-      rationale: `30d trend ${change30d >= 0 ? "+" : ""}${change30d}% over a 12-month structural move of ${momentum12moPct >= 0 ? "+" : ""}${momentum12moPct}% points to a ${monthly >= 0 ? "further advance" : "corrective phase"} of ${monthly >= 0 ? "+" : ""}${monthly}%.`,
+      direction: "flat",
+      expectedMovePct: 0,
+      confidence: 40,
+      rationale: "No 30-day point figure is published. The scored read is the 7-day tilt.",
     },
   ];
+}
+
+/** Mapped coins only. A guessed Yahoo symbol can be a different asset. */
+async function dailySeriesFor(symbols: string[], assetClass: "stock" | "crypto"): Promise<Record<string, number[]>> {
+  const fetchable = assetClass === "crypto" ? symbols.filter((symbol) => yahooSymbolFor(symbol).mapped) : symbols;
+  if (!fetchable.length) return {};
+  try {
+    return await fetchHistoriesForAssetClass(fetchable, assetClass);
+  } catch (err) {
+    console.error("[trial-report] daily history unavailable:", err);
+    return {};
+  }
+}
+
+function closesFor(symbol: string, histories: Record<string, number[]>): number[] | undefined {
+  const series = histories[symbol.toUpperCase()] ?? histories[symbol];
+  if (!series || series.filter((point) => point > 0).length < 40) return undefined;
+  return series;
 }
 
 function tickerNote(t: {
@@ -207,6 +222,10 @@ async function buildCryptoReport(user: TrialUser, inputs: TrialTickerInput[]): P
 
   const bySymbol = new Map<string, CoinMarket>();
   coins.forEach((c) => bySymbol.set(c.symbol.toUpperCase(), c));
+  const histories = await dailySeriesFor(
+    inputs.map((input) => input.symbol),
+    "crypto"
+  );
 
   // Real 12-month charts for the (≤3) selected coins only — bounded network use.
   const tickers: TrialTickerAnalysis[] = [];
@@ -214,7 +233,7 @@ async function buildCryptoReport(user: TrialUser, inputs: TrialTickerInput[]): P
     const sym = input.symbol.toUpperCase();
     const coin = bySymbol.get(sym);
     // Fall back to the deterministic engine if the coin isn't in the top-100.
-    const intel = analyzeSecurity(sym, coin?.price, coin?.name, "CRYPTO");
+    const intel = analyzeSecurity(sym, coin?.price, coin?.name, "CRYPTO", closesFor(sym, histories));
     const held = intelIsHeld(intel);
 
     const change24h = coin ? round(coin.change24h, 2) : 0;
@@ -235,9 +254,7 @@ async function buildCryptoReport(user: TrialUser, inputs: TrialTickerInput[]): P
 
     const sentiment = held ? 0 : clamp(intel.score, 2, 98);
     const signal = held ? "Watch" : signalFromSentiment(sentiment);
-    const predictions = held
-      ? heldPredictions()
-      : buildPredictions({ change24h, change7d, change30d, momentum12moPct, rsi: intel.rsi });
+    const predictions = held ? heldPredictions() : pausedCryptoPredictions();
 
     const holding =
       input.shares && input.shares > 0
@@ -313,23 +330,24 @@ function cryptoMarketPredictions(coins: CoinMarket[], _g: number): MarketPredict
   const btc = coins.find((c) => c.symbol === "BTC");
   const dom = btc ? round((btc.marketCap / coins.reduce((s, c) => s + c.marketCap, 0)) * 100, 1) : 0;
 
+  const signed = (n: number) => `${n >= 0 ? "+" : ""}${n}%`;
   const preds: MarketPrediction[] = [
     {
-      headline: `${breadthPct >= 50 ? "Broad-based bid" : "Selective tape"} — ${breadthUp}/${coins.length} coins green over 24h`,
-      detail: `Breadth sits at ${breadthPct}% advancing. With the 24h average at ${a24 >= 0 ? "+" : ""}${a24}% and 7d at ${a7 >= 0 ? "+" : ""}${a7}%, the next leg is ${breadthPct >= 55 && a7 > 0 ? "biased higher as momentum broadens" : breadthPct <= 40 ? "vulnerable to a shakeout before continuation" : "range-bound pending a breadth expansion"}.`,
-      confidence: Math.round(clamp(55 + Math.abs(a7) * 0.8, 48, 86)),
+      headline: `${breadthUp} of ${coins.length} large coins are green over 24h`,
+      detail: `That is ${breadthPct}% of this list. The average move is ${signed(a24)} over 24 hours and ${signed(a7)} over 7 days. This describes the tape already in hand. It is not a call on the next week.`,
+      confidence: 52,
     },
     {
-      headline: `30-day trend ${a30 >= 0 ? "constructive" : "corrective"} at ${a30 >= 0 ? "+" : ""}${a30}% average`,
-      detail: `Across the largest coins by market cap, the 30-day average move is ${a30 >= 0 ? "+" : ""}${a30}%. ${a30 >= 0 ? "Higher-beta L1s and L2s should continue to outrun majors if risk appetite holds." : "Expect majors to hold up better than the long tail until breadth repairs."}`,
-      confidence: Math.round(clamp(50 + Math.abs(a30) * 0.4, 45, 80)),
+      headline: `30-day average move is ${signed(a30)}`,
+      detail: `Across the largest coins by market cap, the average 30-day move is ${signed(a30)}. No 30-day point figure is published from that average.`,
+      confidence: 52,
     },
   ];
   if (dom) {
     preds.push({
-      headline: `Bitcoin dominance near ${dom}% frames the rotation`,
-      detail: `${dom >= 52 ? "Elevated BTC dominance suggests capital is still concentrated in the majors; a rotation into alts typically follows a dominance rollover." : "Softening BTC dominance is consistent with capital rotating out along the risk curve into large-cap alts."}`,
-      confidence: 62,
+      headline: `Bitcoin is about ${dom}% of the combined market cap on this list`,
+      detail: "The share is a description of this list. It is not a rotation call.",
+      confidence: 52,
     });
   }
   return preds;
@@ -348,7 +366,7 @@ function deriveCryptoFindings(coins: CoinMarket[], tickers: TrialTickerAnalysis[
     out.push(
       t.predictions[0]?.rationale === NOT_ENOUGH_DAILY_HISTORY
         ? `**${t.symbol}** — ${NOT_ENOUGH_DAILY_HISTORY}.`
-        : `**${t.symbol}** — 24h ${t.change24h >= 0 ? "+" : ""}${t.change24h}% · 7d ${t.change7d >= 0 ? "+" : ""}${t.change7d}% · 12mo ${t.momentum12moPct >= 0 ? "+" : ""}${t.momentum12moPct}%; engine signal **${t.signal}**, 7-day model **${t.predictions[0].expectedMovePct >= 0 ? "+" : ""}${t.predictions[0].expectedMovePct}%**.`
+        : `**${t.symbol}** — 24h ${t.change24h >= 0 ? "+" : ""}${t.change24h}% · 7d ${t.change7d >= 0 ? "+" : ""}${t.change7d}% · 12mo ${t.momentum12moPct >= 0 ? "+" : ""}${t.momentum12moPct}%; engine signal **${t.signal}**. The 7-day projection stays paused.`
     );
   });
   return out;
@@ -365,8 +383,12 @@ async function buildStockReport(user: TrialUser, inputs: TrialTickerInput[]): Pr
   // Live quotes for the user's selected tickers (may be outside the swept set).
   const symbols = inputs.map((i) => normalizeStockTicker(i.symbol));
   let live: Record<string, { price: number; changePct: number }> = {};
+  let histories: Record<string, number[]> = {};
   try {
-    live = await fetchQuotesForAssetClass(symbols, "stock");
+    [live, histories] = await Promise.all([
+      fetchQuotesForAssetClass(symbols, "stock"),
+      dailySeriesFor(symbols, "stock"),
+    ]);
   } catch (err) {
     console.error("[trial-report] stock live quotes failed:", err);
   }
@@ -377,7 +399,7 @@ async function buildStockReport(user: TrialUser, inputs: TrialTickerInput[]): Pr
     const q = live[sym.toUpperCase()];
     const market: MarketCode = sym.endsWith(".NZ") ? "NZX" : sym.endsWith(".AX") ? "ASX" : "US";
     const known = NZX_ASX_UNIVERSE.find((e) => e.ticker.toUpperCase() === sym.toUpperCase());
-    const intel = analyzeSecurity(sym, q?.price, known?.name, market);
+    const intel = analyzeSecurity(sym, q?.price, known?.name, market, closesFor(sym, histories));
     const held = intelIsHeld(intel);
 
     const change24h = q?.changePct != null ? round(q.changePct, 2) : 0;
@@ -396,9 +418,7 @@ async function buildStockReport(user: TrialUser, inputs: TrialTickerInput[]): Pr
 
     const sentiment = held ? 0 : clamp(intel.score, 2, 98);
     const signal = held ? "Watch" : signalFromSentiment(sentiment);
-    const predictions = held
-      ? heldPredictions()
-      : buildPredictions({ change24h, change7d, change30d, momentum12moPct, rsi: intel.rsi });
+    const predictions = held ? heldPredictions() : predictionsFromIntel(intel);
 
     const holding =
       input.shares && input.shares > 0
@@ -482,16 +502,17 @@ function stockMarketPredictions(intel: { change1d: number; change7d: number; cha
   const breadthUp = intel.filter((s) => s.change1d > 0).length;
   const breadthPct = round((breadthUp / (intel.length || 1)) * 100, 0);
 
+  const signed = (n: number) => `${n >= 0 ? "+" : ""}${n}%`;
   return [
     {
-      headline: `Trans-Tasman breadth ${breadthPct}% — NZX ${nzxAvg >= 0 ? "+" : ""}${nzxAvg}% vs ASX ${asxAvg >= 0 ? "+" : ""}${asxAvg}%`,
-      detail: `${breadthUp} of ${intel.length} names across the NZX + ASX are advancing on the session. ${asxAvg > nzxAvg ? "ASX resources/financials are setting the pace; expect NZX to follow with a lag." : "NZX defensives are leading; a rotation into ASX cyclicals typically follows on firmer risk appetite."} Next-move bias: ${breadthPct >= 55 && a7 > 0 ? "constructive continuation" : breadthPct <= 40 ? "consolidation before the next leg" : "two-way, range-bound"}.`,
-      confidence: Math.round(clamp(54 + Math.abs(a7) * 1.1, 48, 84)),
+      headline: `Trans-Tasman breadth ${breadthPct}% — NZX ${signed(nzxAvg)} vs ASX ${signed(asxAvg)} on the session`,
+      detail: `${breadthUp} of ${intel.length} names are up on the session. The average 7-day move in this sweep is ${signed(a7)}. This describes the tape already in hand. It is not a call on the next week.`,
+      confidence: 52,
     },
     {
-      headline: `30-day trend ${a30 >= 0 ? "positive" : "negative"} at ${a30 >= 0 ? "+" : ""}${a30}% average`,
-      detail: `The 30-day average move across the swept universe is ${a30 >= 0 ? "+" : ""}${a30}%. ${a30 >= 0 ? "Momentum favours quality growth (healthcare, tech) and select resources on any China-stimulus follow-through." : "Defensive utilities and staples should outperform until the tape stabilises."}`,
-      confidence: Math.round(clamp(50 + Math.abs(a30) * 0.5, 45, 80)),
+      headline: `30-day average move is ${signed(a30)}`,
+      detail: `The 30-day average move across the swept universe is ${signed(a30)}. No 30-day point figure is published from that average.`,
+      confidence: 52,
     },
   ];
 }
@@ -565,7 +586,9 @@ function fallbackSummary(report: TrialReport): string {
     `This briefing analyses ${scope} and drills into your ${report.tickers.length} selected ` +
     `${report.bot === "crypto" ? "asset" : "ticker"}${report.tickers.length === 1 ? "" : "s"}. ` +
     (lead
-      ? `**${lead.symbol}** carries a **${lead.signal}** posture with a 7-day model read of **${lead.predictions[0].expectedMovePct >= 0 ? "+" : ""}${lead.predictions[0].expectedMovePct}%** and a 12-month momentum of **${lead.momentum12moPct >= 0 ? "+" : ""}${lead.momentum12moPct}%**. `
+      ? report.bot === "crypto"
+        ? `**${lead.symbol}** carries a **${lead.signal}** posture. Crypto projections are paused, so this briefing has no 7-day figure. 12-month momentum is **${lead.momentum12moPct >= 0 ? "+" : ""}${lead.momentum12moPct}%**. `
+        : `**${lead.symbol}** carries a **${lead.signal}** posture with a 7-day model read of **${lead.predictions[0].expectedMovePct >= 0 ? "+" : ""}${lead.predictions[0].expectedMovePct}%** and a 12-month momentum of **${lead.momentum12moPct >= 0 ? "+" : ""}${lead.momentum12moPct}%**. `
       : "") +
     (held
       ? `Your integrated portfolio of ${held} funded position${held === 1 ? "" : "s"} is valued in the summary above. `
@@ -582,10 +605,13 @@ async function enhanceWithGrok(report: TrialReport, aiMode: AiPrivacyMode = "on"
   if (aiMode === "off" || !isZenithConfigured() || !report.tickers.length) return false;
   try {
     const lines = report.tickers
-      .map(
-        (t) =>
-          `${t.symbol} (${t.name}): ${t.price} · 24h ${t.change24h}% · 7d ${t.change7d}% · 30d ${t.change30d}% · 12mo ${t.momentum12moPct}% · RSI ${t.rsi ?? "n/a"} · MACD ${t.macdSignal ?? "n/a"} · signal ${t.signal} · 7d model ${t.predictions[0]?.expectedMovePct}% · 30d model ${t.predictions[1]?.expectedMovePct}%${t.holding && aiMode === "on" ? ` · holds ${t.holding.shares} @ ${t.holding.avgPrice} (P&L ${t.holding.pnlPct}%)` : ""}`
-      )
+      .map((t) => {
+        const model =
+          t.assetClass === "crypto" || t.predictions[0]?.figureOmitted
+            ? "7-day figure withheld"
+            : `7d model ${t.predictions[0]?.expectedMovePct}% · 30d model ${t.predictions[1]?.expectedMovePct}%`;
+        return `${t.symbol} (${t.name}): ${t.price} · 24h ${t.change24h}% · 7d ${t.change7d}% · 30d ${t.change30d}% · 12mo ${t.momentum12moPct}% · RSI ${t.rsi ?? "n/a"} · MACD ${t.macdSignal ?? "n/a"} · signal ${t.signal} · ${model}${t.holding && aiMode === "on" ? ` · holds ${t.holding.shares} @ ${t.holding.avgPrice} (P&L ${t.holding.pnlPct}%)` : ""}`;
+      })
       .join("\n");
     const moversLine =
       report.bot === "crypto" && report.cryptoMovers
@@ -601,7 +627,7 @@ async function enhanceWithGrok(report: TrialReport, aiMode: AiPrivacyMode = "on"
         {
           role: "system",
           content:
-            "You are AetherForge's AI, a market-intelligence analyst producing an executive briefing. Never name a model vendor, a model product, or a version. Write a clear 6-9 sentence summary of the analysed universe and the user's selected holdings. Reference the real numbers (performance windows, RSI/MACD, 12-month momentum, and the illustrative scenario ranges). Cover overall market posture and the single most important observation per holding. You may NAME tickers and describe an illustrative informational scenario, including why the data is notable. Do NOT tell the reader to BUY, do NOT instruct them to deploy cash, and do NOT present a scenario as personalised advice or a guarantee. Use **bold** for ticker symbols. End with a one-line italic (_..._) disclaimer that this is informational only, not financial advice, and that the reader executes elsewhere.",
+            `You are AetherForge's AI, a market-intelligence analyst producing an executive briefing. Never name a model vendor, a model product, or a version. Write a clear 6-9 sentence summary of the analysed universe and the user's selected holdings. Reference the real numbers (performance windows, RSI/MACD, and 12-month momentum${report.bot === "crypto" ? "" : ", and the illustrative 7-day tilt"}). Cover overall market posture and the single most important observation per holding. You may NAME tickers and describe an illustrative informational scenario, including why the data is notable. Do NOT tell the reader to BUY, do NOT instruct them to deploy cash, and do NOT present a scenario as personalised advice or a guarantee.${report.bot === "crypto" ? " Crypto projections are paused. Do not state a 7-day percent, odds, conviction, or a bull, base, or bear outlook for a coin." : ""} Use **bold** for ticker symbols. End with a one-line italic (_..._) disclaimer that this is informational only, not financial advice, and that the reader executes elsewhere.`,
         },
         {
           role: "user",
