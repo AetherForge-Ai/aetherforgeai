@@ -1,5 +1,14 @@
 {
- "note": "b96 G-24: 20 clearly synthetic statement samples (10 PDF text layers, 10 screenshot texts). Not real accounts, people or trades.",
+ "note": "b96 G-24: 20 clearly synthetic statement samples (10 PDF text layers, 10 screenshot texts). Not real accounts, people or trades. imageOnly is one extra scan of the g24-02 screenshot with no text layer.",
+ "imageOnly": [
+  {
+   "id": "g24-scan-02",
+   "kind": "scanned-pdf",
+   "file": "g24-scan-02.pdf",
+   "sourcePng": "g24-02.png",
+   "expectedId": "g24-02"
+  }
+ ],
  "samples": [
   {
    "id": "g24-01",
