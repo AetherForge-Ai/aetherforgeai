@@ -5,6 +5,7 @@ import { validateSignupConsent } from "@/lib/signup-consent";
 import { authRateLimitRule, normaliseLoginEmail, sha256Hex, takeRateLimit, takeAtomicLimit, rateLimitHeaders, rateLimitIdentity, AUTH_EMAIL_LIMIT, AUTH_EMAIL_WINDOW_MS } from "@/lib/ip-rate-limit";
 import { ensureDurableRateLimit } from "@/lib/durable-counter.server";
 import { cookieValue, sessionExpiresInFuture, setCookieClears, verifySignedSessionToken, withoutClears } from "@/lib/session-token";
+import { closedAuthResponse, productionAuthClosed } from "@/lib/auth-secret";
 
 ensureDurableRateLimit();
 
@@ -18,6 +19,8 @@ const handler = toNextJsHandler(auth);
  * no row, or expired). Every decision is logged with its reason; tokens are never logged.
  */
 export async function GET(req: Request) {
+  // No secret: do not touch the session store, cookies, or Better Auth.
+  if (productionAuthClosed()) return closedAuthResponse();
   const pathname = new URL(req.url).pathname;
   if (!/\/get-session\/?$/.test(pathname)) return handler.GET(req);
   const res = await handler.GET(req);
@@ -70,6 +73,10 @@ async function sessionGone(
  * Sign-up is rejected here when the 18+ confirmation is missing, before an account is created.
  */
 export async function POST(req: Request) {
+  // Consent and rate limits stay in front only when a real secret is configured.
+  // A closed production secret must be a generic 503 before either of those runs,
+  // or a missing confirmation / a full bucket would answer 400 or 429 instead.
+  if (productionAuthClosed()) return closedAuthResponse();
   const pathname = new URL(req.url).pathname;
   // CR-5: sign-in, sign-up and password-reset POSTs are limited per address.
   const rule = authRateLimitRule(pathname);
