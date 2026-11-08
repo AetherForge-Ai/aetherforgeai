@@ -1400,6 +1400,6 @@
         "reference": "SYN-0205"
       }
     ],
-    "note": "Added in this change. JPEG of the existing g24-02.png embedded in a one-page PDF with no text operators. It is not one of the original 20 samples.json entries."
+    "note": "Added in this change. JPEG of the existing g24-02.png embedded in a one-page PDF with no text operators. One upright image. It is not a noisy, rotated, or multi-image sample, and it is not one of the original 20 samples.json entries."
   }
 }

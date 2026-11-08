@@ -184,11 +184,16 @@ export function BrokerImportPanel({
 
   // b97 G-24: a PDF or screenshot is read on this device into the text box, then reviewed like pasted text.
   const [visualReading, setVisualReading] = useState(false);
+  const visualAbort = useRef<AbortController | null>(null);
   async function readVisual(file: File | undefined) {
     if (!file) return;
+    visualAbort.current?.abort();
+    const controller = new AbortController();
+    visualAbort.current = controller;
     setVisualReading(true);
     setPasteNote(`Reading ${file.name} on this device…`);
-    const out = await readVisualFile(file);
+    const out = await readVisualFile(file, controller.signal);
+    if (visualAbort.current !== controller) return;
     setVisualReading(false);
     if ("error" in out) {
       setPasteNote(out.error);

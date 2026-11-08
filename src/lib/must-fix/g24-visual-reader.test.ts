@@ -7,7 +7,7 @@ import data from "@/lib/import/fixtures/g24-visual/samples.json";
 import manifest from "@/lib/import/fixtures/g24-visual/manifest.json";
 import { createHash } from "node:crypto";
 import { parsePastedTrades, type PastedRow } from "@/lib/paste-import";
-import { pdfBytesToText, pdfItemsToLines, tidyOcrText, visualKindOf } from "@/lib/import/visual-reader";
+import { imagePlacement, orderByPlacement, pdfBytesToText, pdfItemsToLines, tidyOcrText, VisualReadError, visualKindOf } from "@/lib/import/visual-reader";
 import os from "node:os";
 
 /**
@@ -21,6 +21,65 @@ const FILES = path.join(process.cwd(), "src/lib/import/fixtures/g24-visual/files
 const LANG = path.join(process.cwd(), "public/import-reader/lang");
 const same = (g: PastedRow | undefined, w: Want) =>
   !!g && g.date === w.date && g.type === w.type && g.ticker === w.ticker && g.quantity === w.quantity && g.price === w.price && g.currency === w.currency && g.fees === w.fees && g.reference === w.reference;
+
+function pdfDoc(objects: Buffer[]): Buffer {
+  const out: Buffer[] = [Buffer.from("%PDF-1.4\n")];
+  const offsets = [0];
+  let cursor = out[0].length;
+  objects.forEach((body, index) => {
+    offsets.push(cursor);
+    const chunk = Buffer.concat([Buffer.from(`${index + 1} 0 obj\n`), body, Buffer.from("\nendobj\n")]);
+    out.push(chunk);
+    cursor += chunk.length;
+  });
+  const xref = cursor;
+  let table = `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  for (const offset of offsets.slice(1)) table += `${String(offset).padStart(10, "0")} 00000 n \n`;
+  out.push(Buffer.from(`${table}trailer << /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`));
+  return Buffer.concat(out);
+}
+
+function imagePagePdf(images: { jpeg: Buffer; w: number; h: number; a: number; b: number; c: number; d: number; e: number; f: number }[], text?: string): Buffer {
+  const content = [
+    text ? `BT /F1 12 Tf 20 40 Td (${text}) Tj ET\n` : "",
+    ...images.map((image, index) => `q\n${image.a} ${image.b} ${image.c} ${image.d} ${image.e} ${image.f} cm\n/Im${index} Do\nQ\n`),
+  ].join("");
+  const contentBytes = Buffer.from(content);
+  const font = text ? " /Font << /F1 5 0 R >>" : "";
+  const xobjects = images.map((_, index) => `/Im${index} ${6 + index} 0 R`).join(" ");
+  const objects = [
+    Buffer.from("<< /Type /Catalog /Pages 2 0 R >>"),
+    Buffer.from("<< /Type /Pages /Count 1 /Kids [3 0 R] >>"),
+    Buffer.from(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 800 800] /Contents 4 0 R /Resources <<${font} /XObject << ${xobjects} >> >> >>`),
+    Buffer.concat([Buffer.from(`<< /Length ${contentBytes.length} >>\nstream\n`), contentBytes, Buffer.from("endstream")]),
+    Buffer.from("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"),
+    ...images.map((image) => Buffer.concat([
+      Buffer.from(`<< /Type /XObject /Subtype /Image /Width ${image.w} /Height ${image.h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${image.jpeg.length} >>\nstream\n`),
+      image.jpeg,
+      Buffer.from("\nendstream"),
+    ])),
+  ];
+  return pdfDoc(objects);
+}
+
+function mixedTwoPagePdf(jpeg: Buffer): Buffer {
+  const text = Buffer.from("BT /F1 12 Tf 20 40 Td (Bought 10 FPH.NZ) Tj ET\n");
+  const image = Buffer.from("q\n8 0 0 8 10 10 cm\n/Im0 Do\nQ\n");
+  return pdfDoc([
+    Buffer.from("<< /Type /Catalog /Pages 2 0 R >>"),
+    Buffer.from("<< /Type /Pages /Count 2 /Kids [3 0 R 4 0 R] >>"),
+    Buffer.from("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 400] /Contents 5 0 R /Resources << /Font << /F1 7 0 R >> >> >>"),
+    Buffer.from("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 400] /Contents 6 0 R /Resources << /XObject << /Im0 8 0 R >> >> >>"),
+    Buffer.concat([Buffer.from(`<< /Length ${text.length} >>\nstream\n`), text, Buffer.from("endstream")]),
+    Buffer.concat([Buffer.from(`<< /Length ${image.length} >>\nstream\n`), image, Buffer.from("endstream")]),
+    Buffer.from("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"),
+    Buffer.concat([
+      Buffer.from(`<< /Type /XObject /Subtype /Image /Width 8 /Height 8 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpeg.length} >>\nstream\n`),
+      jpeg,
+      Buffer.from("\nendstream"),
+    ]),
+  ]);
+}
 
 describe("b97 G-24 visual reader", () => {
   it("accepts only PDFs and images", () => {
@@ -137,7 +196,91 @@ describe("b97 G-24 visual reader", () => {
     expect(manifest.expectedRowCount).toBe(100);
   });
 
+  it("orders upright images from the top of the page, not by pixel area", () => {
+    const smallOnTop = { name: "small", top: 740, left: 10, upright: true };
+    const largeBelow = { name: "large", top: 110, left: 10, upright: true };
+    expect(orderByPlacement([largeBelow, smallOnTop]).map((item) => item.name)).toEqual(["small", "large"]);
+    expect(imagePlacement([8, 0, 0, 8, 10, 500])).toMatchObject({ upright: true, left: 10, top: 508 });
+    expect(imagePlacement([0, 40, -40, 0, 50, 50]).upright).toBe(false);
+    expect(() => orderByPlacement([{ upright: false, top: 1, left: 1 }])).toThrow(VisualReadError);
+    expect(() => orderByPlacement([{ upright: true, top: 10, left: 10 }, { upright: true, top: 10, left: 10 }])).toThrow(/reading order/);
+  });
+
+  it("refuses a rotated image, a mixed PDF, and work past the bounds without OCR", async () => {
+    const jpeg = Buffer.from("/9j/4AAQSkZJRgABAgAAAQABAAD//gAQTGF2YzYwLjMxLjEwMgD/2wBDAAgEBAQEBAUFBQUFBQYGBgYGBgYGBgYGBgYHBwcICAgHBwcGBgcHCAgICAkJCQgICAgJCQoKCgwMCwsODg4RERT/xABLAAEBAAAAAAAAAAAAAAAAAAAABwEBAAAAAAAAAAAAAAAAAAAAABABAAAAAAAAAAAAAAAAAAAAABEBAAAAAAAAAAAAAAAAAAAAAP/AABEIAAgACAMBIgACEQADEQD/2gAMAwEAAhEDEQA/AL+AD//Z", "base64");
+    const wide = Buffer.from("/9j/4AAQSkZJRgABAgAAAQABAAD//gAQTGF2YzYwLjMxLjEwMgD/2wBDAAgEBAQEBAUFBQUFBQYGBgYGBgYGBgYGBgYHBwcICAgHBwcGBgcHCAgICAkJCQgICAgJCQoKCgwMCwsODg4RERT/xABLAAEBAAAAAAAAAAAAAAAAAAAACAEBAAAAAAAAAAAAAAAAAAAAABABAAAAAAAAAAAAAAAAAAAAABEBAAAAAAAAAAAAAAAAAAAAAP/AABEIAAoAFAMBIgACEQADEQD/2gAMAwEAAhEDEQA/AJ/AAAB//9k=", "base64");
+    const widths: number[] = [];
+    const recognize = async (image: Blob) => {
+      const bytes = new Uint8Array(await image.arrayBuffer());
+      widths.push(new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getUint32(16));
+      return "ocr";
+    };
+    const ordered = await pdfBytesToText(imagePagePdf([
+      { jpeg, w: 8, h: 8, a: 8, b: 0, c: 0, d: 8, e: 10, f: 500 },
+      { jpeg: wide, w: 20, h: 10, a: 20, b: 0, c: 0, d: 10, e: 10, f: 100 },
+    ]), undefined, recognize);
+    expect(ordered).toBe("ocr\nocr");
+    expect(widths).toEqual([8, 20]);
+    await expect(pdfBytesToText(imagePagePdf([
+      { jpeg, w: 8, h: 8, a: 0, b: 40, c: -40, d: 0, e: 50, f: 50 },
+    ]), undefined, recognize)).rejects.toThrow(/rotated or mirrored/);
+    expect(widths).toEqual([8, 20]);
+    await expect(pdfBytesToText(new Uint8Array(mixedTwoPagePdf(jpeg)), undefined, recognize)).rejects.toThrow(/mixes typed pages and scanned pages/);
+    expect(widths).toEqual([8, 20]);
+    let created = 0;
+    let terminated = 0;
+    await expect(pdfBytesToText(new Uint8Array(fs.readFileSync(path.join(FILES, "g24-scan-02.pdf"))), undefined, undefined, {
+      maxPixels: 10,
+      createWorker: async () => {
+        created += 1;
+        return { recognize: async () => ({ data: { text: "nope" } }), terminate: async () => { terminated += 1; } };
+      },
+    })).rejects.toThrow(/too large/);
+    expect(created).toBe(0);
+    const signal = new AbortController();
+    signal.abort();
+    await expect(pdfBytesToText(new Uint8Array(fs.readFileSync(path.join(FILES, "g24-scan-02.pdf"))), undefined, undefined, {
+      signal: signal.signal,
+      createWorker: async () => {
+        created += 1;
+        return { recognize: async () => ({ data: { text: "nope" } }), terminate: async () => { terminated += 1; } };
+      },
+    })).rejects.toThrow(/cancelled/);
+    expect(created).toBe(0);
+    let now = 0;
+    await expect(pdfBytesToText(new Uint8Array(fs.readFileSync(path.join(FILES, "g24-scan-02.pdf"))), undefined, undefined, {
+      now: () => now,
+      deadlineMs: 5,
+      createWorker: async () => {
+        created += 1;
+        now = 6;
+        return { recognize: async () => ({ data: { text: "late" } }), terminate: async () => { terminated += 1; } };
+      },
+    })).rejects.toThrow(/too long/);
+    expect(created).toBe(1);
+    expect(terminated).toBe(1);
+  });
+
+  it("asks the installed pdf.js to read a canvas 2d context and does not run a browser", async () => {
+    const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+    const doc = await pdfjs.getDocument({ data: new Uint8Array(fs.readFileSync(path.join(FILES, "g24-scan-02.pdf"))), isEvalSupported: false }).promise;
+    const page = await doc.getPage(1);
+    let asked = false;
+    const canvas = {
+      width: 0,
+      height: 0,
+      getContext(kind: string) {
+        asked = kind === "2d";
+        throw new Error("no browser canvas");
+      },
+    };
+    await expect(page.render({ canvas: canvas as unknown as HTMLCanvasElement, viewport: page.getViewport({ scale: 1 }) }).promise).rejects.toThrow(/no browser canvas/);
+    expect(asked).toBe(true);
+    await doc.destroy();
+  });
+
   it("does not save a visual read before the explicit confirm control", () => {
+    // Source inspection only. This is not a runtime proof that a click saved nothing.
     const src = fs.readFileSync(path.join(process.cwd(), "src/components/import/BrokerImportPanel.tsx"), "utf8");
     const readVisual = src.slice(src.indexOf("async function readVisual"), src.indexOf("function adoptPasted"));
     expect(readVisual).toContain("readVisualFile");

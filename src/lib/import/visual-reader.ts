@@ -1,14 +1,29 @@
 /**
  * b97 G-24: read a PDF or a screenshot into plain text in the member's browser, then hand it to the
  * same fixed-rule paste reader (parsePastedTrades) and the same review table. Free and local only:
- * pdf.js reads a PDF's text layer; a page with no text layer is rasterized from its embedded image,
- * or drawn to a canvas, and read with the same tesseract.js path as a PNG. Both libraries and the
+ * pdf.js reads a PDF's text layer. A PDF whose pages have no text layer is read from those
+ * embedded images, in page order and then top-to-bottom, with one tesseract.js worker. A rotated
+ * image, a mix of typed pages and scanned pages, or images whose order cannot be placed, is refused.
+ * A canvas redraw is only the fallback when a text-free page has no embedded image. Both libraries and the
  * English model are served from this site (public/import-reader), so the file is never uploaded and
  * no paid or AI service is used. Nothing is saved here: the text goes to the review step like pasted text.
  */
 export const READER_BASE = "/import-reader";
 export const VISUAL_MAX_BYTES = 10 * 1024 * 1024;
+/** Contract notes are short. More pages than this are refused before OCR starts. */
+export const VISUAL_MAX_PAGES = 15;
+/** One embedded image above this is refused. The g24-scan-02 fixture is about 1.8 megapixels. */
+export const VISUAL_MAX_PIXELS = 4_000_000;
+/** Whole visual read, matching the import request bound. Checked between images, not inside one OCR call. */
+export const VISUAL_MAX_MS = 30_000;
 export const VISUAL_ACCEPT = "application/pdf,image/png,image/jpeg,image/webp";
+
+export class VisualReadError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "VisualReadError";
+  }
+}
 
 export type VisualKind = "pdf" | "image";
 
@@ -56,6 +71,58 @@ export function tidyOcrText(text: string): string {
 
 type PdfJs = typeof import("pdfjs-dist/legacy/build/pdf.mjs");
 type PdfImage = { width: number; height: number; data: Uint8Array | Uint8ClampedArray };
+type Mat = [number, number, number, number, number, number];
+type OcrWorker = { recognize: (image: Blob) => Promise<{ data: { text?: string } }>; terminate: () => Promise<unknown> };
+
+export type PdfTextOptions = {
+  signal?: AbortSignal;
+  now?: () => number;
+  deadlineMs?: number;
+  maxPages?: number;
+  maxPixels?: number;
+  createWorker?: () => Promise<OcrWorker>;
+};
+
+const IDENTITY: Mat = [1, 0, 0, 1, 0, 0];
+
+function concat(current: Mat, next: Mat): Mat {
+  const [a1, b1, c1, d1, e1, f1] = current;
+  const [a2, b2, c2, d2, e2, f2] = next;
+  return [
+    a1 * a2 + c1 * b2,
+    b1 * a2 + d1 * b2,
+    a1 * c2 + c1 * d2,
+    b1 * c2 + d1 * d2,
+    a1 * e2 + c1 * f2 + e1,
+    b1 * e2 + d1 * f2 + f1,
+  ];
+}
+
+/** Upright, unmirrored image placement in PDF user space. */
+export function imagePlacement(transform: readonly number[]): { top: number; left: number; upright: boolean } {
+  const [a, b, c, d, e, f] = transform;
+  return {
+    left: Math.min(e, e + a),
+    top: Math.max(f, f + d),
+    upright: a > 0 && d > 0 && Math.abs(b) < 1e-6 && Math.abs(c) < 1e-6,
+  };
+}
+
+export function orderByPlacement<T extends { top: number; left: number; upright: boolean }>(items: readonly T[]): T[] {
+  if (items.some((item) => !item.upright)) {
+    throw new VisualReadError("This scanned PDF is rotated or mirrored. Nothing was saved.");
+  }
+  if (items.length > 1) {
+    for (let i = 0; i < items.length; i++) {
+      for (let j = i + 1; j < items.length; j++) {
+        if (Math.abs(items[i].top - items[j].top) < 1 && Math.abs(items[i].left - items[j].left) < 1) {
+          throw new VisualReadError("This scanned PDF has images whose reading order cannot be determined. Nothing was saved.");
+        }
+      }
+    }
+  }
+  return [...items].sort((p, q) => q.top - p.top || p.left - q.left);
+}
 
 const crcTable = new Uint32Array(256).map((_, n) => {
   let c = n;
@@ -113,30 +180,49 @@ export async function bitmapToPng(width: number, height: number, data: Uint8Arra
   return new Blob([bytes], { type: "image/png" });
 }
 
-async function imagesOnPage(page: { getOperatorList: () => Promise<{ fnArray: number[]; argsArray: unknown[][] }>; objs: { get: (name: string) => Promise<PdfImage> } }, paintImage: number, paintInline: number): Promise<PdfImage[]> {
-  const ops = await page.getOperatorList();
-  const found: PdfImage[] = [];
-  for (let i = 0; i < ops.fnArray.length; i++) {
-    const fn = ops.fnArray[i];
-    if (fn !== paintImage && fn !== paintInline) continue;
-    const arg = ops.argsArray[i]?.[0];
-    let img: PdfImage | undefined;
-    if (arg && typeof arg === "object" && "data" in arg) img = arg as PdfImage;
-    else if (typeof arg === "string") {
-      try {
-        const got = page.objs.get(arg) as PdfImage | Promise<PdfImage>;
-        if (typeof (got as Promise<PdfImage>).then === "function") img = await got;
-        else img = got as PdfImage;
-      } catch {
-        img = undefined;
+function asMatrix(value: unknown): Mat | null {
+  if (!Array.isArray(value) || value.length < 6) return null;
+  const nums = value.slice(0, 6).map((part) => Number(part));
+  if (nums.some((part) => !Number.isFinite(part))) return null;
+  return nums as Mat;
+}
+
+async function placedImages(
+  page: { getOperatorList: () => Promise<{ fnArray: number[]; argsArray: unknown[][] }>; objs: { get: (name: string) => PdfImage | Promise<PdfImage> } },
+  ops: { save: number; restore: number; transform: number; paintImageXObject: number; paintInlineImageXObject: number },
+  maxPixels: number,
+): Promise<{ image: PdfImage; top: number; left: number; upright: boolean }[]> {
+  const list = await page.getOperatorList();
+  const stack: Mat[] = [];
+  let current: Mat = IDENTITY;
+  const found: { image: PdfImage; top: number; left: number; upright: boolean }[] = [];
+  for (let i = 0; i < list.fnArray.length; i++) {
+    const fn = list.fnArray[i];
+    const args = list.argsArray[i] || [];
+    if (fn === ops.save) stack.push(current);
+    else if (fn === ops.restore) current = stack.pop() || IDENTITY;
+    else if (fn === ops.transform) {
+      const next = asMatrix(args);
+      if (next) current = concat(current, next);
+    } else if (fn === ops.paintImageXObject || fn === ops.paintInlineImageXObject) {
+      const arg = args[0];
+      let img: PdfImage | undefined;
+      if (arg && typeof arg === "object" && "data" in (arg as PdfImage)) img = arg as PdfImage;
+      else if (typeof arg === "string") {
+        const got = page.objs.get(arg);
+        img = typeof (got as Promise<PdfImage>).then === "function" ? await got : (got as PdfImage);
       }
+      if (!img?.width || !img.height || !img.data) {
+        throw new VisualReadError("This scanned PDF has an image that could not be placed. Nothing was saved.");
+      }
+      if (img.width * img.height > maxPixels) {
+        throw new VisualReadError("That image is too large to read on this device. Nothing was saved.");
+      }
+      const place = imagePlacement(current);
+      found.push({ image: img, ...place });
     }
-    if (!img?.width || !img.height || !img.data) continue;
-    const area = img.width * img.height;
-    if (area < 200 * 50 && found.length) continue;
-    found.push(img);
   }
-  return found.sort((a, b) => b.width * b.height - a.width * a.height).slice(0, 4);
+  return found;
 }
 
 async function rasterizePage(page: { getViewport: (o: { scale: number }) => { width: number; height: number }; render: (p: { canvas: HTMLCanvasElement; viewport: { width: number; height: number } }) => { promise: Promise<void> } }): Promise<Blob | null> {
@@ -149,50 +235,92 @@ async function rasterizePage(page: { getViewport: (o: { scale: number }) => { wi
   return await new Promise((resolve) => canvas.toBlob((blob) => resolve(blob), "image/png"));
 }
 
-export async function pdfBytesToText(bytes: Uint8Array, pdfjs?: PdfJs, recognize: (image: Blob) => Promise<string> = imageToText): Promise<string> {
+function checkBudget(signal: AbortSignal | undefined, now: () => number, started: number, deadlineMs: number) {
+  if (signal?.aborted) throw new VisualReadError("Reading was cancelled. Nothing was saved.");
+  if (now() - started > deadlineMs) throw new VisualReadError("That file took too long to read on this device. Nothing was saved.");
+}
+
+async function defaultOcrWorker(): Promise<OcrWorker> {
+  const { createWorker } = await import("tesseract.js");
+  const worker = await createWorker("eng", 1, {
+    workerPath: `${READER_BASE}/worker.min.js`,
+    corePath: `${READER_BASE}/core`,
+    langPath: `${READER_BASE}/lang`,
+  });
+  return { recognize: (image) => worker.recognize(image), terminate: () => worker.terminate() };
+}
+
+async function ocrInOrder(blobs: Blob[], recognize: ((image: Blob) => Promise<string>) | undefined, options: PdfTextOptions, started: number): Promise<string> {
+  const now = options.now ?? Date.now;
+  const deadlineMs = options.deadlineMs ?? VISUAL_MAX_MS;
+  if (recognize) {
+    const parts: string[] = [];
+    for (const blob of blobs) {
+      checkBudget(options.signal, now, started, deadlineMs);
+      parts.push(tidyOcrText(await recognize(blob)));
+      checkBudget(options.signal, now, started, deadlineMs);
+    }
+    return parts.filter(Boolean).join("\n");
+  }
+  checkBudget(options.signal, now, started, deadlineMs);
+  const worker = await (options.createWorker ?? defaultOcrWorker)();
+  try {
+    const parts: string[] = [];
+    for (const blob of blobs) {
+      checkBudget(options.signal, now, started, deadlineMs);
+      const { data } = await worker.recognize(blob);
+      parts.push(tidyOcrText(data.text || ""));
+      checkBudget(options.signal, now, started, deadlineMs);
+    }
+    return parts.filter(Boolean).join("\n");
+  } finally {
+    await worker.terminate();
+  }
+}
+
+export async function pdfBytesToText(bytes: Uint8Array, pdfjs?: PdfJs, recognize?: (image: Blob) => Promise<string>, options: PdfTextOptions = {}): Promise<string> {
   const lib = pdfjs ?? (await import("pdfjs-dist/legacy/build/pdf.mjs"));
   if (typeof window !== "undefined" && !lib.GlobalWorkerOptions.workerSrc) lib.GlobalWorkerOptions.workerSrc = `${READER_BASE}/pdf.worker.min.mjs`;
-  const doc = await lib.getDocument({ data: bytes, isEvalSupported: false }).promise;
-  const parts: string[] = [];
+  const doc = await lib.getDocument({ data: new Uint8Array(bytes), isEvalSupported: false }).promise;
+  const started = (options.now ?? Date.now)();
+  const maxPages = options.maxPages ?? VISUAL_MAX_PAGES;
+  const maxPixels = options.maxPixels ?? VISUAL_MAX_PIXELS;
   try {
+    if (doc.numPages > maxPages) throw new VisualReadError("That PDF has too many pages to read on this device. Nothing was saved.");
+    const pages: { lines: string[]; placed: { image: PdfImage; top: number; left: number; upright: boolean }[]; raster: Blob | null }[] = [];
     for (let i = 1; i <= doc.numPages; i++) {
       const page = await doc.getPage(i);
       const content = await page.getTextContent();
-      const lines = pdfItemsToLines(content.items.filter((x) => "str" in x) as unknown as PdfTextItem[]);
+      const lines = pdfItemsToLines(content.items.filter((item) => "str" in item) as unknown as PdfTextItem[]);
       if (lines.length) {
-        parts.push(lines.join("\n"));
+        pages.push({ lines, placed: [], raster: null });
         continue;
       }
-      const images = await imagesOnPage(page, lib.OPS.paintImageXObject, lib.OPS.paintInlineImageXObject);
-      let recognized = "";
-      for (const img of images) {
-        try {
-          const text = tidyOcrText(await recognize(await bitmapToPng(img.width, img.height, img.data)));
-          if (text) recognized = recognized ? `${recognized}\n${text}` : text;
-        } catch {
-          // This bitmap could not be read. Other pages still contribute their text.
-        }
-      }
-      if (!recognized) {
-        const raster = await rasterizePage(page).catch(() => null);
-        if (raster) {
-          try {
-            recognized = tidyOcrText(await recognize(raster));
-          } catch {
-            recognized = "";
-          }
-        }
-      }
-      if (recognized) parts.push(recognized);
+      const placed = await placedImages(page, lib.OPS, maxPixels);
+      const raster = placed.length ? null : await rasterizePage(page).catch(() => null);
+      pages.push({ lines: [], placed, raster });
     }
+    const typed = pages.some((page) => page.lines.length);
+    const scanned = pages.some((page) => page.placed.length > 0 || page.raster);
+    if (typed && scanned) {
+      throw new VisualReadError("This PDF mixes typed pages and scanned pages. Nothing was saved.");
+    }
+    if (typed) return pages.map((page) => page.lines.join("\n")).filter(Boolean).join("\n");
+    const blobs: Blob[] = [];
+    for (const page of pages) {
+      for (const placed of orderByPlacement(page.placed)) blobs.push(await bitmapToPng(placed.image.width, placed.image.height, placed.image.data));
+      if (page.raster) blobs.push(page.raster);
+    }
+    if (!blobs.length) return "";
+    return ocrInOrder(blobs, recognize, options, started);
   } finally {
     await doc.destroy();
   }
-  return parts.join("\n");
 }
 
 /** OCR an image in the browser with the self-hosted tesseract.js worker, core and English model. */
-export async function imageToText(image: Blob | string, paths?: { workerPath?: string; corePath?: string; langPath?: string }): Promise<string> {
+export async function imageToText(image: Blob | string, paths?: { workerPath?: string; corePath?: string; langPath?: string }, signal?: AbortSignal): Promise<string> {
+  if (signal?.aborted) throw new VisualReadError("Reading was cancelled. Nothing was saved.");
   const { createWorker } = await import("tesseract.js");
   const worker = await createWorker("eng", 1, {
     workerPath: paths?.workerPath ?? `${READER_BASE}/worker.min.js`,
@@ -200,22 +328,25 @@ export async function imageToText(image: Blob | string, paths?: { workerPath?: s
     langPath: paths?.langPath ?? `${READER_BASE}/lang`,
   });
   try {
+    if (signal?.aborted) throw new VisualReadError("Reading was cancelled. Nothing was saved.");
     const { data } = await worker.recognize(image);
+    if (signal?.aborted) throw new VisualReadError("Reading was cancelled. Nothing was saved.");
     return tidyOcrText(data.text || "");
   } finally {
     await worker.terminate();
   }
 }
 
-export async function readVisualFile(file: File): Promise<{ ok: true; text: string; kind: VisualKind } | { ok: false; error: string }> {
+export async function readVisualFile(file: File, signal?: AbortSignal): Promise<{ ok: true; text: string; kind: VisualKind } | { ok: false; error: string }> {
   const kind = visualKindOf(file);
   if (!kind) return { ok: false, error: "Choose a PDF, PNG, JPEG or WebP file." };
   if (file.size > VISUAL_MAX_BYTES) return { ok: false, error: "That file is over 10 MB. Choose a smaller PDF or screenshot." };
   try {
-    const text = kind === "pdf" ? await pdfBytesToText(new Uint8Array(await file.arrayBuffer())) : await imageToText(file);
+    const text = kind === "pdf" ? await pdfBytesToText(new Uint8Array(await file.arrayBuffer()), undefined, undefined, { signal }) : await imageToText(file, undefined, signal);
     if (!text.trim()) return { ok: false, error: kind === "pdf" ? "No text could be read from that PDF on this device. Nothing was saved." : "No text could be read from that image." };
     return { ok: true, text, kind };
-  } catch {
+  } catch (err) {
+    if (err instanceof VisualReadError) return { ok: false, error: err.message };
     return { ok: false, error: "That file could not be read on this device. Nothing was saved." };
   }
 }
