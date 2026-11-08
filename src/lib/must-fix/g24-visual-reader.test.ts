@@ -7,7 +7,7 @@ import data from "@/lib/import/fixtures/g24-visual/samples.json";
 import manifest from "@/lib/import/fixtures/g24-visual/manifest.json";
 import { createHash } from "node:crypto";
 import { parsePastedTrades, type PastedRow } from "@/lib/paste-import";
-import { imagePlacement, orderByPlacement, pdfBytesToText, pdfItemsToLines, tidyOcrText, VisualReadError, visualKindOf } from "@/lib/import/visual-reader";
+import { imagePlacement, orderByPlacement, pdfBytesToText, pdfItemsToLines, rasterizePage, tidyOcrText, VISUAL_MAX_RASTER_PIXELS, VisualReadError, visualKindOf } from "@/lib/import/visual-reader";
 import os from "node:os";
 
 /**
@@ -60,6 +60,20 @@ function imagePagePdf(images: { jpeg: Buffer; w: number; h: number; a: number; b
     ])),
   ];
   return pdfDoc(objects);
+}
+
+function textPlusBlankPdf(): Buffer {
+  const text = Buffer.from("BT /F1 12 Tf 20 40 Td (Bought 10 FPH.NZ) Tj ET\n");
+  const empty = Buffer.from("");
+  return pdfDoc([
+    Buffer.from("<< /Type /Catalog /Pages 2 0 R >>"),
+    Buffer.from("<< /Type /Pages /Count 2 /Kids [3 0 R 4 0 R] >>"),
+    Buffer.from("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 400] /Contents 5 0 R /Resources << /Font << /F1 7 0 R >> >> >>"),
+    Buffer.from("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 400] /Contents 6 0 R >>"),
+    Buffer.concat([Buffer.from(`<< /Length ${text.length} >>\nstream\n`), text, Buffer.from("endstream")]),
+    Buffer.concat([Buffer.from(`<< /Length ${empty.length} >>\nstream\n`), empty, Buffer.from("endstream")]),
+    Buffer.from("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"),
+  ]);
 }
 
 function mixedTwoPagePdf(jpeg: Buffer): Buffer {
@@ -226,6 +240,10 @@ describe("b97 G-24 visual reader", () => {
     ]), undefined, recognize)).rejects.toThrow(/rotated or mirrored/);
     expect(widths).toEqual([8, 20]);
     await expect(pdfBytesToText(new Uint8Array(mixedTwoPagePdf(jpeg)), undefined, recognize)).rejects.toThrow(/mixes typed pages and scanned pages/);
+    const typedWithImage = await pdfBytesToText(new Uint8Array(imagePagePdf([
+      { jpeg, w: 8, h: 8, a: 8, b: 0, c: 0, d: 8, e: 10, f: 10 },
+    ], "Bought 10 FPH.NZ")), undefined, recognize);
+    expect(typedWithImage).toContain("FPH.NZ");
     expect(widths).toEqual([8, 20]);
     let created = 0;
     let terminated = 0;
@@ -261,22 +279,72 @@ describe("b97 G-24 visual reader", () => {
     expect(terminated).toBe(1);
   });
 
-  it("asks the installed pdf.js to read a canvas 2d context and does not run a browser", async () => {
-    const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
-    const doc = await pdfjs.getDocument({ data: new Uint8Array(fs.readFileSync(path.join(FILES, "g24-scan-02.pdf"))), isEvalSupported: false }).promise;
-    const page = await doc.getPage(1);
-    let asked = false;
-    const canvas = {
-      width: 0,
-      height: 0,
-      getContext(kind: string) {
-        asked = kind === "2d";
-        throw new Error("no browser canvas");
+  it("keeps a typed PDF that also has a blank page, and does not rasterize that page", async () => {
+    let rasters = 0;
+    const text = await pdfBytesToText(new Uint8Array(textPlusBlankPdf()), undefined, async () => "should-not-ocr", {
+      rasterize: async () => {
+        rasters += 1;
+        return new Blob(["raster"]);
+      },
+    });
+    expect(rasters).toBe(0);
+    expect(text).toContain("FPH.NZ");
+    expect(text).not.toContain("should-not-ocr");
+  });
+
+  it("draws a vector page through rasterizePage under the pixel cap, without a browser", async () => {
+    const doc = {
+      createElement() {
+        const canvas = {
+          width: 1,
+          height: 1,
+          getContext() {
+            return { fillRect() {}, canvas };
+          },
+          toBlob(cb: (blob: Blob | null) => void) {
+            cb(new Blob([`${canvas.width}x${canvas.height}`]));
+          },
+        };
+        return canvas;
       },
     };
-    await expect(page.render({ canvas: canvas as unknown as HTMLCanvasElement, viewport: page.getViewport({ scale: 1 }) }).promise).rejects.toThrow(/no browser canvas/);
-    expect(asked).toBe(true);
-    await doc.destroy();
+    const page = {
+      getViewport({ scale }: { scale: number }) {
+        return { width: 2000 * scale, height: 2000 * scale };
+      },
+      render({ canvas, viewport }: { canvas: { width: number; height: number; getContext: (kind: string, opts?: object) => { fillRect: () => void } }; viewport: { width: number; height: number } }) {
+        canvas.width = Math.ceil(viewport.width);
+        canvas.height = Math.ceil(viewport.height);
+        canvas.getContext("2d", { alpha: false }).fillRect();
+        return { promise: Promise.resolve() };
+      },
+    };
+    const blob = await rasterizePage(page, doc as unknown as Document);
+    expect(blob).toBeTruthy();
+    const [width, height] = (await blob!.text()).split("x").map(Number);
+    expect(width * height).toBeLessThanOrEqual(VISUAL_MAX_RASTER_PIXELS + width + height);
+    expect(width).toBeLessThan(2000);
+  });
+
+  it("terminates the worker when cancel arrives during recognize", async () => {
+    let terminated = 0;
+    let release: (value: { data: { text: string } }) => void = () => undefined;
+    const controller = new AbortController();
+    const running = pdfBytesToText(new Uint8Array(fs.readFileSync(path.join(FILES, "g24-scan-02.pdf"))), undefined, undefined, {
+      signal: controller.signal,
+      createWorker: async () => ({
+        recognize: () => new Promise((resolve) => {
+          release = resolve;
+          controller.abort();
+        }),
+        terminate: async () => {
+          terminated += 1;
+          release({ data: { text: "late" } });
+        },
+      }),
+    });
+    await expect(running).rejects.toThrow(/cancelled/);
+    expect(terminated).toBeGreaterThan(0);
   });
 
   it("does not save a visual read before the explicit confirm control", () => {
@@ -288,5 +356,7 @@ describe("b97 G-24 visual reader", () => {
     expect(readVisual).not.toMatch(/postImport|api\.post|\brun\(/);
     expect(src).toContain('onClick={() => void run(true)}');
     expect(src).toContain("Nothing is saved before you confirm.");
+    expect(src).toContain("visualAbort.current?.abort()");
+    expect(src).toMatch(/useEffect\(\(\) => \(\) => \{\s*visualAbort\.current\?\.abort\(\);\s*\}, \[\]\)/);
   });
 });

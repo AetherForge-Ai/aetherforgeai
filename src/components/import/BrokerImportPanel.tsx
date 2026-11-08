@@ -185,6 +185,9 @@ export function BrokerImportPanel({
   // b97 G-24: a PDF or screenshot is read on this device into the text box, then reviewed like pasted text.
   const [visualReading, setVisualReading] = useState(false);
   const visualAbort = useRef<AbortController | null>(null);
+  useEffect(() => () => {
+    visualAbort.current?.abort();
+  }, []);
   async function readVisual(file: File | undefined) {
     if (!file) return;
     visualAbort.current?.abort();
