@@ -1,0 +1,5 @@
+# EXAMPLE DATA. Not a customer file. Exchange rates are ECB reference rates to NZD for each trade date (frankfurter.dev, read 29 Oct 2026).
+Order ID,Trade date,Instrument code,Market code,Quantity,Price,Transaction type,Exchange rate,Exchange fee,Transaction fee,Currency,Amount,Transaction method
+SS-1101,15/01/2026,AAPL,NYSE,2,180.00,BUY,1.7417,0.00,1.00,USD,360.00,Trade
+SS-1102,20/01/2026,AAPL,NYSE,1,180.00,SELL,1.7137,0.00,1.00,USD,180.00,Trade
+SS-1103,21/01/2026,AIR,NZX,100,0.80,BUY,1,0.00,0.50,NZD,80.00,Trade

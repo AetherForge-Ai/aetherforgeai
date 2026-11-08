@@ -144,12 +144,13 @@ export function solveXirr(flows: SolverFlow[]): number | null {
     }
     if (!Number.isFinite(slope) || slope === 0) break;
     const next = rate - value / slope;
-    if (!(next > -0.9 && next < 10) || !Number.isFinite(next)) break;
+    // b95 G-02: a short period (under 90 days, shown un-annualised) can annualise above 1,000%.
+    if (!(next > -0.9 && next < 10_000) || !Number.isFinite(next)) break;
     if (Math.abs(next - rate) < 1e-12) return next;
     rate = next;
   }
 
-  const guesses = [-0.9, -0.5, -0.2, 0, 0.1, 0.25, 0.5, 1, 2, 5, 10];
+  const guesses = [-0.9, -0.5, -0.2, 0, 0.1, 0.25, 0.5, 1, 2, 5, 10, 100, 1_000, 10_000];
   let low = Number.NaN;
   let high = Number.NaN;
   let lowNpv = Number.NaN;
@@ -267,9 +268,11 @@ function sliceForPeriod(input: PerformanceInput, period: PerformancePeriod): Per
   const later = ordered.filter((point) => point.date > start);
   const startValue = roundMoney(prior.valueBeforeNzd + prior.flowNzd);
   const onStart = ordered.find((point) => point.date === start);
-  const points: BookPoint[] = onStart
-    ? [onStart, ...later.filter((point) => point.date !== start)]
-    : [{ date: start, valueBeforeNzd: startValue, flowNzd: 0 }, ...later];
+  // b95 G-02: the period opens with its starting value treated as money put in on the start date
+  // (the spreadsheet XIRR convention). Before b95 a zero-flow start point was dropped from the XIRR
+  // flows, and a deposit on the start day counted without the value already held.
+  const opening = onStart ? roundMoney(onStart.valueBeforeNzd + onStart.flowNzd) : startValue;
+  const points: BookPoint[] = [{ date: start, valueBeforeNzd: 0, flowNzd: opening }, ...later.filter((point) => point.date !== start)];
   return { ...input, points };
 }
 

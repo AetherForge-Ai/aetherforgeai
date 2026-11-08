@@ -45,6 +45,7 @@ import {
   BookOpen,
   Shield,
   FileUp,
+  Footprints,
 } from "lucide-react";
 
 /**
@@ -66,6 +67,8 @@ const MARKET_LINKS: NavLink[] = [
 ];
 
 const MORE_LINKS: NavLink[] = [
+  // b89 START-1: always findable again after the dashboard button is dismissed.
+  { href: "/start-here", label: "Start here", icon: Footprints },
   { href: "/performance", label: "Example results", icon: Trophy },
   { href: "/tax", label: "Tax", icon: Scale },
   // b29 G-29: the Xero CSV from the desktop "More" menu and the mobile menu. It opens the /tax

@@ -343,6 +343,16 @@ export async function POST(req: Request) {
     const written: ImportTrade[] = [];
     const writtenDeposits: { date: string; amountNzd: number }[] = [];
     const batchId = newImportBatchId();
+    // b90 FX-1: fetch each trade-date rate up front with the full lookup timeout,
+    // so the broker's rate is checked against the trade date, not today's rate.
+    const tradeDateFx: Record<string, number | null> = {};
+    for (const step of importWriteOrder(committed)) {
+      const t = step.kind === "deposit" ? null : step.trade;
+      if (!t || t.currency === "NZD") continue;
+      const key = `${t.currency}|${t.date}`;
+      if (key in tradeDateFx) continue;
+      tradeDateFx[key] = await historicalNzdPerUnit(t.currency, t.date);
+    }
     const brokerLabel = committed.detection?.label || committed.broker || "broker";
     const outcome = await commitImportInOrder(importWriteOrder(committed), {
       writeTrade: async (step) => {
@@ -382,6 +392,7 @@ export async function POST(req: Request) {
           fx_rate: row.fx,
           fx_source: row.fxSource === "reviewed-trade-date" ? "reviewed-trade-date" : "broker-file",
           fill_currency: row.currency,
+          trade_date_fx: row.currency === "NZD" ? undefined : tradeDateFx[`${row.currency}|${row.date}`] ?? undefined,
           executed_at: row.executedAt || row.date,
           trade_date: row.date,
           price_source: "broker_import",

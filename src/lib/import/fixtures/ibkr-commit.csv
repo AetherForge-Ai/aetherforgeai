@@ -1,0 +1,5 @@
+# EXAMPLE DATA. Not a customer file. Exchange rates are ECB reference rates to NZD for each trade date (frankfurter.dev, read 29 Oct 2026).
+TradeDate,Buy/Sell,Symbol,Quantity,TradePrice,CurrencyPrimary,FXRateToBase,IBCommission,Proceeds,AssetClass,ClientAccountID
+20260302,BUY,BHP.AX,10,40.00,AUD,1.1888,-1.50,-400.00,STK,U1111111
+20260320,SELL,BHP.AX,-4,40.00,AUD,1.2062,-1.50,160.00,STK,U1111111
+20260401,BUY,NVDA,2,100.00,USD,1.7322,-1.00,-200.00,STK,U1111111

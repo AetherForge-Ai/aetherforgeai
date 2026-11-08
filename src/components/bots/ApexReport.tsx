@@ -9,6 +9,7 @@
 import * as React from "react";
 import { Badge } from "@/components/ui/badge";
 import { scrubPublicCopy } from "@/lib/public-intel";
+import { LABEL_TOOLTIP, directionLabel } from "@/lib/buy-label";
 import { formatPercent } from "@/lib/portfolio";
 import { currencyForTicker, formatMoney, formatUnitPrice } from "@/lib/currency";
 import { sanitizeGuardedReport } from "@/lib/report-consistency";
@@ -70,6 +71,28 @@ function shownCopy(text: string, scrub: boolean): string {
   return scrub ? scrubPublicCopy(text) : text;
 }
 
+/** b88 AI-BUY-1: Buy (green) / Sell (red) from the bot's own 7-day prediction; none when absent or flat. */
+function DirectionBadge({ t }: { t: TickerAnalysis }) {
+  const d = directionLabel(t);
+  if (!d) return null;
+  const tone =
+    d.label === "Buy"
+      ? "border-emerald-500/40 bg-emerald-500/15 text-gain"
+      : "border-rose-500/40 bg-rose-500/15 text-rose-600";
+  return (
+    <span
+      data-direction-label={d.label.toLowerCase()}
+      data-label-basis={d.basis}
+      title={LABEL_TOOLTIP}
+      aria-label={`${d.label}. ${LABEL_TOOLTIP}`}
+      className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${tone}`}
+    >
+      {d.label}
+      <span className="sr-only"> ({LABEL_TOOLTIP})</span>
+    </span>
+  );
+}
+
 function TickerCard({ t, scrub }: { t: TickerAnalysis; scrub: boolean }) {
   return (
     <div className="rounded-xl border border-border/60 bg-card/40 p-4">
@@ -78,6 +101,7 @@ function TickerCard({ t, scrub }: { t: TickerAnalysis; scrub: boolean }) {
           <div className="flex items-center gap-2">
             <span className="font-semibold tracking-tight">{t.ticker}</span>
             <Badge variant="outline">Technical snapshot</Badge>
+            <DirectionBadge t={t} />
           </div>
           <p className="text-xs text-muted-foreground">{t.name}</p>
         </div>
@@ -765,6 +789,9 @@ export function ApexReportView({ report: source, scrubCopy = false }: { report: 
         <div className="text-sm font-semibold mb-2">
           Per-{report.bot === "crypto" ? "asset" : "ticker"} intelligence ({report.tickers.length})
         </div>
+        <p className="mb-2 text-[11px] text-muted-foreground" data-direction-label-note title={LABEL_TOOLTIP}>
+          Buy and Sell labels compare the bot&apos;s 7-day prediction with today&apos;s price. Not financial advice.
+        </p>
         <div className="grid gap-3">
           {report.tickers.map((t) => (
             <TickerCard key={t.ticker} t={t} scrub={scrubCopy} />

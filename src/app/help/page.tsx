@@ -35,6 +35,12 @@ export default function HelpPage() {
             </span>
             .
           </p>
+          {/* b89 START-1: the beginner guide stays one tap away from Help. */}
+          <p className="mt-4 text-sm">
+            <a href="/start-here" data-start-here-help className="inline-flex min-h-11 items-center font-semibold text-primary hover:underline md:min-h-0">
+              New here? Start here
+            </a>
+          </p>
           <div className="mt-8">
             <HelpSearch articles={articles} />
           </div>

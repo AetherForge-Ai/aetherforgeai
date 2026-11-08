@@ -12,6 +12,8 @@ import type { Stock } from "@/lib/portfolio";
 import { AI_OFF_REPLY, applyAiPrivacy } from "@/lib/ai-privacy";
 import { readAiPrivacyMode } from "@/lib/ai-privacy.server";
 import { aiShowWorkingEnabled, latestAsOf, showWorking } from "@/lib/ai-working";
+// b91 G-19: flag off for members; allow-listed test accounts get the working so TT can sample notes on preview.
+import { testHooksAllowedFor } from "@/lib/test-hooks";
 
 const postSchema = z.object({
   message: z.string().min(1, "Message is required").max(2000),
@@ -150,7 +152,7 @@ export async function POST(req: Request) {
     const reply = raw == null ? withGuideDisclaimer(ASSISTANT_SHARE_PICK_REPLY) : withAssistantDisclaimer(raw);
     // b80 G-19: checked against the same context the model was given (before the disclaimer is added).
     const working =
-      raw != null && sendMessages != null && aiMode === "on" && aiShowWorkingEnabled() ? showWorking(raw, bookLine, { asOf: latestAsOf(stocks as any) ?? new Date() }) : undefined;
+      raw != null && sendMessages != null && aiMode === "on" && (aiShowWorkingEnabled() || testHooksAllowedFor(user as never)) ? showWorking(raw, bookLine, { asOf: latestAsOf(stocks as any) ?? new Date() }) : undefined;
 
     // Persist the assistant reply
     const saved = await totalumSdk.crud.createRecord("chat_message", {

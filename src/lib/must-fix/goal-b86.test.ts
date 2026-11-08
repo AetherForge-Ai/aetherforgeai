@@ -1,5 +1,5 @@
 /**
- * b86: G-19 / G-27 / G-28. pull-check:v3-b87-2026-10-28
+ * b86: G-19 / G-27 / G-28. pull-check:v3-b90-2026-10-29
  */
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
@@ -9,8 +9,8 @@ const read = (p: string) => readFileSync(p, "utf8");
 
 describe("b86 pins", () => {
   it("pins the build", () => {
-    expect(read("public/build-version.txt").trim()).toBe("v3-b87-2026-10-28");
-    expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-b87-2026-10-28");
+    expect(read("public/build-version.txt").trim()).toBe("v3-b97-2026-11-05");
+    expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-b90-2026-10-29");
   });
 });
 
@@ -54,7 +54,7 @@ describe("b86 G-19 show your working", () => {
 describe("b86 G-27 sharing gated", () => {
   it("every share route is 404 with PORTFOLIO_SHARING off", () => {
     for (const p of ["src/app/api/share/route.ts", "src/app/api/share/[id]/route.ts"]) {
-      expect(read(p)).toContain('flagOn("PORTFOLIO_SHARING")');
+      expect(read(p)).toContain('featureOnFor("PORTFOLIO_SHARING"');
     }
     expect(read("src/app/api/share/route.ts")).toContain("canReadAuditLog");
   });
@@ -63,7 +63,7 @@ describe("b86 G-27 sharing gated", () => {
 describe("b86 G-28 funnel", () => {
   it("admin summary is 404 when ONBOARDING_FUNNEL_SERVER is off", () => {
     const s = read("src/app/api/admin/onboarding-funnel/route.ts");
-    expect(s).toMatch(/if \(!flagOn\("ONBOARDING_FUNNEL_SERVER"\)\) \{\s*return new NextResponse\("Not found", \{ status: 404/);
+    expect(s).toMatch(/if \(!featureOnFor\("ONBOARDING_FUNNEL_SERVER", session as never\)\) \{\s*return new NextResponse\("Not found", \{ status: 404/);
     expect(s).not.toContain("enabled: false");
   });
   it("no gambling-style wording in onboarding copy", () => {

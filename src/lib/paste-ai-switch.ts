@@ -2,8 +2,8 @@
  * b65 G-24 (GOAL-LOCK #59): the member's AI-off switch for paste-anything import.
  * AI reading is used only when BOTH the site flag (NEXT_PUBLIC_PASTE_IMPORT_AI=1) and the member's own
  * switch are on. The switch defaults to OFF and is remembered on this device only. With AI off, pasted
- * text is read in the browser by fixed rules and is never sent anywhere. PDF and screenshot reading stay
- * parked until a 20-sample set exists.
+ * text is read in the browser by fixed rules and is never sent anywhere. b97: PDFs and screenshots are
+ * read in the browser too (pdf.js / tesseract.js, self-hosted), not by AI.
  */
 export const PASTE_AI_STORAGE_KEY = "af:paste-import-ai";
 
@@ -30,7 +30,7 @@ export function writeMemberSwitch(storage: Pick<Storage, "setItem"> | null | und
 }
 
 export function pasteAiNote(siteFlagOn: boolean, memberSwitchOn: boolean): string {
-  if (!siteFlagOn) return "AI reading is off for everyone: pasted text is read in your browser by fixed rules and is not sent anywhere. PDFs and screenshots are not read yet.";
+  if (!siteFlagOn) return "AI reading is off for everyone: pasted text is read in your browser by fixed rules and is not sent anywhere. PDFs and screenshots are read on this device too, not uploaded.";
   if (!memberSwitchOn) return "AI reading is off (your choice): pasted text is read in your browser by fixed rules and is not sent anywhere.";
   return "AI reading is on: it may help read pasted text. You still review every row before anything is saved.";
 }

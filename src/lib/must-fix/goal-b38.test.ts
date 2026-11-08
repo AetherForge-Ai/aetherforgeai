@@ -6,7 +6,7 @@ import { mergeIndexTabs } from "@/lib/ticker-serve";
 import { QUOTE_DELAY_TABLE } from "@/lib/market-freshness";
 import { journalDeletedMap, journalPendingWrite, listPendingWrites, pendingDeleteIds, replayPendingWrites } from "@/lib/write-journal";
 
-// pull-check:v3-b87-2026-10-28
+// pull-check:v3-b90-2026-10-29
 const read = (p: string) => readFileSync(p, "utf8");
 function mem() {
   const m = new Map<string, string>();
@@ -15,7 +15,7 @@ function mem() {
 
 describe("b38 build", () => {
   it("pins the build", () => {
-    expect(read("public/build-version.txt").trim()).toBe("v3-b87-2026-10-28");
+    expect(read("public/build-version.txt").trim()).toBe("v3-b97-2026-11-05");
   });
 });
 
@@ -257,7 +257,7 @@ describe("b38 H-1 (c), H-4, session, M-2, M-6, tape marker", () => {
 describe("b38 CLS — ticker placeholder matches rendered tape height", () => {
   it("reserves 231/190/149 px in both placeholders", () => {
     for (const f of ["src/components/LazyMarketTicker.tsx", "src/app/page.tsx"]) {
-      expect(read(f)).toMatch(/min-h-\[231px\][^"]*md:min-h-\[190px\][^"]*lg:min-h-\[149px\]/);
+      expect(read(f)).toMatch(/min-h-\[284px\][^"]*md:min-h-\[201px\][^"]*lg:min-h-\[179px\]/);
     }
   });
 });

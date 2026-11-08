@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { NewsFeed } from "@/components/dashboard/NewsFeed";
 import { type NewsItem } from "@/lib/market-intel";
 import { Newspaper } from "lucide-react";
+import { DexTokensPanel } from "@/components/market-news/DexTokensPanel";
+import type { DexPanel } from "@/lib/dex-news-panel";
 
 /**
  * Full-page Market News. Headlines come from GET /api/news so this page does
@@ -12,9 +14,11 @@ import { Newspaper } from "lucide-react";
 export function MarketNewsPageContent({
   preview = false,
   initialNews = [],
+  dexPanel = { rows: [], line: "" },
 }: {
   preview?: boolean;
   initialNews?: NewsItem[];
+  dexPanel?: DexPanel;
 }) {
   const [news, setNews] = useState<NewsItem[]>(initialNews);
   const [pending, setPending] = useState(initialNews.length === 0);
@@ -59,6 +63,8 @@ export function MarketNewsPageContent({
           </p>
         </div>
       </div>
+
+      <DexTokensPanel initial={dexPanel} />
 
       <div className="mt-8">
         <NewsFeed items={news} pending={pending} note={note} />

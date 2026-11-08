@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { flagOn } from "@/lib/schema/types";
+import { featureOnFor, storageUnavailable } from "@/lib/preview-grading";
 import { getStableSessionUser } from "@/lib/session";
 import { acceptShare, canReadAuditLog, confirmShare, hashShareToken, liveStatus, newShare, newShareToken, publicShare, revokeShare, truncateIp } from "@/lib/sharing/share-core";
 import { makeLimiter } from "@/lib/onboarding/funnel-core";
@@ -16,8 +16,8 @@ const acceptLimit = makeLimiter(20, 60 * 60 * 1000);
  * `received` = active read-only shares granted to this account. Read fresh every time (no cache).
  */
 export async function GET() {
-  if (!flagOn("PORTFOLIO_SHARING")) return NextResponse.json({ ok: false, error: "Not found." }, { status: 404 });
-  const user = await getStableSessionUser();
+  const user = await getStableSessionUser().catch(() => null);
+  if (!featureOnFor("PORTFOLIO_SHARING", user)) return NextResponse.json({ ok: false, error: "Not found." }, { status: 404 });
   if (!user) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401, headers: NO_STORE });
   try {
     const [owned, received] = await Promise.all([sharesFor({ owner: user._id }), sharesFor({ invitee: user._id })]);
@@ -31,9 +31,10 @@ export async function GET() {
       },
       { headers: NO_STORE }
     );
-  } catch {
+  } catch (err) {
     console.error("[api/share] list failed");
-    return NextResponse.json({ ok: false, error: "Sharing is unavailable just now." }, { status: 503, headers: NO_STORE });
+    const u = storageUnavailable("Sharing", "portfolio_share", err);
+    return NextResponse.json({ ok: false, error: u.error }, { status: u.status, headers: NO_STORE });
   }
 }
 
@@ -43,8 +44,8 @@ export async function GET() {
  * The raw token is returned once on create and never logged or stored.
  */
 export async function POST(req: Request) {
-  if (!flagOn("PORTFOLIO_SHARING")) return NextResponse.json({ ok: false, error: "Not found." }, { status: 404 });
-  const user = await getStableSessionUser();
+  const user = await getStableSessionUser().catch(() => null);
+  if (!featureOnFor("PORTFOLIO_SHARING", user)) return NextResponse.json({ ok: false, error: "Not found." }, { status: 404 });
   if (!user) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   const action = String(body.action || "");
@@ -93,11 +94,17 @@ export async function POST(req: Request) {
     }
     if (action === "log") {
       if (!canReadAuditLog(share, user._id)) return NextResponse.json({ ok: false, error: "Not found." }, { status: 404 });
-      return NextResponse.json({ ok: true, data: await auditFor(id) }, { headers: { "Cache-Control": "no-store" } });
+      try {
+        return NextResponse.json({ ok: true, data: await auditFor(id) }, { headers: { "Cache-Control": "no-store" } });
+      } catch (err) {
+        const u = storageUnavailable("The access log", "share_audit_event", err);
+        return NextResponse.json({ ok: false, error: u.error }, { status: u.status, headers: { "Cache-Control": "no-store" } });
+      }
     }
     return NextResponse.json({ ok: false, error: "Unknown action." }, { status: 400 });
-  } catch {
+  } catch (err) {
     console.error("[api/share] error", action);
-    return NextResponse.json({ ok: false, error: "Sharing is unavailable just now." }, { status: 503 });
+    const u = storageUnavailable("Sharing", "portfolio_share", err);
+    return NextResponse.json({ ok: false, error: u.error }, { status: u.status });
   }
 }

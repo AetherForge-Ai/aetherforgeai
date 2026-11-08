@@ -8,8 +8,14 @@
  * matches the current token stands in. It can never name another browser's user: it needs the
  * server secret and the same session token.
  */
+import { AuthSecretUnavailable, isUsableAuthSecret } from "@/lib/auth-secret";
+
 export const LAST_GOOD_SESSION_COOKIE = "af_ls";
 export const LAST_GOOD_SESSION_MAX_AGE_S = 30 * 60;
+
+function productionRejectsSecret(secret: string): boolean {
+  return process.env.NODE_ENV === "production" && !isUsableAuthSecret(secret);
+}
 
 const enc = new TextEncoder();
 
@@ -39,6 +45,7 @@ export interface LastGoodSession {
 }
 
 export async function signLastGoodSession(secret: string, token: string, user: { id: string; email: string; name?: string | null }, now = Date.now()): Promise<string> {
+  if (productionRejectsSecret(secret)) throw new AuthSecretUnavailable();
   const body: LastGoodSession & { th: string } = {
     uid: user.id,
     email: user.email,
@@ -51,6 +58,7 @@ export async function signLastGoodSession(secret: string, token: string, user: {
 }
 
 export async function verifyLastGoodSession(secret: string, token: string, value: string | null | undefined, now = Date.now()): Promise<LastGoodSession | null> {
+  if (productionRejectsSecret(secret)) return null;
   if (!value || !token) return null;
   const dot = value.lastIndexOf(".");
   if (dot <= 0) return null;

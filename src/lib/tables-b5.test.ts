@@ -103,6 +103,6 @@ describe("G-28 onboarding_funnel_event", () => {
     expect(flagOn("ONBOARDING_FUNNEL_SERVER", {})).toBe(false);
     expect(flagOn("PORTFOLIO_SHARING", { PORTFOLIO_SHARING: "on" })).toBe(true);
     expect(readFileSync("src/app/api/onboarding/funnel/route.ts", "utf8")).toMatch(/status: 204/);
-    expect(readFileSync("src/app/api/share/route.ts", "utf8")).toMatch(/flagOn\("PORTFOLIO_SHARING"\)/);
+    expect(readFileSync("src/app/api/share/route.ts", "utf8")).toMatch(/featureOnFor\("PORTFOLIO_SHARING"/);
   });
 });

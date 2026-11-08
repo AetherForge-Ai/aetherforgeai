@@ -1,0 +1,4 @@
+# EXAMPLE DATA. Not a customer file. Exchange rates are ECB reference rates to NZD for each trade date (frankfurter.dev, read 29 Oct 2026).
+Trade Date,Symbol,Name,Side,Units,Avg Price,Brokerage,Currency,FX Rate,Reference
+2026-03-02,AAPL,Apple Inc,Buy,2,150.00,0.00,USD,1.6848,STK-11
+2026-04-01,AAPL,Apple Inc,Sell,1,160.00,0.00,USD,1.7322,STK-12
