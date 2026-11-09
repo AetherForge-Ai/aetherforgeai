@@ -19,6 +19,7 @@ import { parseDividendNotes } from "@/lib/dividend-ledger";
 import { cashFromLedgerRows, ledgerDisplayedCash } from "@/lib/ledger-cash-lines";
 import { buyLotDay } from "@/lib/lot-day";
 import { applyLedgerSplits } from "@/lib/stock-split";
+import { holdingPriceAsOf } from "@/lib/market-freshness";
 import { isBullionHolding } from "@/lib/metal-valuation";
 import { solveXirr, XIRR_ANNUALISE_AFTER_DAYS, type SolverFlow } from "@/lib/performance-math";
 import type { ReturnSplit } from "@/lib/returns-split";
@@ -1236,7 +1237,7 @@ export function buildPortfolioSnapshot(input: SnapshotInput): PortfolioSnapshot 
       weight: figureFrom(null, "Weight is this market value divided by net worth.", [], "", source, asOfLabel),
       lots: lotViews,
       priceSource: mark?.source || null,
-      priceAsOf: mark?.asOf ? formatDisplayDate(mark.asOf) : null,
+      priceAsOf: holdingPriceAsOf(ticker, assetClass, mark?.asOf, new Date(asOfIso)),
       holdingId: soleHoldingId(ticker),
     });
     positionsByClass.set(assetClass, list);

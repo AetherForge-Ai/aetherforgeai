@@ -1,4 +1,5 @@
 import { formatDisplayDate, formatDisplayDateTime } from "@/lib/currency";
+import { closeLabelFor, type EquityVenue } from "@/lib/market-freshness";
 
 export type TradePriceSession = "open" | "closed" | "";
 
@@ -10,7 +11,9 @@ export type TradePriceSession = "open" | "closed" | "";
 export function shownTradePriceLabel(
   priceAsAt: string,
   priceDirty: boolean,
-  session: TradePriceSession = ""
+  session: TradePriceSession = "",
+  venue?: EquityVenue | null,
+  now = new Date()
 ): string {
   if (priceDirty) return "Price";
   if (!priceAsAt) return "Price";
@@ -18,6 +21,7 @@ export function shownTradePriceLabel(
     const wall = formatDisplayDateTime(priceAsAt);
     return wall === "—" ? "Latest price" : `Latest price ${wall}`;
   }
+  if (session === "closed" && venue) return closeLabelFor(venue, priceAsAt, now);
   const when = priceAsAt ? formatDisplayDate(priceAsAt) : "";
   if (!when || when === "—") return "Price";
   return `Last close ${when}`;
@@ -28,6 +32,8 @@ export function tradePriceHint(input: {
   priceDirty: boolean;
   session: TradePriceSession;
   quotedAt: string;
+  venue?: EquityVenue | null;
+  now?: Date;
 }): string {
   if (input.priceDirty) return "";
   if (input.session === "open") {
@@ -35,6 +41,7 @@ export function tradePriceHint(input: {
     return wall && wall !== "—" ? `Latest price ${wall} filled in` : "Latest price filled in";
   }
   if (input.session === "closed") {
+    if (input.venue) return `${closeLabelFor(input.venue, input.quotedAt, input.now)} filled in`;
     const when = input.quotedAt ? formatDisplayDate(input.quotedAt) : "";
     return when && when !== "—" ? `Last close ${when} filled in` : "Last close filled in";
   }

@@ -36,6 +36,14 @@ export function equityVenue(exchange: Exchange): EquityVenue {
   return "US";
 }
 
+/** Suffix map shared by the quote route, the trade drawer, and the holding drawer. */
+export function equityVenueForSymbol(symbol: string): EquityVenue {
+  const ticker = symbol.toUpperCase();
+  if (ticker.endsWith(".NZ") || ticker.endsWith(".NZX")) return "NZX";
+  if (ticker.endsWith(".AX") || ticker.endsWith(".ASX")) return "ASX";
+  return "US";
+}
+
 /** True only while that cash session is open. Crypto and FX are not equity sessions. */
 export function equitySessionOpen(exchange: Exchange, now = new Date()): boolean {
   return isExchangeRegularSession(exchange, now);
@@ -226,9 +234,32 @@ export function equityFreshnessLabel(
       live: false,
     };
   }
-  const date = formatSessionDate(equitySessionDate(venue, now));
-  if (venue === "US") return { label: `Last close · ${date} (New York)`, live: false };
-  return { label: `Close · ${venue} · ${date}`, live: false };
+  return { label: closeLabelFor(venue, quotedAt, now), live: false };
+}
+
+/**
+ * Holding-drawer stamp. Shares use the same shut-session label as the quote
+ * route. The quote instant itself is not rewritten. Crypto and metals keep
+ * the calendar date of the stored mark.
+ */
+export function holdingPriceAsOf(
+  ticker: string,
+  assetClass: string,
+  quotedAt: string | null | undefined,
+  now = new Date()
+): string | null {
+  if (!quotedAt) return null;
+  if (assetClass !== "shares") {
+    const wall = formatDisplayDate(quotedAt);
+    return wall === "—" ? null : wall;
+  }
+  const venue = equityVenueForSymbol(ticker);
+  const exchange: Exchange = venue === "US" ? "NASDAQ" : venue;
+  if (equitySessionOpen(exchange, now)) {
+    const wall = formatDisplayDate(quotedAt);
+    return wall === "—" ? null : wall;
+  }
+  return closeLabelFor(venue, quotedAt, now);
 }
 
 export function exchangeFreshnessLabel(

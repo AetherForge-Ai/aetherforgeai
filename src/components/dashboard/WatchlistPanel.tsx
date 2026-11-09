@@ -58,7 +58,7 @@ export function WatchlistPanel({
 
   // b6 H-1: when the intel list has no print for a watched symbol, ask the same
   // quote route the ticker tape and /markets use (Yahoo close or live print).
-  const [quotes, setQuotes] = React.useState<Record<string, { price: number; changePct: number | null; currency: string }>>({});
+  const [quotes, setQuotes] = React.useState<Record<string, { price: number; changePct: number | null; currency: string; label: string | null }>>({});
   const asked = React.useRef(new Set<string>());
   React.useEffect(() => {
     if (preview) return;
@@ -73,11 +73,11 @@ export function WatchlistPanel({
     let cancelled = false;
     void Promise.all(
       missing.slice(0, 12).map(async (t) => {
-        const res = await api.get<{ price: number | null; changePct?: number | null; currency?: string }>(
+        const res = await api.get<{ price: number | null; changePct?: number | null; currency?: string; label?: string | null }>(
           `/api/tickers/quote?symbol=${encodeURIComponent(t)}&type=${bot === "crypto" ? "crypto" : "stock"}`
         );
         if (!res.ok || !res.data?.price || !(res.data.price > 0)) return null;
-        return [t, { price: res.data.price, changePct: res.data.changePct ?? null, currency: res.data.currency || "NZD" }] as const;
+        return [t, { price: res.data.price, changePct: res.data.changePct ?? null, currency: res.data.currency || "NZD", label: res.data.label || null }] as const;
       })
     ).then((pairs) => {
       if (cancelled) return;
@@ -189,6 +189,7 @@ export function WatchlistPanel({
               const key = item.ticker.toUpperCase();
               const fromIntel = intelByTicker.get(key);
               const quote = quotes[key];
+              const usingIntel = !!(fromIntel && Number.isFinite(fromIntel.price) && fromIntel.price > 0);
               const intel =
                 fromIntel && Number.isFinite(fromIntel.price) && fromIntel.price > 0
                   ? { price: fromIntel.price, currency: fromIntel.currency, change1d: fromIntel.change1d }
@@ -207,6 +208,7 @@ export function WatchlistPanel({
                     <p className={cn("tnum text-xs font-semibold", priced ? pctClass(intel!.change1d) : "text-muted-foreground")}>
                       {priced && Number.isFinite(intel!.change1d) ? `${fmtPct(intel!.change1d)} today` : priced ? "Change not stated" : "No price yet"}
                     </p>
+                    {!usingIntel && quote?.label ? <p className="text-[0.65rem] text-muted-foreground">{quote.label}</p> : null}
                   </div>
                   <button
                     type="button"

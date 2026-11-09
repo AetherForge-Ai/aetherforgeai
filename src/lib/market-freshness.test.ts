@@ -1,13 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
+  closeLabelFor,
   cryptoFreshnessLabel,
   dailyRateLabel,
   equityApiLive,
   equityFreshnessLabel,
   equitySessionDate,
+  holdingPriceAsOf,
   metalUpdatedPhrase,
   metalsHomeHint,
   quotedEquitySessionOpen,
+  tapeUpdatedPhrase,
 } from "@/lib/market-freshness";
 
 /** Wednesday 7 Oct 2026, 9:00 pm NZDT. US cash session has not opened. */
@@ -21,9 +24,9 @@ const US_OPEN = new Date("2026-10-07T14:00:00.000Z");
 
 describe("equity freshness", () => {
   it("labels a shut weekday as close or last close, and keeps the API live flag false", () => {
-    expect(equityFreshnessLabel("NZX", AFTER_CLOSE).label).toBe("Close · NZX · 7 Oct 2026");
-    expect(equityFreshnessLabel("ASX", AFTER_CLOSE).label).toBe("Close · ASX · 7 Oct 2026");
-    expect(equityFreshnessLabel("US", AFTER_CLOSE).label).toBe("Last close · 6 Oct 2026 (New York)");
+    expect(equityFreshnessLabel("NZX", AFTER_CLOSE).label).toBe("Close 7 Oct 2026");
+    expect(equityFreshnessLabel("ASX", AFTER_CLOSE).label).toBe("Close 7 Oct 2026");
+    expect(equityFreshnessLabel("US", AFTER_CLOSE).label).toBe("Close 6 Oct 2026");
     expect(equityFreshnessLabel("NZX", AFTER_CLOSE).live).toBe(false);
     expect(equityApiLive("DOW", true, AFTER_CLOSE)).toBe(false);
     expect(equityApiLive("NZX", true, AFTER_CLOSE)).toBe(false);
@@ -51,6 +54,46 @@ describe("equity freshness", () => {
   it("uses the previous weekday before the open", () => {
     expect(equitySessionDate("US", AFTER_CLOSE)).toBe("2026-10-06");
     expect(equitySessionDate("NZX", AFTER_CLOSE)).toBe("2026-10-07");
+  });
+
+  it("maps Saturday and Sunday to Friday and keeps a pre-open weekday off today", () => {
+    const saturday = new Date("2026-10-17T01:00:00.000Z");
+    const sunday = new Date("2026-10-18T01:00:00.000Z");
+    const preOpen = new Date("2026-10-13T19:00:00.000Z");
+    expect(closeLabelFor("NZX", saturday, saturday)).toBe("Close 16 Oct 2026");
+    expect(closeLabelFor("ASX", sunday, sunday)).toBe("Close 16 Oct 2026");
+    expect(closeLabelFor("US", sunday, sunday)).toBe("Close 16 Oct 2026");
+    expect(closeLabelFor("NZX", preOpen, preOpen)).toBe("Close 13 Oct 2026");
+    expect(equitySessionDate("NZX", preOpen)).toBe("2026-10-13");
+    expect(equitySessionDate("NZX", AFTER_CLOSE)).toBe("2026-10-07");
+  });
+
+  it("uses the exchange date when Auckland is already the next day", () => {
+    const fridayEveningNewYork = new Date("2026-10-16T21:00:00.000Z");
+    const quotedAt = fridayEveningNewYork.toISOString();
+    expect(closeLabelFor("US", quotedAt, fridayEveningNewYork)).toBe("Close 16 Oct 2026");
+    expect(equityFreshnessLabel("US", fridayEveningNewYork, fridayEveningNewYork).label).toBe("Close 16 Oct 2026");
+  });
+
+  it("shows an older quote date and leaves the quote instant unchanged", () => {
+    const saturday = new Date("2026-10-17T01:00:00.000Z");
+    const quotedAt = "2026-10-14T01:00:00.000Z";
+    expect(closeLabelFor("NZX", quotedAt, saturday)).toBe("Close 14 Oct 2026");
+    expect(equityFreshnessLabel("NZX", saturday, new Date(quotedAt)).label).toBe("Close 14 Oct 2026");
+    expect(tapeUpdatedPhrase(quotedAt, "NZX", saturday)).toBe("Close 14 Oct 2026");
+    expect(holdingPriceAsOf("FPH.NZ", "shares", quotedAt, saturday)).toBe("Close 14 Oct 2026");
+    expect(quotedAt).toBe("2026-10-14T01:00:00.000Z");
+  });
+
+  it("gives the quote route, tape, markets label, and holding drawer the same shut stamp", () => {
+    const saturday = new Date("2026-10-17T01:00:00.000Z");
+    const quotedAt = "2026-10-16T04:00:00.000Z";
+    const stamp = closeLabelFor("NZX", quotedAt, saturday);
+    expect(stamp).toBe("Close 16 Oct 2026");
+    expect(equityFreshnessLabel("NZX", saturday, new Date(quotedAt)).label).toBe(stamp);
+    expect(tapeUpdatedPhrase(quotedAt, "NZX", saturday)).toBe(stamp);
+    expect(holdingPriceAsOf("FPH.NZ", "shares", quotedAt, saturday)).toBe(stamp);
+    expect(holdingPriceAsOf("BTC", "crypto", quotedAt, saturday)).toBe("16 Oct 2026");
   });
 });
 

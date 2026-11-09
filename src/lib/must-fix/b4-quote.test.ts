@@ -29,16 +29,14 @@ describe("H-1 freshness snapshots", () => {
   const saturday = new Date("2026-10-16T22:30:00Z");
   it("weekday open: delayed, never Live", () => {
     const { label } = equityFreshnessLabel("NZX", weekday);
-    expect(label).toMatch(/^Delayed/);
-    expect(label).toMatchSnapshot();
+    expect(label).toBe("Delayed ~20 min · NZX");
   });
   it("Saturday: Close with Friday's date", () => {
     const { label } = equityFreshnessLabel("NZX", saturday);
-    expect(label).toMatch(/^Close · NZX · .*16 Oct/);
-    expect(label).toMatchSnapshot();
+    expect(label).toBe("Close 16 Oct 2026");
   });
   it("weekday before open and US weekend", () => {
-    expect(equityFreshnessLabel("NZX", new Date("2026-10-13T19:00:00Z")).label).toMatchSnapshot();
-    expect(equityFreshnessLabel("US", saturday).label).toMatchSnapshot();
+    expect(equityFreshnessLabel("NZX", new Date("2026-10-13T19:00:00Z")).label).toBe("Close 13 Oct 2026");
+    expect(equityFreshnessLabel("US", saturday).label).toBe("Close 16 Oct 2026");
   });
 });
