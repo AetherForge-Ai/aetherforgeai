@@ -47,6 +47,8 @@ interface DetailQuote {
   price: number;
   changePct: number;
   changeAbs: number;
+  quotedAt?: string | null;
+  moveLabel?: string | null;
   prevClose: number;
   open: number | null;
   dayHigh: number | null;
@@ -290,7 +292,7 @@ export function StockDetailView({
             {up ? <ArrowUp className="size-4" /> : <ArrowDown className="size-4" />}
             {q.changeAbs >= 0 ? "+" : "−"}
             {Math.abs(q.changeAbs).toFixed(q.price < 5 ? 4 : 2)} ({q.changePct > 0 ? "+" : q.changePct < 0 ? "−" : ""}{Math.abs(q.changePct).toFixed(2)}%)
-            <span className="text-muted-foreground">today</span>
+            <span className="text-muted-foreground">{q.moveLabel || "today"}</span>
           </p>
         </div>
         {showBuy && (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { readCachedBook } from "@/lib/client-user-state";
 import { useLiveSessionUser } from "@/lib/use-live-session";
@@ -192,13 +192,18 @@ export function PasteTradesBox({
   }, [rows, rates]);
 
   const [reading, setReading] = useState(false);
+  const readAbort = useRef<AbortController | null>(null);
   // b97 G-24: a PDF or screenshot is read in this browser (pdf.js / tesseract.js, served from this site),
   // its text goes into the box, and the same review table follows. Nothing is uploaded or saved here.
   async function readFile(file: File | undefined) {
     if (!file) return;
+    readAbort.current?.abort();
+    const controller = new AbortController();
+    readAbort.current = controller;
     setReading(true);
     setNote(`Reading ${file.name} on this device…`);
-    const out = await readVisualFile(file);
+    const out = await readVisualFile(file, controller.signal);
+    if (readAbort.current !== controller) return;
     setReading(false);
     if ("error" in out) {
       setRows([]);
@@ -207,6 +212,16 @@ export function PasteTradesBox({
     }
     setPasted(out.text);
     read(out.text, out.kind === "pdf" ? "the PDF" : "the screenshot");
+  }
+
+  function cancelRead() {
+    readAbort.current?.abort();
+    readAbort.current = null;
+    setReading(false);
+    setPasted("");
+    setRows([]);
+    setRowDates({});
+    setNote("Reading was cancelled. Nothing was saved.");
   }
 
   function read(text: string = pasted, from = "the text") {
@@ -267,6 +282,11 @@ export function PasteTradesBox({
             }}
           />
         </label>
+        {reading ? (
+          <button type="button" onClick={cancelRead} className="h-9 rounded-md border px-3 text-sm" data-read-cancel>
+            Cancel
+          </button>
+        ) : null}
         {pasted || rows.length ? (
           <button type="button" onClick={cancel} className="h-9 rounded-md border px-3 text-sm" data-paste-cancel>
             Cancel

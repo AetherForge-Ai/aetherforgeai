@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { stockMoveLabel } from "@/lib/market-freshness";
 import {
   fetchYahooQuote,
   fetchYahooHistories,
@@ -66,6 +67,8 @@ export async function GET(req: Request) {
           fiftyTwoWeekLow: quote.fiftyTwoWeekLow ?? null,
           volume: quote.volume ?? null,
           marketCap: quote.marketCap ?? null,
+          quotedAt: quote.quotedAt ?? null,
+          moveLabel: stockMoveLabel(raw, quote.quotedAt ?? null),
         },
         history, // oldest → newest daily closes
         asOf: new Date().toISOString(),
