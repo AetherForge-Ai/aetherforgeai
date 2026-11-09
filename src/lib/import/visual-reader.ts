@@ -11,7 +11,7 @@ export const VISUAL_MAX_BYTES = 10 * 1024 * 1024;
 export const VISUAL_MAX_PAGES = 15;
 /** One rasterised page stays under this many pixels. */
 export const VISUAL_MAX_RASTER_PIXELS = 2_000_000;
-/** Checkpoint between pages. It does not interrupt one pdf.js or tesseract call. */
+/** Budget for one read. A recognize call is stopped when this elapses; pdf.js itself is not interrupted. */
 export const VISUAL_MAX_MS = 30_000;
 /**
  * A file, not a directory. tesseract.js otherwise picks relaxedsimd-lstm on Chromium,
@@ -101,7 +101,8 @@ export type PdfReadOptions = {
   now?: () => number;
 };
 
-const PAINT_OPS = ["paintImageXObject", "paintInlineImageXObject", "paintImageXObjectRepeat", "paintImageMaskXObject", "constructPath", "stroke", "fill", "eoFill", "fillStroke"];
+/** pdf.js names a form XObject `paintFormXObjectBegin`. `paintFormXObject` is counted when that name is present. */
+const PAINT_OPS = ["paintImageXObject", "paintInlineImageXObject", "paintImageXObjectRepeat", "paintImageMaskXObject", "paintFormXObject", "paintFormXObjectBegin", "constructPath", "stroke", "fill", "eoFill", "fillStroke"];
 
 function paintIds(ops: Record<string, number> | undefined): Set<number> | null {
   if (!ops) return null;
@@ -110,9 +111,40 @@ function paintIds(ops: Record<string, number> | undefined): Set<number> | null {
   return ids;
 }
 
+const TOO_LONG = "That file took too long to read on this device. Nothing was saved.";
+
 function checkBudget(signal: AbortSignal | undefined, now: () => number, started: number, deadlineMs: number) {
   if (signal?.aborted) throw new VisualReadError("Reading was cancelled. Nothing was saved.");
-  if (now() - started > deadlineMs) throw new VisualReadError("That file took too long to read on this device. Nothing was saved.");
+  if (now() - started > deadlineMs) throw new VisualReadError(TOO_LONG);
+}
+
+/** Stop waiting on recognize when the read budget runs out. `onTimeout` terminates the worker. */
+function withDeadline<T>(work: Promise<T>, ms: number, onTimeout: () => void): Promise<T> {
+  let timedOut = false;
+  const guarded = work.then(
+    (value) => value,
+    (err) => {
+      if (timedOut) return new Promise<T>(() => undefined);
+      throw err;
+    },
+  );
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      timedOut = true;
+      onTimeout();
+      reject(new VisualReadError(TOO_LONG));
+    }, Math.max(0, ms));
+    guarded.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      },
+    );
+  });
 }
 
 /** Draw one page. Scale starts at 2 and drops so the canvas stays within VISUAL_MAX_RASTER_PIXELS. */
@@ -132,7 +164,12 @@ export async function rasterizePage(page: RasterPage, doc: Document | undefined 
   canvas.width = Math.max(1, Math.ceil(viewport.width));
   canvas.height = Math.max(1, Math.ceil(viewport.height));
   await page.render({ canvas, viewport }).promise;
-  return await new Promise((resolve) => canvas.toBlob((blob) => resolve(blob), "image/png"));
+  try {
+    return await new Promise((resolve) => canvas.toBlob((blob) => resolve(blob), "image/png"));
+  } finally {
+    canvas.width = 0;
+    canvas.height = 0;
+  }
 }
 
 async function ocrBlobs(blobs: Blob[], options: PdfReadOptions, started: number): Promise<string> {
@@ -142,14 +179,16 @@ async function ocrBlobs(blobs: Blob[], options: PdfReadOptions, started: number)
     const parts: string[] = [];
     for (const blob of blobs) {
       checkBudget(options.signal, now, started, deadlineMs);
-      parts.push(tidyOcrText(await options.recognize(blob)));
+      const text = await withDeadline(options.recognize(blob), deadlineMs - (now() - started), () => undefined);
+      parts.push(tidyOcrText(text));
     }
     return parts.filter(Boolean).join("\n");
   }
-  return imageToTextBlobs(blobs, options.signal);
+  return imageToTextBlobs(blobs, { signal: options.signal, now, started, deadlineMs });
 }
 
-async function imageToTextBlobs(blobs: Blob[], signal?: AbortSignal): Promise<string> {
+async function imageToTextBlobs(blobs: Blob[], budget: { signal?: AbortSignal; now: () => number; started: number; deadlineMs: number }): Promise<string> {
+  const { signal, now, started, deadlineMs } = budget;
   if (signal?.aborted) throw new VisualReadError("Reading was cancelled. Nothing was saved.");
   const { createWorker } = await import("tesseract.js");
   const worker = await createWorker("eng", 1, {
@@ -164,8 +203,8 @@ async function imageToTextBlobs(blobs: Blob[], signal?: AbortSignal): Promise<st
   try {
     const parts: string[] = [];
     for (const blob of blobs) {
-      if (signal?.aborted) throw new VisualReadError("Reading was cancelled. Nothing was saved.");
-      const { data } = await worker.recognize(blob);
+      checkBudget(signal, now, started, deadlineMs);
+      const { data } = await withDeadline(worker.recognize(blob), deadlineMs - (now() - started), stop);
       if (signal?.aborted) throw new VisualReadError("Reading was cancelled. Nothing was saved.");
       parts.push(tidyOcrText(data.text || ""));
     }
@@ -231,7 +270,9 @@ export async function imageToText(image: Blob | string, paths?: { workerPath?: s
   signal?.addEventListener("abort", stop, { once: true });
   try {
     if (signal?.aborted) throw new VisualReadError("Reading was cancelled. Nothing was saved.");
-    const { data } = await worker.recognize(image);
+    const started = Date.now();
+    const { data } = await withDeadline(worker.recognize(image), VISUAL_MAX_MS, stop);
+    if (Date.now() - started > VISUAL_MAX_MS) throw new VisualReadError(TOO_LONG);
     if (signal?.aborted) throw new VisualReadError("Reading was cancelled. Nothing was saved.");
     return tidyOcrText(data.text || "");
   } finally {

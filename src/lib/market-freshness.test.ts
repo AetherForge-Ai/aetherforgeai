@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   closeLabelFor,
@@ -8,6 +9,7 @@ import {
   equitySessionDate,
   holdingPriceAsOf,
   stockMoveLabel,
+  stockMoveCaption,
   metalUpdatedPhrase,
   metalsHomeHint,
   quotedEquitySessionOpen,
@@ -112,6 +114,15 @@ describe("equity freshness", () => {
     expect(stockMoveLabel("FPH.NZ", "2025-11-07T04:00:00.000Z", saturday)).toBe("Close 7 Nov 2025");
     expect(stockMoveLabel("FPH.NZ", null, AFTER_CLOSE)).toBe("Close unavailable");
     expect(stockMoveLabel("FPH.NZ", NZX_OPEN, NZX_OPEN)).toBe("today");
+  });
+
+  it("computes the stock caption when the API leaves moveLabel out", () => {
+    const saturday = new Date("2025-11-08T01:00:00.000Z");
+    expect(stockMoveCaption("FPH.NZ", { moveLabel: "Close 7 Nov 2025", quotedAt: null }, saturday)).toBe("Close 7 Nov 2025");
+    expect(stockMoveCaption("FPH.NZ", { quotedAt: "2025-11-07T04:00:00.000Z" }, saturday)).toBe("Close 7 Nov 2025");
+    expect(stockMoveCaption("FPH.NZ", {}, saturday)).toBe("Close unavailable");
+    expect(stockMoveCaption("FPH.NZ", { quotedAt: NZX_OPEN.toISOString() }, NZX_OPEN)).toBe("today");
+    expect(readFileSync("src/components/dashboard/StockDetailView.tsx", "utf8")).toContain("stockMoveCaption(ticker, q)");
   });
 });
 

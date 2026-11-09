@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 import { clientFacingError } from "@/lib/api-json";
 import { formatMarketPrice, type Exchange } from "@/lib/market-intel";
+import { stockMoveCaption } from "@/lib/market-freshness";
 import { STOCK_DETAIL_UNAVAILABLE } from "@/lib/market-detail-routes";
 import { BuyDialog, type BuyTarget } from "@/components/dashboard/BuyDialog";
 import { TickerAnalysisPane } from "@/components/dashboard/TickerAnalysisPane";
@@ -292,7 +293,7 @@ export function StockDetailView({
             {up ? <ArrowUp className="size-4" /> : <ArrowDown className="size-4" />}
             {q.changeAbs >= 0 ? "+" : "−"}
             {Math.abs(q.changeAbs).toFixed(q.price < 5 ? 4 : 2)} ({q.changePct > 0 ? "+" : q.changePct < 0 ? "−" : ""}{Math.abs(q.changePct).toFixed(2)}%)
-            <span className="text-muted-foreground">{q.moveLabel || "today"}</span>
+            <span className="text-muted-foreground">{stockMoveCaption(ticker, q)}</span>
           </p>
         </div>
         {showBuy && (
