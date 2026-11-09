@@ -1,5 +1,5 @@
 # TT preview grade b97 (develop 3f99d450, localhost:8794), 5 Nov 2026 ~10:00 NZDT, read-only, signed out
-Build: v3-b98-2026-11-10
+Build: v3-b97-2026-11-05
 P0: 0
 P1: 0
 P2: 0
