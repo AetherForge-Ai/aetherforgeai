@@ -112,14 +112,16 @@ function paintIds(ops: Record<string, number> | undefined): Set<number> | null {
 }
 
 const TOO_LONG = "That file took too long to read on this device. Nothing was saved.";
+const MODEL_SLOW = "The English reader did not load in time. Nothing was saved.";
+const CANCELLED = "Reading was cancelled. Nothing was saved.";
 
 function checkBudget(signal: AbortSignal | undefined, now: () => number, started: number, deadlineMs: number) {
-  if (signal?.aborted) throw new VisualReadError("Reading was cancelled. Nothing was saved.");
+  if (signal?.aborted) throw new VisualReadError(CANCELLED);
   if (now() - started > deadlineMs) throw new VisualReadError(TOO_LONG);
 }
 
-/** Stop waiting on recognize when the read budget runs out. `onTimeout` terminates the worker. */
-function withDeadline<T>(work: Promise<T>, ms: number, onTimeout: () => void): Promise<T> {
+/** Stop waiting when the read budget runs out. `onTimeout` terminates the worker. */
+function withDeadline<T>(work: Promise<T>, ms: number, onTimeout: () => void, message = TOO_LONG): Promise<T> {
   let timedOut = false;
   const guarded = work.then(
     (value) => value,
@@ -132,7 +134,7 @@ function withDeadline<T>(work: Promise<T>, ms: number, onTimeout: () => void): P
     const timer = setTimeout(() => {
       timedOut = true;
       onTimeout();
-      reject(new VisualReadError(TOO_LONG));
+      reject(new VisualReadError(message));
     }, Math.max(0, ms));
     guarded.then(
       (value) => {
@@ -189,29 +191,87 @@ async function ocrBlobs(blobs: Blob[], options: PdfReadOptions, started: number)
 
 async function imageToTextBlobs(blobs: Blob[], budget: { signal?: AbortSignal; now: () => number; started: number; deadlineMs: number }): Promise<string> {
   const { signal, now, started, deadlineMs } = budget;
-  if (signal?.aborted) throw new VisualReadError("Reading was cancelled. Nothing was saved.");
-  const { createWorker } = await import("tesseract.js");
-  const worker = await createWorker("eng", 1, {
-    workerPath: `${READER_BASE}/worker.min.js`,
-    corePath: TESSERACT_CORE_PATH,
-    langPath: `${READER_BASE}/lang`,
-  });
-  const stop = () => {
-    void worker.terminate();
-  };
-  signal?.addEventListener("abort", stop, { once: true });
+  const { engine, stop } = await openHostedWorker(signal, now, started, deadlineMs);
+  const onAbort = () => stop();
+  signal?.addEventListener("abort", onAbort);
   try {
     const parts: string[] = [];
     for (const blob of blobs) {
       checkBudget(signal, now, started, deadlineMs);
-      const { data } = await withDeadline(worker.recognize(blob), deadlineMs - (now() - started), stop);
-      if (signal?.aborted) throw new VisualReadError("Reading was cancelled. Nothing was saved.");
+      const { data } = await withDeadline(engine.recognize(blob), deadlineMs - (now() - started), stop);
+      if (signal?.aborted) throw new VisualReadError(CANCELLED);
       parts.push(tidyOcrText(data.text || ""));
     }
     return parts.filter(Boolean).join("\n");
   } finally {
-    signal?.removeEventListener("abort", stop);
-    await worker.terminate();
+    signal?.removeEventListener("abort", onAbort);
+    stop();
+    await engine.terminate().catch(() => undefined);
+  }
+}
+
+type OcrEngine = {
+  recognize: (image: Blob | string) => Promise<{ data: { text?: string } }>;
+  terminate: () => Promise<unknown>;
+};
+
+const OCR_WORKER_OPTIONS = {
+  workerPath: `${READER_BASE}/worker.min.js`,
+  corePath: TESSERACT_CORE_PATH,
+  langPath: `${READER_BASE}/lang`,
+  gzip: true,
+  cacheMethod: "none" as const,
+  workerBlobURL: true,
+};
+
+/** createWorker builds its Worker synchronously. Keep that instance so cancel can terminate it before the promise settles. */
+function startHostedWorker(create: () => Promise<OcrEngine>): { pending: Promise<OcrEngine>; stop: () => void } {
+  let spawned: { terminate: () => void } | null = null;
+  const stop = () => {
+    try {
+      spawned?.terminate();
+    } catch {
+      /* The worker may already be gone. */
+    }
+  };
+  const view = globalThis as { Worker?: typeof Worker };
+  const Real = view.Worker;
+  if (typeof Real === "function") {
+    const Wrapped = class extends Real {
+      constructor(url: string | URL, opts?: WorkerOptions) {
+        super(url, opts);
+        spawned = this;
+      }
+    };
+    view.Worker = Wrapped as typeof Worker;
+  }
+  try {
+    return { pending: create(), stop };
+  } finally {
+    if (typeof Real === "function") view.Worker = Real;
+  }
+}
+
+async function openHostedWorker(signal: AbortSignal | undefined, now: () => number, started: number, deadlineMs: number): Promise<{ engine: OcrEngine; stop: () => void }> {
+  checkBudget(signal, now, started, deadlineMs);
+  const { createWorker } = await import("tesseract.js");
+  const { pending, stop } = startHostedWorker(() => createWorker("eng", 1, OCR_WORKER_OPTIONS) as Promise<OcrEngine>);
+  const onAbort = () => stop();
+  signal?.addEventListener("abort", onAbort);
+  try {
+    const engine = await withDeadline(pending, deadlineMs - (now() - started), stop, MODEL_SLOW);
+    signal?.removeEventListener("abort", onAbort);
+    if (signal?.aborted) {
+      stop();
+      throw new VisualReadError(CANCELLED);
+    }
+    return { engine, stop };
+  } catch (err) {
+    stop();
+    signal?.removeEventListener("abort", onAbort);
+    if (signal?.aborted) throw new VisualReadError(CANCELLED);
+    if (err instanceof VisualReadError) throw err;
+    throw new VisualReadError(MODEL_SLOW);
   }
 }
 
@@ -256,28 +316,19 @@ export async function pdfBytesToText(bytes: Uint8Array, pdfjs?: PdfJs, options: 
 }
 
 /** OCR an image in the browser with the self-hosted tesseract.js worker, core and English model. */
-export async function imageToText(image: Blob | string, paths?: { workerPath?: string; corePath?: string; langPath?: string }, signal?: AbortSignal): Promise<string> {
-  if (signal?.aborted) throw new VisualReadError("Reading was cancelled. Nothing was saved.");
-  const { createWorker } = await import("tesseract.js");
-  const worker = await createWorker("eng", 1, {
-    workerPath: paths?.workerPath ?? `${READER_BASE}/worker.min.js`,
-    corePath: paths?.corePath ?? TESSERACT_CORE_PATH,
-    langPath: paths?.langPath ?? `${READER_BASE}/lang`,
-  });
-  const stop = () => {
-    void worker.terminate();
-  };
-  signal?.addEventListener("abort", stop, { once: true });
+export async function imageToText(image: Blob | string, _paths?: { workerPath?: string; corePath?: string; langPath?: string }, signal?: AbortSignal): Promise<string> {
+  const started = Date.now();
+  const { engine, stop } = await openHostedWorker(signal, Date.now, started, VISUAL_MAX_MS);
+  const onAbort = () => stop();
+  signal?.addEventListener("abort", onAbort);
   try {
-    if (signal?.aborted) throw new VisualReadError("Reading was cancelled. Nothing was saved.");
-    const started = Date.now();
-    const { data } = await withDeadline(worker.recognize(image), VISUAL_MAX_MS, stop);
-    if (Date.now() - started > VISUAL_MAX_MS) throw new VisualReadError(TOO_LONG);
-    if (signal?.aborted) throw new VisualReadError("Reading was cancelled. Nothing was saved.");
+    const { data } = await withDeadline(engine.recognize(image), VISUAL_MAX_MS - (Date.now() - started), stop);
+    if (signal?.aborted) throw new VisualReadError(CANCELLED);
     return tidyOcrText(data.text || "");
   } finally {
-    signal?.removeEventListener("abort", stop);
-    await worker.terminate();
+    signal?.removeEventListener("abort", onAbort);
+    stop();
+    await engine.terminate().catch(() => undefined);
   }
 }
 
