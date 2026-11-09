@@ -6,11 +6,23 @@ import { headerIndex, parseCsv } from "@/lib/import/csv";
 import { previewImport } from "@/lib/import/plan";
 import { contentHash } from "@/lib/import/hash";
 import { FORMAT_SOURCES } from "@/lib/import/formats";
-import { IMPORT_TOO_LARGE } from "@/lib/import/limits";
+import { IMPORT_MAX_BYTES, IMPORT_TOO_LARGE, bytesTooLarge, textTooLarge } from "@/lib/import/limits";
+import { IMPORT_MAX_BYTES as routeCap, IMPORT_TOO_LARGE as routeTooLarge, importFileProblem, importTextTooLarge } from "@/lib/import-limits";
 import type { ColumnMap } from "@/lib/import/types";
 
 const DIR = path.join(process.cwd(), "src/lib/import/fixtures");
 const read = (name: string) => readFileSync(path.join(DIR, name), "utf8");
+
+/** Committed ASB fixture plus one trailing note, sized in memory to `bytes`. ASCII, so length is the UTF-8 size. */
+function sizedAsb(bytes: number): string {
+  const base = read("asb.csv");
+  const head = base.endsWith("\n") ? base : `${base}\n`;
+  const marked = `${head}# `;
+  if (marked.length > bytes) throw new Error(`asb.csv is already ${marked.length} bytes`);
+  const text = marked + "x".repeat(bytes - marked.length);
+  if (text.length !== bytes) throw new Error(`sized fixture is ${text.length}, not ${bytes}`);
+  return text;
+}
 
 interface Expected {
   broker: string;
@@ -135,6 +147,63 @@ describe("H-10 import rules", () => {
     const preview = await previewImport(text);
     expect(preview.unreadable).toBe(true);
     expect(preview.rows).toHaveLength(0);
+  });
+
+  it("treats one byte under the cap as a file to parse", async () => {
+    const text = sizedAsb(IMPORT_MAX_BYTES - 1);
+    const preview = await previewImport(text);
+    expect(preview.error).not.toBe(IMPORT_TOO_LARGE);
+    expect(preview.unreadable).toBe(false);
+    expect(preview.broker).toBe("asb");
+    const book = emptyBook(10);
+    const outcome = await commitImport(book, text);
+    expect(outcome.error).not.toBe(IMPORT_TOO_LARGE);
+    expect(outcome.ok).toBe(true);
+    expect(outcome.written).toBe(expected["asb.csv"].rows);
+  }, 30_000);
+
+  it("accepts a file exactly at the cap because the check is greater-than", async () => {
+    const text = sizedAsb(IMPORT_MAX_BYTES);
+    expect(textTooLarge(text)).toBe(false);
+    expect(importTextTooLarge(text)).toBe(false);
+    expect(bytesTooLarge(text.length)).toBe(false);
+    expect(importFileProblem({ size: text.length, type: "text/csv", name: "asb.csv" })).toBeNull();
+    const preview = await previewImport(text);
+    expect(preview.error).not.toBe(IMPORT_TOO_LARGE);
+    expect(preview.unreadable).toBe(false);
+    expect(preview.broker).toBe("asb");
+    const outcome = await commitImport(emptyBook(10), text);
+    expect(outcome.ok).toBe(true);
+    expect(outcome.error).not.toBe(IMPORT_TOO_LARGE);
+    expect(outcome.written).toBe(expected["asb.csv"].rows);
+  }, 30_000);
+
+  it("rejects one byte over the cap with the size error before parse", async () => {
+    const text = sizedAsb(IMPORT_MAX_BYTES + 1);
+    expect(textTooLarge(text)).toBe(true);
+    expect(importTextTooLarge(text)).toBe(true);
+    expect(bytesTooLarge(text.length)).toBe(true);
+    expect(importFileProblem({ size: text.length, type: "text/csv", name: "asb.csv" })).toBe(routeTooLarge);
+    const book = emptyBook(10);
+    const outcome = await commitImport(book, text);
+    expect(outcome.ok).toBe(false);
+    expect(outcome.error).toBe(IMPORT_TOO_LARGE);
+    expect(outcome.written).toBe(0);
+    expect(book.cashNzd).toBe(10);
+    expect(book.batches).toHaveLength(0);
+    const preview = await previewImport(text);
+    expect(preview.unreadable).toBe(true);
+    expect(preview.error).toBe(IMPORT_TOO_LARGE);
+    expect(preview.rows).toHaveLength(0);
+  });
+
+  it("uses the same byte cap on the browser file check and the server text check", () => {
+    expect(IMPORT_MAX_BYTES).toBe(routeCap);
+    expect(IMPORT_TOO_LARGE).toBe(routeTooLarge);
+    expect(bytesTooLarge(IMPORT_MAX_BYTES - 1)).toBe(importTextTooLarge("x".repeat(IMPORT_MAX_BYTES - 1)));
+    expect(bytesTooLarge(IMPORT_MAX_BYTES)).toBe(false);
+    expect(importFileProblem({ size: IMPORT_MAX_BYTES, type: "text/csv", name: "a.csv" })).toBeNull();
+    expect(importFileProblem({ size: IMPORT_MAX_BYTES + 1, type: "text/csv", name: "a.csv" })).toBe(routeTooLarge);
   });
 
   it("does not use Math.random anywhere in the import path", () => {
