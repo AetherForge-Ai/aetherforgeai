@@ -393,7 +393,7 @@ describe("weekly email", () => {
     expect(board.projections.map((row) => row.ticker)).toEqual(["SAMP.NZ"]);
     expect(board.asOfLabel).toBe("12 Oct 2026");
     expect(board.projections[0].priceLabel).toBe("NZ$12.20");
-    expect(board.projections[0].asOfLabel).toContain("9 Oct 2026");
+    expect(board.projections[0].asOfLabel).toBe("Close unavailable");
     expect(board.projections[0].moveLabel).toMatch(/^[+−]?\d+\.\d% to [+−]?\d+\.\d%$/);
     const mail = renderWeeklyEmail({
       to: "sample.member@example.test",
@@ -410,7 +410,8 @@ describe("weekly email", () => {
     expect(body).toContain("NZ$12.20");
     expect(body).toContain("7-day range"); // CR-3: a range, not a point move
     expect(body).toContain("12 Oct 2026");
-    expect(body).toContain("9 Oct 2026");
+    expect(body).toContain("Close unavailable");
+    expect(body).not.toContain("9 Oct 2026");
     expect(body).toContain("Crypto projections are paused, so none are included.");
     expect(body).toContain("Precious-metal projections are not produced by the projections feature, so none are shown.");
     expect(body).toContain("does not include the holdings, cash, or profit or loss on your account");

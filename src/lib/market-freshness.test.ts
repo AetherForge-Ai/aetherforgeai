@@ -23,10 +23,10 @@ const ASX_OPEN = new Date("2026-10-06T23:30:00.000Z");
 const US_OPEN = new Date("2026-10-07T14:00:00.000Z");
 
 describe("equity freshness", () => {
-  it("labels a shut weekday as close or last close, and keeps the API live flag false", () => {
-    expect(equityFreshnessLabel("NZX", AFTER_CLOSE).label).toBe("Close 7 Oct 2026");
-    expect(equityFreshnessLabel("ASX", AFTER_CLOSE).label).toBe("Close 7 Oct 2026");
-    expect(equityFreshnessLabel("US", AFTER_CLOSE).label).toBe("Close 6 Oct 2026");
+  it("labels a shut weekday from the quote time, and keeps the API live flag false", () => {
+    expect(equityFreshnessLabel("NZX", AFTER_CLOSE, AFTER_CLOSE).label).toBe("Close 7 Oct 2026");
+    expect(equityFreshnessLabel("ASX", AFTER_CLOSE, AFTER_CLOSE).label).toBe("Close 7 Oct 2026");
+    expect(equityFreshnessLabel("US", AFTER_CLOSE, AFTER_CLOSE).label).toBe("Close 6 Oct 2026");
     expect(equityFreshnessLabel("NZX", AFTER_CLOSE).live).toBe(false);
     expect(equityApiLive("DOW", true, AFTER_CLOSE)).toBe(false);
     expect(equityApiLive("NZX", true, AFTER_CLOSE)).toBe(false);
@@ -73,6 +73,16 @@ describe("equity freshness", () => {
     const quotedAt = fridayEveningNewYork.toISOString();
     expect(closeLabelFor("US", quotedAt, fridayEveningNewYork)).toBe("Close 16 Oct 2026");
     expect(equityFreshnessLabel("US", fridayEveningNewYork, fridayEveningNewYork).label).toBe("Close 16 Oct 2026");
+  });
+
+  it("leaves a missing quote timestamp undated after the weekday open", () => {
+    expect(closeLabelFor("NZX", null, AFTER_CLOSE)).toBe("Close unavailable");
+    expect(closeLabelFor("NZX", undefined, AFTER_CLOSE)).toBe("Close unavailable");
+    expect(closeLabelFor("ASX", "", AFTER_CLOSE)).toBe("Close unavailable");
+    expect(closeLabelFor("US", null, AFTER_CLOSE)).toBe("Close unavailable");
+    expect(equityFreshnessLabel("NZX", AFTER_CLOSE).label).toBe("Close unavailable");
+    expect(equityFreshnessLabel("ASX", AFTER_CLOSE).label).not.toMatch(/\d{4}/);
+    expect(equityFreshnessLabel("US", AFTER_CLOSE).label).toBe("Close unavailable");
   });
 
   it("shows an older quote date and leaves the quote instant unchanged", () => {

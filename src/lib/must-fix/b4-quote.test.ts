@@ -31,12 +31,15 @@ describe("H-1 freshness snapshots", () => {
     const { label } = equityFreshnessLabel("NZX", weekday);
     expect(label).toBe("Delayed ~20 min · NZX");
   });
-  it("Saturday: Close with Friday's date", () => {
-    const { label } = equityFreshnessLabel("NZX", saturday);
-    expect(label).toBe("Close 16 Oct 2026");
+  it("Saturday quote uses Friday, and a missing timestamp stays undated", () => {
+    expect(equityFreshnessLabel("NZX", saturday, saturday).label).toBe("Close 16 Oct 2026");
+    expect(equityFreshnessLabel("NZX", saturday).label).toBe("Close unavailable");
   });
-  it("weekday before open and US weekend", () => {
-    expect(equityFreshnessLabel("NZX", new Date("2026-10-13T19:00:00Z")).label).toBe("Close 13 Oct 2026");
-    expect(equityFreshnessLabel("US", saturday).label).toBe("Close 16 Oct 2026");
+  it("weekday before open and US weekend need a quote time to name a date", () => {
+    const preOpen = new Date("2026-10-13T19:00:00Z");
+    expect(equityFreshnessLabel("NZX", preOpen, preOpen).label).toBe("Close 13 Oct 2026");
+    expect(equityFreshnessLabel("NZX", preOpen).label).toBe("Close unavailable");
+    expect(equityFreshnessLabel("US", saturday, saturday).label).toBe("Close 16 Oct 2026");
+    expect(equityFreshnessLabel("US", saturday).label).toBe("Close unavailable");
   });
 });

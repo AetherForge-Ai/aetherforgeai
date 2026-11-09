@@ -108,21 +108,19 @@ export function formatSessionDate(iso: string): string {
 
 /**
  * b67 H-1: one shut-market label for every surface (tape, watchlist, quote, drawer).
- * Reads "Close 23 Oct 2026": the last session date, never the weekend fetch day.
- * When the quote itself is older than that session, the older quote date is shown (honest).
+ * Reads "Close 23 Oct 2026": the quote's session date, never the weekend fetch day.
+ * A missing quote timestamp stays undated. An older quote keeps its own exchange date.
  */
 export function closeLabelFor(
   venue: EquityVenue,
   quotedAt: string | number | Date | null | undefined,
   now = new Date()
 ): string {
-  const session = equitySessionDate(venue, now);
   const quoted = parseQuoteTime(quotedAt ?? null);
-  let iso = session;
-  if (quoted) {
-    const quotedIso = zonedParts(quoted, ZONE[venue]).iso;
-    if (quotedIso < session) iso = quotedIso;
-  }
+  if (!quoted) return "Close unavailable";
+  const session = equitySessionDate(venue, now);
+  const quotedIso = zonedParts(quoted, ZONE[venue]).iso;
+  const iso = quotedIso < session ? quotedIso : session;
   const date = formatDisplayDate(iso);
   return date === "—" ? "Close unavailable" : `Close ${date}`;
 }
