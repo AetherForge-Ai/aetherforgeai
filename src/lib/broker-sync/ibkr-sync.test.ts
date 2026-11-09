@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 
@@ -29,6 +30,8 @@ vi.mock("@/lib/broker-sync/token-crypto.server", () => ({ decryptToken: vi.fn(as
 
 import { applyFlexStatement, syncConnection } from "./ibkr-sync.server";
 import { parseFlexResponse } from "./ibkr-flex";
+import { parseCsv } from "@/lib/import/csv";
+import { parseIbkr } from "@/lib/import/parsers/ibkr";
 
 const XML = `<FlexQueryResponse><FlexStatements><FlexStatement>
   <Trades><Trade tradeID="555" assetCategory="STK" symbol="AAPL" tradeDate="20260302" quantity="2" tradePrice="200" ibCommission="-1" buySell="BUY" currency="USD" fxRateToBase="1.7" proceeds="-400" accountId="U1"/></Trades>
@@ -64,14 +67,45 @@ describe("BS-01 re-sync idempotency", () => {
   });
 });
 
+describe("BS-01 fixture Flex statement", () => {
+  it("commits the fixture trades and cash within NZ$0.01, then a second sync adds no trade id", async () => {
+    const xml = readFileSync("src/lib/broker-sync/fixtures/ibkr-flex-statement.xml", "utf8");
+    const { runH10Import } = await import("@/lib/import/persist");
+    const { applyTransaction } = await import("@/lib/transactions");
+    const before = vi.mocked(applyTransaction).mock.calls.length;
+    const first = await applyFlexStatement(user, xml);
+    expect(first.trades).toBe(2);
+    expect(first.cash).toBe(2);
+    const csv = String(vi.mocked(runH10Import).mock.calls.at(-1)?.[1] || "");
+    const draft = parseIbkr(parseCsv(csv)) as unknown as { rows: Array<{ cashEffectNzd: number; brokerRef: string }> };
+    expect(draft.rows.map((row) => row.brokerRef)).toEqual(["ibkr-1001", "ibkr-1002"]);
+    const tradeCash = draft.rows.reduce((sum, row) => sum + row.cashEffectNzd, 0);
+    expect(Math.abs(tradeCash - -326.4)).toBeLessThanOrEqual(0.01);
+    const amounts = vi.mocked(applyTransaction).mock.calls.slice(before).map((call) => (call[1] as { amount: number }).amount);
+    expect(Math.abs(amounts.reduce((sum, amount) => sum + amount, 0) - 1002.04)).toBeLessThanOrEqual(0.01);
+    const second = await applyFlexStatement(user, xml);
+    expect(second.trades).toBe(0);
+    expect(second.cash).toBe(0);
+    expect(state.notes.filter((note) => note.includes("ref=ibkrcash-2001"))).toHaveLength(1);
+    expect(state.notes.filter((note) => note.includes("ref=ibkrcash-2002"))).toHaveLength(1);
+    expect(vi.mocked(runH10Import).mock.calls.filter((call) => String(call[1]).includes("1001"))).toHaveLength(2);
+  });
+});
+
 describe("BS-01 IBKR errors", () => {
   it("1013 IP restriction is a clear error, stored without the token", async () => {
     expect(parseFlexResponse("<FlexStatementResponse><Status>Fail</Status><ErrorCode>1013</ErrorCode></FlexStatementResponse>")).toMatchObject({ ok: false, code: "1013" });
+    const logs: string[] = [];
+    const spy = vi.spyOn(console, "warn").mockImplementation((...args: unknown[]) => {
+      logs.push(args.map(String).join(" "));
+    });
     vi.stubGlobal("fetch", vi.fn(async () => new Response("<FlexStatementResponse><Status>Fail</Status><ErrorCode>1013</ErrorCode><ErrorMessage>IP</ErrorMessage></FlexStatementResponse>")));
     const out = await syncConnection(user, conn);
+    spy.mockRestore();
     expect(out.ok).toBe(false);
     expect(out.message).toMatch(/IP/);
     expect(out.message).not.toContain("1234567890123456789012");
+    expect(logs.join("\n")).not.toContain("1234567890123456789012");
     expect(state.marks.at(-1)?.[0]).toBe("error");
   });
   it("1012 expired marks the connection expired", async () => {
