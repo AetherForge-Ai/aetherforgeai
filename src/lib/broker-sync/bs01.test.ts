@@ -15,7 +15,8 @@ vi.mock("@/lib/broker-sync/connection-store.server", () => ({
   listActiveConnections: vi.fn(async () => []),
   markSync: vi.fn(),
 }));
-vi.mock("@/lib/totalum", () => ({ totalumSdk: { crud: { query: vi.fn(async () => ({ data: [] })), getRecordById: vi.fn() } } }));
+const sendEmail = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/totalum", () => ({ totalumSdk: { crud: { query: vi.fn(async () => ({ data: [] })), getRecordById: vi.fn() }, email: { sendEmail } } }));
 vi.mock("@/lib/transactions", () => ({ applyTransaction: vi.fn() }));
 vi.mock("@/lib/book-cache", () => ({ invalidateBookCache: vi.fn() }));
 vi.mock("@/lib/import/persist", () => ({ runH10Import: vi.fn() }));
@@ -40,12 +41,21 @@ beforeEach(() => {
 describe("BS-01 invalid token: clear error, nothing saved", () => {
   it("rejects a malformed token without calling IBKR", async () => {
     const f = vi.fn();
+    const logs: string[] = [];
+    const spy = vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
+      logs.push(args.map(String).join(" "));
+    });
     vi.stubGlobal("fetch", f);
     const res = await connect(req({ token: "not-a-token", queryId: "123456" }));
+    const body = await res.json();
+    spy.mockRestore();
     expect(res.status).toBe(400);
-    expect((await res.json()).error).toMatch(/Flex token/);
+    expect(body.error).toMatch(/Flex token/);
+    expect(JSON.stringify(body)).not.toContain("not-a-token");
+    expect(logs.join("\n")).not.toContain("not-a-token");
     expect(f).not.toHaveBeenCalled();
     expect(s.saved).toBe(0);
+    expect(sendEmail).not.toHaveBeenCalled();
   });
   it("rejects a token IBKR refuses (1015) and saves nothing", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("<FlexStatementResponse><Status>Fail</Status><ErrorCode>1015</ErrorCode></FlexStatementResponse>")));
@@ -74,8 +84,16 @@ describe("BS-01 cron route needs the secret", () => {
     }
     expect((await cronGet(new Request("https://x/api/cron/broker-sync?key=right-secret-value"))).status).toBe(401);
     expect((await cronGet(new Request("https://x/api/cron/broker-sync", { headers: { "x-cron-secret": "right-secret-value" } }))).status).toBe(200);
+    expect(sendEmail).not.toHaveBeenCalled();
     vi.stubEnv("CRON_SECRET", "");
     expect((await cronGet(new Request("https://x/api/cron/broker-sync"))).status).toBe(503);
+  });
+  it("the scheduled job calls this route and sends no email", () => {
+    const route = readFileSync("src/app/api/cron/broker-sync/route.ts", "utf8");
+    const workflow = readFileSync(".github/workflows/cron.yml", "utf8");
+    expect(workflow).toContain("/api/cron/broker-sync");
+    expect(workflow).toContain("x-cron-secret");
+    expect(route + workflow).not.toMatch(/sendEmail|sendMail|resend|nodemailer/i);
   });
 });
 
@@ -92,8 +110,17 @@ describe("BS-01 fixture statement reconciles within NZ$0.01", () => {
     expect(Math.abs(cashNzd - 1002.04)).toBeLessThanOrEqual(0.01);
   });
   it("no Math.random in broker sync code", () => {
-    for (const f of ["ibkr-flex.ts", "ibkr-sync.server.ts", "token-crypto.server.ts", "connection-store.server.ts"]) {
-      expect(readFileSync(`src/lib/broker-sync/${f}`, "utf8")).not.toContain("Math.random");
+    for (const f of [
+      "src/lib/broker-sync/ibkr-flex.ts",
+      "src/lib/broker-sync/ibkr-sync.server.ts",
+      "src/lib/broker-sync/token-crypto.server.ts",
+      "src/lib/broker-sync/connection-store.server.ts",
+      "src/app/api/cron/broker-sync/route.ts",
+      "src/app/api/broker/ibkr/route.ts",
+      "src/app/api/broker/ibkr/sync/route.ts",
+      ".github/workflows/cron.yml",
+    ]) {
+      expect(readFileSync(f, "utf8")).not.toContain("Math.random");
     }
   });
 });

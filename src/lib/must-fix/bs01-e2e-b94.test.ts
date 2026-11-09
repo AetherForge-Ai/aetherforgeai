@@ -118,6 +118,7 @@ describe("b94 BS-01 fixture hook end to end", () => {
     const r = await post({ action: "disconnect" });
     expect(r.body).toMatchObject({ ok: true, removed: true, stored: false });
     expect(table("broker_connection")).toHaveLength(0);
+    expect(JSON.stringify(db)).not.toContain("enc_token");
     expect((await post({ action: "disconnect" })).body).toMatchObject({ ok: true, removed: false });
   });
 
