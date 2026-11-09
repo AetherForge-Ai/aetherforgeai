@@ -181,13 +181,14 @@ describe("H-10 import rules", () => {
 });
 
 /**
- * Non-Hatch brokers with a committed fixture and a recorded total in expected.json.
- * Hatch is outside this task. InvestNow, Kernel, Binance and the AetherForge
- * export have no committed authentic fixture with a recorded total.
+ * Brokers with a committed fixture and a recorded total in expected.json.
+ * Hatch uses hatch.csv and expected.json cashNzd -158.4. InvestNow, Kernel,
+ * Binance and the AetherForge export have no committed fixture with a recorded total.
  * Bad rows and the 6 MB file are derived from that fixture and labelled as such.
  */
 const COVERED_FIXTURES = [
   "sharesies.csv",
+  "hatch.csv",
   "ibkr.csv",
   "stake.csv",
   "asb.csv",
@@ -200,6 +201,7 @@ const COVERED_FIXTURES = [
 
 const BREAK_COLUMNS: Record<(typeof COVERED_FIXTURES)[number], { date: string[]; side: string[]; price: string[] }> = {
   "sharesies.csv": { date: ["trade date"], side: ["transaction type"], price: ["price"] },
+  "hatch.csv": { date: ["date (nz)", "date"], side: ["side"], price: ["price (usd)", "price"] },
   "ibkr.csv": { date: ["tradedate", "trade date"], side: ["buy/sell"], price: ["tradeprice", "trade price"] },
   "stake.csv": { date: ["trade date"], side: ["side"], price: ["avg price"] },
   "asb.csv": { date: ["trade date"], side: ["buy/sell"], price: ["price"] },
