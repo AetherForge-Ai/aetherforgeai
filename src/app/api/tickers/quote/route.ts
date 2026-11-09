@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { fetchYahooQuote } from "@/lib/yahoo-finance";
 import { fetchLiveQuotes } from "@/lib/market-data";
-import { closeLabelFor, equitySessionOpen, equityVenue } from "@/lib/market-freshness";
+import { closeLabelFor, equitySessionOpen, equityVenue, equityVenueForSymbol } from "@/lib/market-freshness";
 import type { Exchange } from "@/lib/market-intel";
 import { fetchCryptoQuotes } from "@/lib/market-data";
 import { getMetalsSpot } from "@/lib/metals";
@@ -21,10 +21,8 @@ export const dynamic = "force-dynamic";
 
 /** Same venue clock the public tape uses for this symbol. */
 function equityExchange(symbol: string): Exchange {
-  const ticker = symbol.toUpperCase();
-  if (ticker.endsWith(".NZ") || ticker.endsWith(".NZX")) return "NZX";
-  if (ticker.endsWith(".AX") || ticker.endsWith(".ASX")) return "ASX";
-  return "NASDAQ";
+  const venue = equityVenueForSymbol(symbol);
+  return venue === "US" ? "NASDAQ" : venue;
 }
 
 /**

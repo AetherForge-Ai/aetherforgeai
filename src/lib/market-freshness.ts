@@ -36,6 +36,14 @@ export function equityVenue(exchange: Exchange): EquityVenue {
   return "US";
 }
 
+/** Suffix map shared by the quote route, the trade drawer, and the holding drawer. */
+export function equityVenueForSymbol(symbol: string): EquityVenue {
+  const ticker = symbol.toUpperCase();
+  if (ticker.endsWith(".NZ") || ticker.endsWith(".NZX")) return "NZX";
+  if (ticker.endsWith(".AX") || ticker.endsWith(".ASX")) return "ASX";
+  return "US";
+}
+
 /** True only while that cash session is open. Crypto and FX are not equity sessions. */
 export function equitySessionOpen(exchange: Exchange, now = new Date()): boolean {
   return isExchangeRegularSession(exchange, now);
@@ -100,21 +108,19 @@ export function formatSessionDate(iso: string): string {
 
 /**
  * b67 H-1: one shut-market label for every surface (tape, watchlist, quote, drawer).
- * Reads "Close 23 Oct 2026": the last session date, never the weekend fetch day.
- * When the quote itself is older than that session, the older quote date is shown (honest).
+ * Reads "Close 23 Oct 2026": the quote's session date, never the weekend fetch day.
+ * A missing quote timestamp stays undated. An older quote keeps its own exchange date.
  */
 export function closeLabelFor(
   venue: EquityVenue,
   quotedAt: string | number | Date | null | undefined,
   now = new Date()
 ): string {
-  const session = equitySessionDate(venue, now);
   const quoted = parseQuoteTime(quotedAt ?? null);
-  let iso = session;
-  if (quoted) {
-    const quotedIso = zonedParts(quoted, ZONE[venue]).iso;
-    if (quotedIso < session) iso = quotedIso;
-  }
+  if (!quoted) return "Close unavailable";
+  const session = equitySessionDate(venue, now);
+  const quotedIso = zonedParts(quoted, ZONE[venue]).iso;
+  const iso = quotedIso < session ? quotedIso : session;
   const date = formatDisplayDate(iso);
   return date === "—" ? "Close unavailable" : `Close ${date}`;
 }
@@ -226,9 +232,32 @@ export function equityFreshnessLabel(
       live: false,
     };
   }
-  const date = formatSessionDate(equitySessionDate(venue, now));
-  if (venue === "US") return { label: `Last close · ${date} (New York)`, live: false };
-  return { label: `Close · ${venue} · ${date}`, live: false };
+  return { label: closeLabelFor(venue, quotedAt, now), live: false };
+}
+
+/**
+ * Holding-drawer stamp. Shares use the same shut-session label as the quote
+ * route. The quote instant itself is not rewritten. Crypto and metals keep
+ * the calendar date of the stored mark.
+ */
+export function holdingPriceAsOf(
+  ticker: string,
+  assetClass: string,
+  quotedAt: string | null | undefined,
+  now = new Date()
+): string | null {
+  if (!quotedAt) return null;
+  if (assetClass !== "shares") {
+    const wall = formatDisplayDate(quotedAt);
+    return wall === "—" ? null : wall;
+  }
+  const venue = equityVenueForSymbol(ticker);
+  const exchange: Exchange = venue === "US" ? "NASDAQ" : venue;
+  if (equitySessionOpen(exchange, now)) {
+    const wall = formatDisplayDate(quotedAt);
+    return wall === "—" ? null : wall;
+  }
+  return closeLabelFor(venue, quotedAt, now);
 }
 
 export function exchangeFreshnessLabel(

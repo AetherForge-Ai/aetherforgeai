@@ -10,6 +10,7 @@ import { api } from "@/lib/api";
 import { dexSearchHits, searchAssets, type AssetHit, type AssetMarket } from "@/lib/asset-search";
 import { cleanChain, dexFromHolding, isDexSource } from "@/lib/dex-source";
 import { useRestoreScroll } from "@/components/dashboard/use-restore-scroll";
+import { equityVenueForSymbol } from "@/lib/market-freshness";
 import { shownTradePriceLabel, tradePriceHint, type TradePriceSession } from "@/lib/trade-price-label";
 import { PAPER_FEE_SUMMARY, suggestedFee } from "@/lib/fee-rule";
 import { buildMovementPreview, movementNzdTotal, type MovementPreview, type RecordKind } from "@/lib/movement-preview";
@@ -420,9 +421,10 @@ export function RecordTransactionPanel({
           const session: TradePriceSession = res.data.session === "open" || res.data.session === "closed" ? res.data.session : "";
           setPriceSession(session);
           setPriceAsAt(res.data.quotedAt || "");
+          const venue = equityVenueForSymbol(sym);
           setHint(
             session
-              ? tradePriceHint({ priceDirty: false, session, quotedAt: res.data.quotedAt || "" })
+              ? tradePriceHint({ priceDirty: false, session, quotedAt: res.data.quotedAt || "", venue })
               : res.data.label || ""
           );
           if (res.data.source === "snapshot") {
@@ -1118,7 +1120,7 @@ export function RecordTransactionPanel({
             )}
             {showQty ? (
               <div className="space-y-1.5">
-                <Label htmlFor="record-price">{shownTradePriceLabel(priceAsAt, priceDirty, priceSession)}</Label>
+                <Label htmlFor="record-price">{shownTradePriceLabel(priceAsAt, priceDirty, priceSession, asset ? equityVenueForSymbol(asset.symbol) : null)}</Label>
                 <Input
                   id="record-price"
                   aria-invalid={(kind === "buy" || kind === "sell") && price.trim() !== "" && !(Number(price) > 0)}
