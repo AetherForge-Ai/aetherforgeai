@@ -6,6 +6,6 @@ const read = (p: string) => readFileSync(p, "utf8");
 
 describe("b56 Batch R (M-2): help, docs, status, changelog", () => {
   it("build string", () => {
-    expect(read("public/build-version.txt").trim()).toBe("v3-b97-2026-11-05");
+    expect(read("public/build-version.txt").trim()).toBe("v3-b98-2026-11-10");
   });
 });
