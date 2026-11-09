@@ -19,7 +19,7 @@ import { BuyDialog, type BuyTarget } from "@/components/dashboard/BuyDialog";
 import { columnHasFigure, cryptoCountLine, cryptoFooterLine, cryptoHeaderCount, dexCoverageLine, dexTabLabel } from "@/lib/crypto-coverage";
 import { coingeckoSupplied, countLine, stripLastGoodCell } from "@/lib/crypto-board";
 import { sourceLabel } from "@/lib/crypto-price-chain";
-import { DEX_EMPTY_NOTICE, dedupeDexRows, dexNoticeForShown } from "@/lib/crypto-dex";
+import { DEX_EMPTY_NOTICE, dedupeDexRows, dexNoticeForShown, dexRowKey } from "@/lib/crypto-dex";
 import { explorerDetailHref, marketsTabHref, type MarketsTab } from "@/lib/market-detail-routes";
 import type { PublicPriceRow } from "@/lib/public-market-types";
 import { paperAddSignupHref } from "@/lib/paper-add-link";
@@ -142,7 +142,7 @@ function seedDisplayRows(rows: PublicPriceRow[], market: "Crypto" | "DEX"): Disp
   return rows
     .filter((row) => typeof row.usd === "number" && row.usd > 0)
     .map((row) => ({
-      key: row.href || row.symbol,
+      key: market === "DEX" ? dexRowKey({ network: row.blockchain || "", poolId: row.poolId, address: row.poolId }) : row.href || row.symbol,
       ticker: row.symbol.toUpperCase(),
       symbol: row.symbol.toUpperCase(),
       name: row.name,
@@ -562,7 +562,11 @@ export function MarketsExplorer({
         all = seedDisplayRows(seedDex, "DEX");
       } else
       all = dex.rows.slice(0, CRYPTO_TOP_N).map((row) => ({
-        key: `${stripLastGoodCell(row.network).toLowerCase()}|${stripLastGoodCell(row.address || row.id)}`,
+        key: dexRowKey({
+          network: stripLastGoodCell(row.network),
+          poolId: row.poolId,
+          address: stripLastGoodCell(row.address || ""),
+        }),
         ticker: stripLastGoodCell(row.symbol).toUpperCase(),
         symbol: stripLastGoodCell(row.symbol).toUpperCase(),
         name: coinDisplayName(row.symbol, stripLastGoodCell(row.name)),
