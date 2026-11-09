@@ -42,6 +42,23 @@ vi.mock("@/lib/metals", () => ({
   getMetalsSpot: vi.fn(async () => ({})),
 }));
 
+/** Same PEPE print the fill uses. Confirm must not ask CoinPaprika. */
+const FROZEN_PEPE_QUOTE = vi.hoisted(() => ({
+  price: 0.0000040399,
+  quotedAt: "2026-10-09T00:00:00.000Z",
+  source: "recent" as const,
+  stale: false,
+}));
+
+vi.mock("@/lib/crypto-board-store", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/crypto-board-store")>();
+  return {
+    ...actual,
+    confirmCryptoQuote: vi.fn(async () => FROZEN_PEPE_QUOTE),
+    priceFromSnapshot: vi.fn(async () => FROZEN_PEPE_QUOTE),
+  };
+});
+
 import { tradeSchema } from "@/lib/trade-schema";
 import { bookHoldingFromStock } from "@/components/dashboard/RecordTransactionPanel";
 import { dexFromLedger, dexSourceLabel, stripDexNotesPrefix } from "@/lib/dex-source";
