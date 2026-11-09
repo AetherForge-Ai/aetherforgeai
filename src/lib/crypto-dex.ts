@@ -27,8 +27,10 @@ export interface DexTokenRow {
   dex: string;
   /** CoinGecko slug when the pool token carries one. Null when detail cannot be loaded. */
   detailId: string | null;
-  /** GeckoTerminal base-token id (network plus address). Dedupe key when present. */
+  /** GeckoTerminal base-token id (network plus address). */
   address?: string;
+  /** Stable pool or pair id from the feed. Dedupe key. Not a display name. */
+  poolId?: string;
   /** Pool reserve in USD. Missing means the row has not cleared a liquidity floor. */
   reserveUsd?: number | null;
 }
@@ -196,6 +198,7 @@ export function parseMegafilterPage(payload: unknown, fallbackNetwork = ""): Dex
     const address = relId(pool, "base_token");
     rows.push({
       id: token?.coinId || address || symbol.toLowerCase(),
+      poolId: String(pool.id || ""),
       symbol,
       name: token?.name || symbol,
       price: live,
@@ -274,6 +277,7 @@ export function parseDexScreenerPairs(payload: unknown): DexTokenRow[] {
     const address = String(base?.address || "").trim().toLowerCase();
     rows.push({
       id: address ? `${chain}_${address}` : symbol.toLowerCase(),
+      poolId: String(pair.pairAddress || ""),
       symbol,
       name: String(base?.name || symbol),
       price: live,
@@ -650,6 +654,14 @@ export function fillDexDetailIds(rows: DexTokenRow[], index: Map<string, string>
  * b97 DEX-1: drop repeat DEX rows (same network and pool/token key), keeping the first. The table and
  * its "Showing N of up to 400" lines both use this list, so the count equals the rows rendered.
  */
+/** Pool identity for the DEX table. Never the row index or the token's display name. */
+export function dexRowKey(row: { network?: string | null; poolId?: string | null; address?: string | null }): string {
+  const network = String(row.network || "").trim().toLowerCase();
+  const pool = String(row.poolId || "").trim().toLowerCase();
+  const address = String(row.address || "").trim().toLowerCase();
+  return `${network}|${pool || address}`;
+}
+
 export function dedupeDexRows<T extends { key: string }>(rows: readonly T[]): T[] {
   const seen = new Set<string>();
   const out: T[] = [];

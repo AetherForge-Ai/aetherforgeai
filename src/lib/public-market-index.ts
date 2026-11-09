@@ -290,6 +290,7 @@ async function loadDexTab(): Promise<PublicPriceTab> {
       quotedAt: (row as { quotedAt?: string | null }).quotedAt || quotedAt || null,
       blockchain: row.network || "",
       dex: row.dex || "",
+      poolId: row.poolId || row.address || "",
     }));
     const tab = {
       id: "DEX",

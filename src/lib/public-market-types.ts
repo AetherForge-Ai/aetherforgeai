@@ -20,6 +20,8 @@ export interface PublicPriceRow {
   dayLow?: number | null;
   /** Coin slug for /markets/crypto/[id]. */
   quoteId?: string;
+  /** Stable DEX pool or pair id. Not the token display name. */
+  poolId?: string;
   /** Vendor or saved-print label. Empty when this row has no price. */
   source?: string;
   /** Includes the words "as of" for this row. */
