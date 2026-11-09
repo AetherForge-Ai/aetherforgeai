@@ -184,11 +184,16 @@ export function BrokerImportPanel({
 
   // b97 G-24: a PDF or screenshot is read on this device into the text box, then reviewed like pasted text.
   const [visualReading, setVisualReading] = useState(false);
+  const visualAbort = useRef<AbortController | null>(null);
   async function readVisual(file: File | undefined) {
     if (!file) return;
+    visualAbort.current?.abort();
+    const controller = new AbortController();
+    visualAbort.current = controller;
     setVisualReading(true);
     setPasteNote(`Reading ${file.name} on this device…`);
-    const out = await readVisualFile(file);
+    const out = await readVisualFile(file, controller.signal);
+    if (visualAbort.current !== controller) return;
     setVisualReading(false);
     if ("error" in out) {
       setPasteNote(out.error);
@@ -197,6 +202,18 @@ export function BrokerImportPanel({
     setPasted(out.text);
     setPasteNote("");
     readPasted(out.text, file.name);
+  }
+
+  function cancelVisual() {
+    visualAbort.current?.abort();
+    visualAbort.current = null;
+    setVisualReading(false);
+    setPasted("");
+    setPastedRows([]);
+    setRowDates({});
+    setText("");
+    setPreview(null);
+    setPasteNote("Reading was cancelled. Nothing was saved.");
   }
 
   function adoptPasted(rows: PastedRow[], unread: string[], name: string) {
@@ -458,6 +475,11 @@ export function BrokerImportPanel({
                 {visualReading ? "Reading…" : "Read a PDF or screenshot"}
                 <input type="file" accept={VISUAL_ACCEPT} className="sr-only" disabled={visualReading} onChange={(e) => { void readVisual(e.target.files?.[0]); e.target.value = ""; }} />
               </label>
+              {visualReading ? (
+                <button type="button" onClick={cancelVisual} className="h-9 rounded-md border px-3 text-sm" data-read-cancel>
+                  Cancel
+                </button>
+              ) : null}
             </div>
             {pasteNote ? <p className="mt-2 text-sm" role="status">{pasteNote}</p> : null}
             {pastedRows.some((r) => !r.date) ? (

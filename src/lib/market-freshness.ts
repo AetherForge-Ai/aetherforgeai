@@ -106,6 +106,14 @@ export function formatSessionDate(iso: string): string {
   return formatDisplayDate(iso);
 }
 
+/** Change caption on a stock page. An open session stays "today". A shut session uses the close label. */
+export function stockMoveLabel(symbol: string, quotedAt: string | number | Date | null | undefined, now = new Date()): string {
+  const venue = equityVenueForSymbol(symbol);
+  const exchange: Exchange = venue === "US" ? "NASDAQ" : venue;
+  if (equitySessionOpen(exchange, now)) return "today";
+  return closeLabelFor(venue, quotedAt, now);
+}
+
 /**
  * b67 H-1: one shut-market label for every surface (tape, watchlist, quote, drawer).
  * Reads "Close 23 Oct 2026": the quote's session date, never the weekend fetch day.

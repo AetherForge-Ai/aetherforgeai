@@ -7,6 +7,7 @@ import {
   equityFreshnessLabel,
   equitySessionDate,
   holdingPriceAsOf,
+  stockMoveLabel,
   metalUpdatedPhrase,
   metalsHomeHint,
   quotedEquitySessionOpen,
@@ -104,6 +105,13 @@ describe("equity freshness", () => {
     expect(tapeUpdatedPhrase(quotedAt, "NZX", saturday)).toBe(stamp);
     expect(holdingPriceAsOf("FPH.NZ", "shares", quotedAt, saturday)).toBe(stamp);
     expect(holdingPriceAsOf("BTC", "crypto", quotedAt, saturday)).toBe("16 Oct 2026");
+  });
+
+  it("labels a stock page move as today only while that exchange is open", () => {
+    const saturday = new Date("2025-11-08T01:00:00.000Z");
+    expect(stockMoveLabel("FPH.NZ", "2025-11-07T04:00:00.000Z", saturday)).toBe("Close 7 Nov 2025");
+    expect(stockMoveLabel("FPH.NZ", null, AFTER_CLOSE)).toBe("Close unavailable");
+    expect(stockMoveLabel("FPH.NZ", NZX_OPEN, NZX_OPEN)).toBe("today");
   });
 });
 
