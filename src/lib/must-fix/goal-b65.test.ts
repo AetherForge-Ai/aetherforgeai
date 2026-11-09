@@ -28,7 +28,7 @@ const read = (p: string) => readFileSync(p, "utf8");
 const $ = (c: bigint) => formatNzd(c);
 
 describe("b65 build", () => {
-  it("build version", () => expect(read("public/build-version.txt").trim()).toBe("v3-b97-2026-11-05"));
+  it("build version", () => expect(read("public/build-version.txt").trim()).toBe("v3-b98-2026-11-10"));
 });
 
 describe("G-07 holding caps meter, no-card trial, refund text (flag OFF in prod)", () => {
