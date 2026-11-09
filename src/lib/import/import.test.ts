@@ -2,6 +2,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { commitImport, emptyBook, undoImport, DUPLICATE_FILE } from "@/lib/import/book";
+import { headerIndex, parseCsv } from "@/lib/import/csv";
 import { previewImport } from "@/lib/import/plan";
 import { contentHash } from "@/lib/import/hash";
 import { FORMAT_SOURCES } from "@/lib/import/formats";
@@ -137,7 +138,13 @@ describe("H-10 import rules", () => {
   });
 
   it("does not use Math.random anywhere in the import path", () => {
-    const files = walk("src/lib/import").concat(["src/app/api/import/route.ts", "src/app/import/page.tsx", "src/app/import/import-client.tsx"]);
+    const files = walk("src/lib/import").concat([
+      "src/lib/broker-import.ts",
+      "src/app/api/import/route.ts",
+      "src/app/import/page.tsx",
+      "src/app/import/import-client.tsx",
+      "src/components/import/BrokerImportPanel.tsx",
+    ]);
     for (const file of files) {
       if (!/\.(ts|tsx)$/.test(file) || file.endsWith(".test.ts")) continue;
       expect(readFileSync(path.join(process.cwd(), file), "utf8"), file).not.toContain("Math.random");
@@ -171,6 +178,130 @@ describe("H-10 import rules", () => {
     expect(priced.toWrite[0]).toMatchObject({ ticker: "AAPL", side: "buy", quantity: 2, price: 180 });
     expect(Math.abs(priced.cashNzd - -(360 + 1) * 1.65)).toBeLessThan(0.01);
   });
+});
+
+/**
+ * Brokers with a committed fixture and a recorded total in expected.json.
+ * Hatch uses hatch.csv and expected.json cashNzd -158.4. InvestNow, Kernel,
+ * Binance and the AetherForge export have no committed fixture with a recorded total.
+ * Bad rows and the 6 MB file are derived from that fixture and labelled as such.
+ */
+const COVERED_FIXTURES = [
+  "sharesies.csv",
+  "hatch.csv",
+  "ibkr.csv",
+  "stake.csv",
+  "asb.csv",
+  "jarden.csv",
+  "commsec.csv",
+  "swyftx.csv",
+  "easycrypto.csv",
+  "generic.csv",
+] as const;
+
+const BREAK_COLUMNS: Record<(typeof COVERED_FIXTURES)[number], { date: string[]; side: string[]; price: string[] }> = {
+  "sharesies.csv": { date: ["trade date"], side: ["transaction type"], price: ["price"] },
+  "hatch.csv": { date: ["date (nz)", "date"], side: ["side"], price: ["price (usd)", "price"] },
+  "ibkr.csv": { date: ["tradedate", "trade date"], side: ["buy/sell"], price: ["tradeprice", "trade price"] },
+  "stake.csv": { date: ["trade date"], side: ["side"], price: ["avg price"] },
+  "asb.csv": { date: ["trade date"], side: ["buy/sell"], price: ["price"] },
+  "jarden.csv": { date: ["transaction date"], side: ["type"], price: ["price"] },
+  "commsec.csv": { date: ["trade date"], side: ["buy/sell"], price: ["average price ($)", "average price"] },
+  "swyftx.csv": { date: ["date"], side: ["event"], price: ["rate"] },
+  "easycrypto.csv": { date: ["created", "date"], side: ["from currency"], price: ["rate"] },
+  "generic.csv": { date: ["booked"], side: ["what"], price: ["unit price"] },
+};
+
+function csvCell(value: string): string {
+  if (/[",\n\r]/.test(value)) return `"${value.replace(/"/g, '""')}"`;
+  return value;
+}
+
+/** Three broken copies of the first trade. The committed rows are not edited. */
+function derivedBadRows(text: string, file: (typeof COVERED_FIXTURES)[number]): string {
+  const grid = parseCsv(text);
+  const headers = grid[0] || [];
+  const spec = BREAK_COLUMNS[file];
+  const dateAt = headerIndex(headers, spec.date);
+  const sideAt = headerIndex(headers, spec.side);
+  const priceAt = headerIndex(headers, spec.price);
+  if (dateAt < 0 || sideAt < 0 || priceAt < 0 || grid.length < 2) {
+    throw new Error(`cannot derive bad rows for ${file}`);
+  }
+  const source = grid[1];
+  const broken = [
+    source.map((cell, index) => (index === dateAt ? "not-a-date" : cell)),
+    source.map((cell, index) => (index === sideAt ? "NOT-A-SIDE" : cell)),
+    source.map((cell, index) => (index === priceAt ? "abc" : cell)),
+  ];
+  const body = [headers, ...grid.slice(1), ...broken].map((row) => row.map(csvCell).join(",")).join("\n");
+  return `# DERIVED bad rows from ${file}. Three cells are broken. Good rows are the committed fixture.\n${body}\n`;
+}
+
+/** The committed fixture, then padding, so the file is 6 MB. */
+function derivedOversize(text: string, file: string): string {
+  const note = `# DERIVED oversize from ${file}. Padding is not a broker row.\n`;
+  const target = 6 * 1024 * 1024;
+  const body = note + text;
+  if (body.length >= target) return body;
+  return body + "x".repeat(target - body.length);
+}
+
+describe("H-10 each covered broker fixture", () => {
+  const opening = 100_000;
+
+  for (const file of COVERED_FIXTURES) {
+    const want = expected[file];
+
+    it(`${file} commits, rejects a duplicate, and undo restores the totals`, async () => {
+      const text = read(file);
+      const book = emptyBook(opening);
+      const outcome = await commitImport(book, text, optionsFor(file, want));
+      expect(outcome.ok).toBe(true);
+      expect(outcome.written).toBe(want.rows);
+      expect(Math.abs(book.cashNzd - (opening + want.cashNzd))).toBeLessThan(0.01);
+      const cash = book.cashNzd;
+      const holdings = { ...book.holdings };
+
+      const again = await commitImport(book, text, optionsFor(file, want));
+      expect(again.ok).toBe(false);
+      expect(again.duplicate).toBe(true);
+      expect(again.error).toBe(DUPLICATE_FILE);
+      expect(again.written).toBe(0);
+      expect(book.cashNzd).toBe(cash);
+      expect(book.holdings).toEqual(holdings);
+
+      const undone = undoImport(book, outcome.batchId || "");
+      expect(undone.ok).toBe(true);
+      expect(book.cashNzd).toBe(opening);
+      expect(book.holdings).toEqual({});
+      expect(book.fileHashes).toEqual([]);
+    });
+
+    it(`${file} keeps exactly 3 derived row errors and commits the good rows`, async () => {
+      const text = derivedBadRows(read(file), file);
+      expect(text.startsWith("# DERIVED bad rows")).toBe(true);
+      const book = emptyBook(opening);
+      const outcome = await commitImport(book, text, optionsFor(file, want));
+      expect(outcome.ok).toBe(true);
+      expect(outcome.preview.errors).toHaveLength(3);
+      expect(outcome.written).toBe(want.rows);
+      expect(Math.abs(book.cashNzd - (opening + want.cashNzd))).toBeLessThan(0.01);
+    });
+
+    it(`${file} rejects a derived 6 MB file and writes nothing`, async () => {
+      const text = derivedOversize(read(file), file);
+      expect(text.startsWith("# DERIVED oversize")).toBe(true);
+      expect(text.length).toBe(6 * 1024 * 1024);
+      const book = emptyBook(opening);
+      const outcome = await commitImport(book, text, optionsFor(file, want));
+      expect(outcome.ok).toBe(false);
+      expect(outcome.error).toBe(IMPORT_TOO_LARGE);
+      expect(outcome.written).toBe(0);
+      expect(book.cashNzd).toBe(opening);
+      expect(book.batches).toHaveLength(0);
+    });
+  }
 });
 
 function walk(dir: string): string[] {
