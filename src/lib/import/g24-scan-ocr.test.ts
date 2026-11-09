@@ -74,14 +74,83 @@ describe("G-24 scanned PDF and hosted tesseract core", () => {
 
   it("refuses too many pages and caps a raster", async () => {
     await expect(pdfBytesToText(new Uint8Array([1]), fakePdf(Array.from({ length: 16 }, () => ({ text: ["x"] }))) as never)).rejects.toThrow(/too many pages/);
-    const canvas = { width: 0, height: 0, toBlob: (cb: (blob: Blob | null) => void) => cb(new Blob(["png"])) };
+    let drawn = 0;
+    const canvas = {
+      width: 0,
+      height: 0,
+      toBlob: (cb: (blob: Blob | null) => void) => {
+        drawn = canvas.width * canvas.height;
+        cb(new Blob(["png"]));
+      },
+    };
     const doc = { createElement: () => canvas };
     const page = {
       getViewport: ({ scale }: { scale: number }) => ({ width: 2000 * scale, height: 2000 * scale }),
       render: () => ({ promise: Promise.resolve() }),
     };
     await rasterizePage(page, doc as never);
-    expect(canvas.width * canvas.height).toBeLessThanOrEqual(VISUAL_MAX_RASTER_PIXELS);
+    expect(drawn).toBeGreaterThan(0);
+    expect(drawn).toBeLessThanOrEqual(VISUAL_MAX_RASTER_PIXELS);
+    expect(canvas.width).toBe(0);
+    expect(canvas.height).toBe(0);
+  });
+
+  it("OCRs a form-XObject-wrapped image page", async () => {
+    const calls: string[] = [];
+    const pdf = {
+      OPS: { paintFormXObject: 66, paintFormXObjectBegin: 74 },
+      GlobalWorkerOptions: {},
+      getDocument: () => ({
+        promise: Promise.resolve({
+          numPages: 1,
+          getPage: async () => ({
+            getTextContent: async () => ({ items: [] }),
+            getOperatorList: async () => ({ fnArray: [74], argsArray: [] }),
+            getViewport: () => ({ width: 10, height: 10 }),
+            render: () => ({ promise: Promise.resolve() }),
+          }),
+          destroy: async () => undefined,
+        }),
+      }),
+    };
+    const text = await pdfBytesToText(new Uint8Array([1]), pdf as never, {
+      rasterize: async () => new Blob(["png"]),
+      recognize: async () => {
+        calls.push("ocr");
+        return "Bought 2 FPH.NZ";
+      },
+    });
+    expect(calls).toEqual(["ocr"]);
+    expect(text).toContain("Bought 2 FPH.NZ");
+    const named = await pdfBytesToText(new Uint8Array([1]), {
+      ...pdf,
+      getDocument: () => ({
+        promise: Promise.resolve({
+          numPages: 1,
+          getPage: async () => ({
+            getTextContent: async () => ({ items: [] }),
+            getOperatorList: async () => ({ fnArray: [66], argsArray: [] }),
+            getViewport: () => ({ width: 10, height: 10 }),
+            render: () => ({ promise: Promise.resolve() }),
+          }),
+          destroy: async () => undefined,
+        }),
+      }),
+    } as never, {
+      rasterize: async () => new Blob(["png"]),
+      recognize: async () => "form name",
+    });
+    expect(named).toContain("form name");
+  });
+
+  it("stops recognize when the read budget runs out", async () => {
+    const pending = pdfBytesToText(new Uint8Array([1]), fakePdf([{ text: [], paint: true }]) as never, {
+      rasterize: async () => new Blob(["png"]),
+      recognize: () => new Promise(() => undefined),
+      deadlineMs: 20,
+      now: () => 0,
+    });
+    await expect(pending).rejects.toThrow(/too long/);
   });
 
   it("cancel stops the read and saves nothing", async () => {

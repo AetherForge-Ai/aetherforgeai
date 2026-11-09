@@ -114,6 +114,16 @@ export function stockMoveLabel(symbol: string, quotedAt: string | number | Date 
   return closeLabelFor(venue, quotedAt, now);
 }
 
+/** Prefer the API caption. A missing caption is computed here, including when the quote is a previous close. */
+export function stockMoveCaption(
+  symbol: string,
+  quote: { moveLabel?: string | null; quotedAt?: string | number | Date | null },
+  now = new Date(),
+): string {
+  if (quote.moveLabel) return quote.moveLabel;
+  return stockMoveLabel(symbol, quote.quotedAt ?? null, now);
+}
+
 /**
  * b67 H-1: one shut-market label for every surface (tape, watchlist, quote, drawer).
  * Reads "Close 23 Oct 2026": the quote's session date, never the weekend fetch day.
