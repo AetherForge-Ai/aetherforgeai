@@ -19,6 +19,7 @@ import {
 } from "@/lib/import-commit";
 import { batchIdForHash, contentHash } from "@/lib/import/hash";
 import { IMPORT_TOO_LARGE, textTooLarge } from "@/lib/import/limits";
+import { previewCashRefusal } from "@/lib/import/cash-guard";
 import { previewImport } from "@/lib/import/plan";
 import { suggestedColumnMap, mappingReady } from "@/lib/import/formats";
 import type { ColumnMap, ImportPreview, ImportRow } from "@/lib/import/types";
@@ -140,6 +141,7 @@ function publicPreview(preview: ImportPreview) {
     })),
     cashNzd: preview.cashNzd,
     fileHash: preview.fileHash,
+    error: preview.error,
   };
 }
 
@@ -219,6 +221,9 @@ export async function runH10Import(user: ImportUser, text: string, body: unknown
   const stored = action === "commit" ? await loadLedger(user._id) : [];
   const preview = await previewWithRates(text, mapping, heldFrom(stored));
   if (action !== "commit") {
+    const opening = typeof user.cash_balance === "number" ? user.cash_balance : 0;
+    const refusal = previewCashRefusal(preview.toWrite, opening);
+    if (refusal && !preview.error) preview.error = refusal;
     return NextResponse.json({ ok: true, error: preview.error, data: publicPreview(preview) });
   }
   if (preview.needsMapping || preview.unreadable || !preview.toWrite.length) {

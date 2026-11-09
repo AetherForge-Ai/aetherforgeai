@@ -37,6 +37,7 @@ interface PreviewData {
   skipped: RowNote[];
   toWrite: PreviewRow[];
   cashNzd: number;
+  error?: string | null;
   written?: number;
   batchId?: string;
   summary?: string;
@@ -90,7 +91,9 @@ export function ImportClient() {
       batchId: action === "undo" ? batchId : undefined,
     });
     setBusy(false);
-    if (res.data && Array.isArray(res.data.toWrite)) setPreview(res.data);
+    if (res.data && Array.isArray(res.data.toWrite)) {
+      setPreview({ ...res.data, error: res.data.error || (typeof res.error === "string" ? res.error : null) });
+    }
     const savedBatch = res.data?.batchId;
     const written = res.data?.written ?? 0;
     if (action === "commit" && savedBatch && (res.ok || written > 0)) {
@@ -136,7 +139,8 @@ export function ImportClient() {
     await send("preview", body);
   }
 
-  const canSave = Boolean(preview && preview.toWrite.length > 0 && !preview.needsMapping && !saved);
+  const cashRefusal = preview?.error && /below zero/i.test(preview.error) ? preview.error : "";
+  const canSave = Boolean(preview && preview.toWrite.length > 0 && !preview.needsMapping && !saved && !cashRefusal);
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-10">
@@ -218,6 +222,11 @@ export function ImportClient() {
           <p className="mt-1 text-sm text-muted-foreground">
             {preview.toWrite.length} trade{preview.toWrite.length === 1 ? "" : "s"} ready. Cash effect {formatNzd(preview.cashNzd)}.
           </p>
+          {cashRefusal ? (
+            <p className="mt-2 text-sm text-destructive" role="alert" data-testid="import-cash-refusal">
+              {cashRefusal} Nothing was saved.
+            </p>
+          ) : null}
           {preview.toWrite.length ? (
             <table className="mt-4 w-full text-left text-sm">
               <thead>
