@@ -1,20 +1,14 @@
 // b99 candidate: M-1-PERF
 /**
- * M-1-PERF guard. tesseract.js and pdfjs-dist must not be reachable from the
- * home page or the root layout. The unit job does not run `next build`, so the
- * check that always runs is the TypeScript import graph. When a webpack build
- * is already on disk, the same test also reads the `/` client-reference
- * manifest and refuses those libraries in any first-load chunk.
- *
- * Measured on develop 6fae463d (webpack, `npm run build`), not asserted here
- * because other b99 PRs may change home JS for unrelated reasons:
- *   / first-load JS 791,638 raw / 249,151 gzip (25 chunks)
- *   b97 0cdf10c8 was 791,407 raw / 249,838 gzip (25 chunks)
- *   pdf.js async chunk 456,431 bytes, tesseract.js async chunk 14,786 bytes,
- *   neither in the `/` first-load set.
+ * M-1-PERF source-graph guard. tesseract.js and pdfjs-dist must not be reachable
+ * from the home page or the root layout. The byte ceiling and the first-load
+ * chunk set are checked in the next-build job by scripts/check-home-first-load.mjs
+ * after `next build --webpack`. That script fails when .next is missing.
  */
 import { describe, expect, it } from "vitest";
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { existsSync, mkdtempSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import ts from "typescript";
 
@@ -128,30 +122,6 @@ function sourceFiles(dir: string, acc: string[] = []): string[] {
   return acc;
 }
 
-/** Next's app-router first-load set: sync client-reference chunks plus rootMainFiles. */
-function homeFirstLoadFiles(): string[] | null {
-  const manifestPath = path.join(ROOT, ".next/server/app/page_client-reference-manifest.js");
-  const buildPath = path.join(ROOT, ".next/build-manifest.json");
-  if (!existsSync(manifestPath) || !existsSync(buildPath)) return null;
-  const previous = (globalThis as { __RSC_MANIFEST?: unknown }).__RSC_MANIFEST;
-  (globalThis as { __RSC_MANIFEST?: unknown }).__RSC_MANIFEST = undefined;
-  // The manifest is a generated assignment, not JSON.
-  new Function("globalThis", readFileSync(manifestPath, "utf8"))(globalThis);
-  const manifest = (globalThis as { __RSC_MANIFEST?: Record<string, { clientModules?: Record<string, { async?: boolean; chunks?: unknown[] }> }> }).__RSC_MANIFEST;
-  (globalThis as { __RSC_MANIFEST?: unknown }).__RSC_MANIFEST = previous;
-  const entry = manifest ? Object.values(manifest)[0] : undefined;
-  if (!entry?.clientModules) return null;
-  const build = JSON.parse(readFileSync(buildPath, "utf8")) as { rootMainFiles?: string[] };
-  const files = new Set<string>((build.rootMainFiles ?? []).filter((file) => file.endsWith(".js")));
-  for (const mod of Object.values(entry.clientModules)) {
-    if (mod.async) continue;
-    for (const chunk of mod.chunks ?? []) {
-      if (typeof chunk === "string" && chunk.split("?")[0].endsWith(".js")) files.add(chunk.split("?")[0]);
-    }
-  }
-  return [...files];
-}
-
 describe("M-1-PERF home bundle guard", () => {
   it("does not reach tesseract.js or pdfjs-dist from / or the root layout", () => {
     const starts = ["src/app/page.tsx", "src/app/layout.tsx"];
@@ -186,25 +156,10 @@ describe("M-1-PERF home bundle guard", () => {
     }
   });
 
-  it("keeps OCR chunks out of the / first-load set when a webpack build is present", () => {
-    const files = homeFirstLoadFiles();
-    if (!files) return;
-    const home = new Set(files);
-    for (const file of files) {
-      const text = readFileSync(path.join(ROOT, ".next", file), "utf8");
-      expect(text.includes("tesseract"), file).toBe(false);
-      expect(text.includes("pdfjs-dist"), file).toBe(false);
-      expect(text.includes("pdf.mjs"), file).toBe(false);
-    }
-    const loadablePath = path.join(ROOT, ".next/react-loadable-manifest.json");
-    expect(existsSync(loadablePath)).toBe(true);
-    const loadable = JSON.parse(readFileSync(loadablePath, "utf8")) as Record<string, { files?: string[] }>;
-    const ocrKeys = Object.keys(loadable).filter((key) => /tesseract\.js|pdfjs-dist/.test(key));
-    expect(ocrKeys.length).toBeGreaterThan(0);
-    for (const key of ocrKeys) {
-      const chunks = (loadable[key].files ?? []).filter((file) => file.endsWith(".js"));
-      expect(chunks.length).toBeGreaterThan(0);
-      for (const chunk of chunks) expect(home.has(chunk), `${key} -> ${chunk}`).toBe(false);
-    }
+  it("fails the first-load script when the webpack build output is missing", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "m1-perf-"));
+    const result = spawnSync(process.execPath, ["scripts/check-home-first-load.mjs", dir], { encoding: "utf8" });
+    expect(result.status).not.toBe(0);
+    expect(`${result.stderr}${result.stdout}`).toMatch(/build output missing/);
   });
 });

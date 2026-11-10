@@ -22,3 +22,9 @@ jobs:
       - run: npm ci --ignore-scripts
       - name: Exact Totalum build command
         run: NEXT_TELEMETRY_DISABLED=1 DISABLE_OPENNEXT=true npx next build
+      # M-1-PERF: the byte ceiling was measured with webpack. This overwrites .next, then the guard
+      # reads that output. A missing manifest fails the job; it does not skip.
+      - name: next build --webpack
+        run: NEXT_TELEMETRY_DISABLED=1 DISABLE_OPENNEXT=true npx next build --webpack
+      - name: Home first-load guard
+        run: node scripts/check-home-first-load.mjs
