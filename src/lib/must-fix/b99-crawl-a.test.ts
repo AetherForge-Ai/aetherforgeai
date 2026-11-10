@@ -11,6 +11,7 @@ import { NextRequest } from "next/server";
 import nextConfig from "../../../next.config";
 import { middleware } from "../../middleware";
 import { DashboardSessionShell } from "@/components/dashboard/DashboardSessionShell";
+import { dashboardPageTitle, type DashboardView } from "@/components/dashboard/PortfolioDashboard";
 import { CHANGELOG_ENTRIES } from "@/lib/changelog-entries";
 import { gsc404Redirect } from "@/lib/gsc-404-redirects";
 import { portfolioAliasRedirect, portfolioAliasStatus } from "@/lib/portfolio-route-aliases";
@@ -148,11 +149,26 @@ describe("CRAWL-A F8: /portfolio links go to /dashboard, and the alias is one 30
   });
 });
 
-describe("CRAWL-A F10: signed-in /dashboard server HTML has one H1", () => {
-  it("the member document's first HTML has one sr-only Dashboard heading", () => {
-    const html = renderToStaticMarkup(createElement(DashboardSessionShell, { view: "home", guestDocument: false }));
+const MEMBER_SHELL_VIEWS: DashboardView[] = [
+  "home",
+  "alerts",
+  "bots",
+  "cash",
+  "metals",
+  "asx",
+  "nasdaq",
+  "dow",
+  "nzsx",
+  "stocks",
+  "crypto",
+  "transactions",
+];
+
+describe("CRAWL-A F10: signed-in dashboard server HTML has one H1", () => {
+  it.each(MEMBER_SHELL_VIEWS)("member %s first HTML has exactly one H1, the view title", (view) => {
+    const html = renderToStaticMarkup(createElement(DashboardSessionShell, { view, guestDocument: false }));
     expect(html.match(/<h1[\s>]/g)).toHaveLength(1);
-    expect(html).toContain('<h1 class="sr-only">Dashboard</h1>');
+    expect(html).toContain(`<h1 class="sr-only">${dashboardPageTitle(view)}</h1>`);
   });
 
   it("a guest document keeps its own heading and does not add a second", () => {
@@ -164,7 +180,7 @@ describe("CRAWL-A F10: signed-in /dashboard server HTML has one H1", () => {
   it("the book view replaces that heading instead of keeping both", () => {
     const shell = read("src/components/dashboard/DashboardSessionShell.tsx");
     const ready = shell.indexOf("<PortfolioDashboard");
-    expect(ready).toBeGreaterThan(shell.indexOf('<h1 className="sr-only">Dashboard</h1>'));
+    expect(ready).toBeGreaterThan(shell.indexOf('<h1 className="sr-only">{dashboardPageTitle(view)}</h1>'));
     expect(shell.slice(ready)).not.toContain("sr-only");
     const book = read("src/components/dashboard/PortfolioDashboard.tsx");
     expect(book.match(/<h1[\s>]/g)).toHaveLength(1);

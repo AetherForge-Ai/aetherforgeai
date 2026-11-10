@@ -5,6 +5,7 @@ import { DashboardSessionSkeleton, SessionSlowNotice } from "@/components/dashbo
 import { GuestDashboardGate } from "@/components/dashboard/GuestDashboardGate";
 import {
   PortfolioDashboard,
+  dashboardPageTitle,
   type DashboardView,
 } from "@/components/dashboard/PortfolioDashboard";
 import { confirmDashboardSessionStrict, invalidateLiveSessionProbe } from "@/lib/auth-refresh";
@@ -89,7 +90,7 @@ export function DashboardSessionShell({
   // CRAWL-A F10: a member document's first HTML is this shell (the book mounts
   // only after the session read). One sr-only H1 lives in that HTML. The ready
   // branch replaces this whole tree with PortfolioDashboard, which has the visible H1.
-  const serverHeading = view === "home" && !guestDocument ? <h1 className="sr-only">Dashboard</h1> : null;
+  const serverHeading = !guestDocument ? <h1 className="sr-only">{dashboardPageTitle(view)}</h1> : null;
   if (phase === "slow" && !guestDocument) {
     return (
       <>
