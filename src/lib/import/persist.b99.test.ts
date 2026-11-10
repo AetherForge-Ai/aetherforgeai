@@ -59,6 +59,7 @@ const harness = vi.hoisted(() => {
   const cashTrail: number[] = [];
   let seq = 0;
   let fetchInstalled = false;
+  let failBuyWrites = 0;
 
   function bucket(name: string): Row[] {
     let rows = collections.get(name);
@@ -91,6 +92,10 @@ const harness = vi.hoisted(() => {
       return { data: row ? copy(row) : null };
     },
     async createRecord(collection: string, body?: Record<string, unknown>) {
+      if (collection === "transaction" && body?.type === "buy" && failBuyWrites > 0) {
+        failBuyWrites -= 1;
+        throw new Error("trade commit failed");
+      }
       const row = { ...(body || {}), _id: `row-${++seq}` } as Row;
       bucket(collection).push(row);
       return { data: copy(row) };
@@ -124,6 +129,7 @@ const harness = vi.hoisted(() => {
     collections.clear();
     cashTrail.length = 0;
     network.length = 0;
+    failBuyWrites = 0;
   }
 
   function historical(currency: string, day: string | null | undefined): Promise<number | null> {
@@ -133,7 +139,19 @@ const harness = vi.hoisted(() => {
     return Promise.resolve(rate != null && rate > 0 ? rate : null);
   }
 
-  return { crud, fx, network, cashTrail, reset, historical, bucket, get fetchInstalled() { return fetchInstalled; }, set fetchInstalled(value: boolean) { fetchInstalled = value; } };
+  return {
+    crud,
+    fx,
+    network,
+    cashTrail,
+    reset,
+    historical,
+    bucket,
+    get fetchInstalled() { return fetchInstalled; },
+    set fetchInstalled(value: boolean) { fetchInstalled = value; },
+    get failBuyWrites() { return failBuyWrites; },
+    set failBuyWrites(value: number) { failBuyWrites = value; },
+  };
 });
 
 vi.mock("server-only", () => ({}));
@@ -325,6 +343,17 @@ function minCash(): number {
   return harness.cashTrail.reduce((min, value) => Math.min(min, value), 0);
 }
 
+/** Statement cash signed by kind: a withdrawal subtracts. Trades keep their own signed effect. */
+function statementCashNzd(xml: string): number {
+  const draft = parseIbkr(parseCsv(flexTradesCsv(xml))) as unknown as { rows: Array<{ cashEffectNzd: number }> };
+  const tradeCash = draft.rows.reduce((sum, row) => sum + row.cashEffectNzd, 0);
+  const cash = flexCashRows(xml).reduce((sum, row) => {
+    const nzd = Math.round(row.amount * (row.fxRateToBase ?? 1) * 100) / 100;
+    return sum + (row.kind === "withdraw" ? -nzd : nzd);
+  }, 0);
+  return Math.round((tradeCash + cash) * 100) / 100;
+}
+
 function walk(dir: string): string[] {
   const out: string[] = [];
   for (const name of readdirSync(dir, { withFileTypes: true })) {
@@ -482,11 +511,52 @@ describe("H-10 live write path", () => {
     expect(out.cash).toBe(2);
     const invented = rowsOf(user._id).filter((row) => /would otherwise make paper cash negative/.test(String(row.notes || "")));
     expect(invented).toHaveLength(0);
-    const draft = parseIbkr(parseCsv(flexTradesCsv(xml))) as unknown as { rows: Array<{ cashEffectNzd: number }> };
-    const tradeCash = draft.rows.reduce((sum, row) => sum + row.cashEffectNzd, 0);
-    const statementCash = flexCashRows(xml).reduce((sum, row) => sum + Math.round(row.amount * (row.fxRateToBase ?? 1) * 100) / 100, 0);
-    expect(Math.abs(cashOf(user._id) - (tradeCash + statementCash))).toBeLessThanOrEqual(0.01);
+    expect(Math.abs(cashOf(user._id) - statementCashNzd(xml))).toBeLessThanOrEqual(0.01);
     expect(harness.network).toEqual([]);
+  });
+
+  it("a Flex withdrawal subtracts, and final cash still matches the statement", async () => {
+    const xml = readFileSync("src/lib/broker-sync/fixtures/ibkr-flex-statement.xml", "utf8").replace(
+      "</CashTransactions>",
+      '<CashTransaction accountId="U0000000" currency="NZD" fxRateToBase="1" type="Deposits/Withdrawals" transactionID="2003" dateTime="20260301" amount="-100" symbol=""/></CashTransactions>'
+    );
+    expect(flexCashRows(xml).some((row) => row.kind === "withdraw" && row.amount === 100)).toBe(true);
+    const user = openBook(0);
+    for (const day of ["2026-03-02", "2026-03-15", "2026-03-20"]) harness.fx.set(`USD|${day}`, 1.7);
+    const out = await applyFlexStatement(user as never, xml);
+    expect(out.cash).toBe(3);
+    expect(rowsOf(user._id, "withdraw")).toHaveLength(1);
+    expect(Math.abs(cashOf(user._id) - statementCashNzd(xml))).toBeLessThanOrEqual(0.01);
+    const withoutWithdrawal = statementCashNzd(readFileSync("src/lib/broker-sync/fixtures/ibkr-flex-statement.xml", "utf8"));
+    expect(Math.abs(cashOf(user._id) - (withoutWithdrawal - 100))).toBeLessThanOrEqual(0.01);
+  });
+
+  it("a failed trade commit leaves no statement cash, and a retry matches the statement", async () => {
+    const xml = readFileSync("src/lib/broker-sync/fixtures/ibkr-flex-statement.xml", "utf8");
+    const user = openBook(0);
+    for (const day of ["2026-03-02", "2026-03-15", "2026-03-20"]) harness.fx.set(`USD|${day}`, 1.7);
+    harness.failBuyWrites = 1;
+    await expect(applyFlexStatement(user as never, xml)).rejects.toThrow(/trade commit failed/);
+    expect(rowsOf(user._id).filter((row) => /Synced from IBKR Flex/.test(String(row.notes || "")))).toHaveLength(0);
+    expect(rowsOf(user._id)).toHaveLength(0);
+    expect(holdingsOf(user._id)).toEqual({});
+    expect(cashOf(user._id)).toBe(0);
+    const retried = await applyFlexStatement(user as never, xml);
+    expect(retried.trades).toBe(2);
+    expect(retried.cash).toBe(2);
+    expect(Math.abs(cashOf(user._id) - statementCashNzd(xml))).toBeLessThanOrEqual(0.01);
+    const again = await applyFlexStatement(user as never, xml);
+    expect(again.trades).toBe(0);
+    expect(again.cash).toBe(0);
+    expect(Math.abs(cashOf(user._id) - statementCashNzd(xml))).toBeLessThanOrEqual(0.01);
+  });
+
+  it("a broker-sync input that is not Flex XML is refused and writes nothing", async () => {
+    const user = openBook(50);
+    await expect(applyFlexStatement(user as never, read("ibkr.csv"))).rejects.toThrow(/Flex XML statement/);
+    expect(rowsOf(user._id)).toHaveLength(0);
+    expect(cashOf(user._id)).toBe(50);
+    expect(rowsOf(user._id).filter((row) => /would otherwise make paper cash negative/.test(String(row.notes || "")))).toHaveLength(0);
   });
 
   it("a CSV commit on a short book still records a paper deposit and names the amount", async () => {
