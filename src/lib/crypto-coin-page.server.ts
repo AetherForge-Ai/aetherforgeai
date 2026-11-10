@@ -184,13 +184,14 @@ async function probePaprikaCoin(slug: string): Promise<CoinUpstream> {
 
 type SettledProbe = { settled: boolean; decision: CoinPageDecision };
 
-/** Network lookup. `settled` is false for an outage, which must not be cached. */
+/**
+ * Network lookup for a slug our catalogue and snapshot do not know.
+ * CoinGecko being down is not a reason to render the soft page. Paprika still decides.
+ * A Paprika coin is rendered and cached. A settled empty Paprika answer is a cached 404.
+ * Paprika unreachable is also a 404, and that outage is not cached.
+ */
 async function probeUnknownCoin(raw: string): Promise<SettledProbe> {
   const gecko = await probeGeckoCoin(raw);
-  // A CoinGecko failure is not "no such coin". Do not ask Paprika to turn an outage into a 404.
-  if (gecko === "down") {
-    return { settled: false, decision: decideCoinPage({ slug: raw, knownCanonical: null, upstream: "down" }) };
-  }
   if (gecko === "asset") {
     return {
       settled: true,
@@ -198,15 +199,16 @@ async function probeUnknownCoin(raw: string): Promise<SettledProbe> {
     };
   }
   const paprika = await probePaprikaCoin(raw);
-  return {
-    settled: paprika !== "down",
-    decision: decideCoinPage({
-      slug: raw,
-      knownCanonical: null,
-      upstream: paprika,
-      upstreamCanonical: paprika === "asset" ? raw : null,
-    }),
-  };
+  if (paprika === "asset") {
+    return {
+      settled: true,
+      decision: decideCoinPage({ slug: raw, knownCanonical: null, upstream: "asset", upstreamCanonical: raw }),
+    };
+  }
+  if (paprika === "empty") {
+    return { settled: true, decision: decideCoinPage({ slug: raw, knownCanonical: null, upstream: "empty" }) };
+  }
+  return { settled: false, decision: decideCoinPage({ slug: raw, knownCanonical: null, upstream: "down" }) };
 }
 
 async function resolvePublicCoinOnce(id: string): Promise<CoinPageDecision> {
