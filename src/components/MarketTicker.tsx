@@ -10,7 +10,7 @@ import { formatDisplayDate, formatMoney, formatSignedPercent } from "@/lib/curre
 import { formatTapeItem, fxRateLine, type TapeDisplay } from "@/lib/tape-display";
 import { useFxRates } from "@/hooks/useFxRates";
 import { savedSnapshotLabel } from "@/lib/status-feeds";
-import { cryptoFreshnessLabel, exchangeFreshnessLabel, latestQuoteTime, metalUpdatedPhrase } from "@/lib/market-freshness";
+import { cryptoFreshnessLabel, latestQuoteTime, metalUpdatedPhrase, tapeEquityPrefix, tapeMarketsPrefix } from "@/lib/market-freshness";
 import { cryptoVenueForLabel } from "@/lib/crypto-price-chain";
 import { priceBadge } from "@/lib/price-confidence";
 import { forcedRefreshMisses, type FeedForce } from "@/lib/feed-freshness-hook";
@@ -394,8 +394,10 @@ export function MarketTicker({ className, compact = false, initial = null, initi
   }, []);
 
   const liveTape = tickerLiveLabel({ live, rows: { crypto } });
-  const nzxStatus = exchangeFreshnessLabel("NZX").label;
-  const asxStatus = exchangeFreshnessLabel("ASX").label;
+  // H-1-TAPE: recompute from the hydrated /api/ticker rows (state), not the empty server placeholder.
+  const nzxStatus = tapeEquityPrefix(nzx, "NZX");
+  const asxStatus = tapeEquityPrefix(asx, "ASX");
+  const marketsStatus = tapeMarketsPrefix({ nzx, asx });
   const cryptoStatus = cryptoFreshnessLabel(latestQuoteTime(crypto.map((row) => row.quotedAt)));
   const asOfLabel = formatAsOf(asOf);
   // b37 M-2: one "Prices last updated" line on the signed-in strip, from the newest quote time shown
@@ -441,7 +443,7 @@ export function MarketTicker({ className, compact = false, initial = null, initi
           animationClass="animate-ticker"
           label="Markets"
           live={false}
-          status={nzxStatus}
+          status={marketsStatus}
           priceFor={priceFor}
           source={equitySource}
           delay={equityDelay}
@@ -519,7 +521,7 @@ export function MarketTicker({ className, compact = false, initial = null, initi
       <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 border-b border-emerald-500/20 bg-zinc-950 px-3 py-1.5 text-[0.6rem] text-muted-foreground">
         <span className="inline-flex items-center gap-1">
           <span className={cn("size-1.5 rounded-full", liveTape ? "bg-emerald-400" : "bg-muted-foreground/50")} />
-          {cryptoStatus.live ? cryptoStatus.label : nzx.length || asx.length ? nzxStatus : "Quiet"}
+          {cryptoStatus.live ? cryptoStatus.label : nzx.length || asx.length ? marketsStatus : "Quiet"}
         </span>
         {providerLabel ? <span>{providerLabel}</span> : null}
         <a href={VENUES.nzx} target="_blank" rel="noopener noreferrer" className="hover:text-foreground hover:underline">
