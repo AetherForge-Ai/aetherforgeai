@@ -21,7 +21,12 @@ describe("H9 sitemap and robots", () => {
     expect(byPath.get("/performance")?.lastModified).toBe("2026-07-08");
     expect(byPath.get("/")?.lastModified).toBe("2026-10-10");
     for (const row of rows) {
-      expect(row.lastModified).toBeTruthy();
+      const pathname = new URL(row.url).pathname;
+      if (pathname === "/markets" || pathname === "/market-news" || pathname.startsWith("/markets/")) {
+        expect(row.lastModified).toBeUndefined();
+      } else {
+        expect(row.lastModified).toBeTruthy();
+      }
     }
     expect(read("src/app/blog/page.tsx")).toContain("index: false");
     expect(read("src/app/robots.ts")).toContain("sitemap:");
