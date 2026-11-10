@@ -89,11 +89,11 @@ describe("F3 unknown coin vs price outage", () => {
     await expect(resolvePublicCoin("btc-bitcoin")).resolves.toEqual({ action: "render", canonical: "btc-bitcoin" });
 
     fetchMock.mockResolvedValue(jsonResponse(404, { error: "missing" }));
-    await expect(resolvePublicCoin("gecko-404-coin")).resolves.toEqual({ action: "render", canonical: "gecko-404-coin" });
+    await expect(resolvePublicCoin("gecko-404-coin")).resolves.toEqual({ action: "not-found" });
 
     fetchMock.mockRejectedValue(new Error("coingecko timeout"));
     await expect(resolvePublicCoin("bitcoin")).resolves.toEqual({ action: "render", canonical: "bitcoin" });
-    await expect(resolvePublicCoin("timeout-real-coin")).resolves.toEqual({ action: "render", canonical: "timeout-real-coin" });
+    await expect(resolvePublicCoin("timeout-real-coin")).resolves.toEqual({ action: "not-found" });
 
     fetchMock.mockClear();
     fetchMock.mockResolvedValue(jsonResponse(503, { error: "down" }));
@@ -108,14 +108,47 @@ describe("F3 unknown coin vs price outage", () => {
     snapshot.read.mockImplementation(() => new Promise(() => {}));
     fetchMock.mockClear();
     fetchMock.mockResolvedValue(jsonResponse(429, []));
-    await expect(resolvePublicCoin("cold-outage-coin")).resolves.toEqual({ action: "render", canonical: "cold-outage-coin" });
+    await expect(resolvePublicCoin("cold-outage-coin")).resolves.toEqual({ action: "not-found" });
 
     const page = read("src/app/markets/crypto/[id]/page.tsx");
     expect(page).toContain('if (decision.action === "not-found") notFound()');
     expect(page).toContain("resolvePublicCoin");
   }, 10_000);
 
-  it("renders when Paprika is down, 404s an empty search, and caches only a settled miss", async () => {
+  it("404s an unknown slug when CoinGecko is blocked, and still renders a known coin", async () => {
+    snapshot.read.mockResolvedValue(null);
+    const fetchMock = vi.fn(async (url: string) => {
+      const u = String(url);
+      if (u.includes("coinpaprika")) return jsonResponse(404, { error: "id not found" });
+      return jsonResponse(429, []);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(resolvePublicCoin("blocked-not-a-coin")).resolves.toEqual({ action: "not-found" });
+    await expect(resolvePublicCoin("bitcoin")).resolves.toEqual({ action: "render", canonical: "bitcoin" });
+    await expect(resolvePublicCoin("near-protocol")).resolves.toEqual({
+      action: "redirect",
+      to: "/markets/crypto/near",
+    });
+
+    fetchMock.mockImplementation(async (url: string) => {
+      const u = String(url);
+      if (u.includes("coingecko")) return jsonResponse(429, []);
+      throw new Error("paprika timeout");
+    });
+    fetchMock.mockClear();
+    await expect(resolvePublicCoin("rate-limited-unknown")).resolves.toEqual({ action: "not-found" });
+    const callsAfterTimeout = fetchMock.mock.calls.length;
+    expect(callsAfterTimeout).toBeGreaterThan(0);
+    await expect(resolvePublicCoin("rate-limited-unknown")).resolves.toEqual({ action: "not-found" });
+    expect(fetchMock.mock.calls.length).toBeGreaterThan(callsAfterTimeout);
+
+    const alias = await middleware(new NextRequest("https://aetherforgeai.co.nz/markets/crypto/near-protocol"));
+    expect(alias.status).toBe(308);
+    expect(alias.headers.get("location")).toBe("https://aetherforgeai.co.nz/markets/crypto/near");
+  });
+
+  it("404s when Paprika is down, 404s an empty search, and caches only a settled miss", async () => {
     snapshot.read.mockResolvedValue(null);
     const fetchMock = vi.fn(async (url: string) => {
       const u = String(url);
@@ -123,16 +156,10 @@ describe("F3 unknown coin vs price outage", () => {
       return jsonResponse(200, []);
     });
     vi.stubGlobal("fetch", fetchMock);
-    await expect(resolvePublicCoin("gecko-empty-paprika-down")).resolves.toEqual({
-      action: "render",
-      canonical: "gecko-empty-paprika-down",
-    });
+    await expect(resolvePublicCoin("gecko-empty-paprika-down")).resolves.toEqual({ action: "not-found" });
     const callsAfterDown = fetchMock.mock.calls.length;
     expect(callsAfterDown).toBeGreaterThan(0);
-    await expect(resolvePublicCoin("gecko-empty-paprika-down")).resolves.toEqual({
-      action: "render",
-      canonical: "gecko-empty-paprika-down",
-    });
+    await expect(resolvePublicCoin("gecko-empty-paprika-down")).resolves.toEqual({ action: "not-found" });
     expect(fetchMock.mock.calls.length).toBeGreaterThan(callsAfterDown);
 
     fetchMock.mockImplementation(async (url: string) => {
