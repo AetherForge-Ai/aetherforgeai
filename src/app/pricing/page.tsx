@@ -16,8 +16,8 @@ import { getFxSnapshot } from "@/lib/fx";
 import type { FxRatesToNZD } from "@/lib/currency";
 import { PROJECTIONS_MEMBER_LINE, SECURITY_LINE } from "@/lib/public-copy";
 import { pageTitle } from "@/lib/page-title";
-import { getCurrentUser } from "@/lib/session";
-import { hasLiveSubscription } from "@/lib/billing-guard";
+import { getCurrentUser, isStripeConfigured } from "@/lib/session";
+import { billingPortalReady, hasLiveSubscription, paidPlanNextStep } from "@/lib/billing-guard";
 import { Button } from "@/components/ui/button";
 import {
   ShieldCheck,
@@ -82,12 +82,16 @@ function PricingSchema() {
 export default async function PricingPage() {
   // b89: subscribers are known on the server so the trial copy never flashes for them.
   let subscriber = false;
+  let hasStripeCustomer = false;
   try {
     const user = await getCurrentUser();
     subscriber = hasLiveSubscription(user ? { plan: user.subscription_plan, status: user.subscription_status } : null);
+    hasStripeCustomer = billingPortalReady({ stripeConfigured: isStripeConfigured(), stripeCustomerId: user?.stripe_customer_id });
   } catch {
     subscriber = false;
+    hasStripeCustomer = false;
   }
+  const nextStep = paidPlanNextStep(hasStripeCustomer);
   let initialFx: { rates: FxRatesToNZD; asOf: string } | null = null;
   try {
     const snap = await getFxSnapshot();
@@ -120,10 +124,11 @@ export default async function PricingPage() {
           </h1>
 <SubscriberGate
             initialSubscriber={subscriber}
+            hasStripeCustomer={hasStripeCustomer}
             subscriberView={
               <p data-pricing-hero-subscriber className="mx-auto mt-5 max-w-2xl text-base text-muted-foreground sm:text-lg">
-                You already have a plan. Change or cancel it in{" "}
-                <Link href="/settings/billing" className="font-semibold text-primary hover:underline">Manage billing</Link>.
+                {nextStep.heroLead}{" "}
+                <Link href={nextStep.href} data-billing-next={nextStep.portal ? "portal" : "support"} className="font-semibold text-primary hover:underline">{nextStep.action}</Link>.
               </p>
             }
           >
@@ -143,7 +148,7 @@ export default async function PricingPage() {
 
         {/* 2 + 3 · Billing toggle + pricing cards */}
         <section id="plans" className="mx-auto max-w-6xl scroll-mt-24 px-4 pt-12 sm:px-6 lg:px-8">
-          <PricingCards initialFx={initialFx} />
+          <PricingCards initialFx={initialFx} hasStripeCustomer={hasStripeCustomer} />
           {/* b65 G-07: behind HOLDING_CAPS_V2 (OFF in prod). */}
           {HOLDING_CAPS_V2 ? <HoldingCapsGrid /> : null}
           <div className="mx-auto mt-10 max-w-3xl rounded-3xl border border-border/70 bg-card/40 p-6 text-sm leading-relaxed text-muted-foreground">
@@ -180,7 +185,7 @@ export default async function PricingPage() {
         {/* 7 · Final CTA */}
         <section className="mx-auto max-w-6xl px-4 pt-24 sm:px-6 lg:px-8">
           <div className="relative overflow-hidden rounded-3xl border border-primary/40 bg-gradient-to-br from-primary/15 via-card/60 to-gold/10 px-6 py-14 text-center shadow-glow sm:px-12">
-            <SubscriberGate initialSubscriber={subscriber}>
+            <SubscriberGate initialSubscriber={subscriber} hasStripeCustomer={hasStripeCustomer}>
             <h2 className="mx-auto max-w-2xl font-display text-3xl font-extrabold tracking-tight sm:text-4xl">
               Start the 14-day Pro trial for the full research desk
             </h2>

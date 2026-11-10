@@ -69,8 +69,13 @@ describe("F-1 no second subscription", () => {
     }
   });
   it("/pricing shows Current plan / Manage billing for the account's own tier", () => {
-    expect(pricingCtaFor("pro", { status: "active", plan: "pro_monthly" })).toEqual({ kind: "current", label: "Current plan · Manage billing" });
-    expect(pricingCtaFor("starter", { status: "trialing", plan: "pro_yearly" }).kind).toBe("manage");
+    expect(pricingCtaFor("pro", { status: "active", plan: "pro_monthly", hasStripeCustomer: true })).toEqual({
+      kind: "current",
+      label: "Current plan · Manage billing",
+      href: "/settings/billing",
+      portal: true,
+    });
+    expect(pricingCtaFor("starter", { status: "trialing", plan: "pro_yearly", hasStripeCustomer: true }).kind).toBe("manage");
     expect(pricingCtaFor("pro", { status: "canceled", plan: "none" }).kind).toBe("checkout");
     expect(pricingCtaFor("pro", null).kind).toBe("checkout");
     expect(hasLiveSubscription({ status: "past_due", plan: "starter_monthly" })).toBe(true);

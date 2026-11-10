@@ -11,6 +11,60 @@ const LIVE = new Set(["active", "trialing", "past_due"]);
 export const ALREADY_SUBSCRIBED =
   "You already have a subscription. Change or manage your plan in Manage billing. No new checkout was started.";
 
+/** Where a subscriber goes when this account can open the Stripe customer portal. */
+export const MANAGE_BILLING_HREF = "/settings/billing";
+
+/** Where a subscriber goes when no Manage billing control exists for them. */
+export const BILLING_SUPPORT_HREF = "/contact";
+
+/**
+ * The Manage billing control on /settings/billing is the portal button.
+ * It is rendered only when Stripe is configured and this user has a Stripe customer.
+ */
+export function billingPortalReady(input: { stripeConfigured: boolean; stripeCustomerId?: string | null }): boolean {
+  return input.stripeConfigured && !!input.stripeCustomerId;
+}
+
+export interface PaidPlanNextStep {
+  /** True only when Manage billing can actually be opened for this account. */
+  portal: boolean;
+  href: string;
+  /** Link text used inside a sentence. */
+  action: string;
+  currentLabel: string;
+  changeLabel: string;
+  heroLead: string;
+  settingsLead: string;
+}
+
+/**
+ * Shared by /pricing and /settings/billing.
+ * "Manage billing" is used only when a Stripe customer exists (the portal control).
+ * Otherwise the same spots point at contact support.
+ */
+export function paidPlanNextStep(hasStripeCustomer: boolean): PaidPlanNextStep {
+  if (hasStripeCustomer) {
+    return {
+      portal: true,
+      href: MANAGE_BILLING_HREF,
+      action: "Manage billing",
+      currentLabel: "Current plan · Manage billing",
+      changeLabel: "Change plan in Manage billing",
+      heroLead: "You already have a plan. Change or cancel it in",
+      settingsLead: "",
+    };
+  }
+  return {
+    portal: false,
+    href: BILLING_SUPPORT_HREF,
+    action: "contact support",
+    currentLabel: "Current plan · Contact support",
+    changeLabel: "Change plan via contact",
+    heroLead: "You already have a plan. To change or cancel it,",
+    settingsLead: "This plan has no Stripe billing account. To change or cancel it,",
+  };
+}
+
 export function hasLiveSubscription(account: { status?: string | null; plan?: string | null } | null | undefined): boolean {
   if (!account) return false;
   const plan = String(account.plan || "none").toLowerCase();
@@ -22,13 +76,24 @@ export function planTier(planKey: string | null | undefined): string {
   return String(planKey || "").toLowerCase().split("_")[0];
 }
 
-export type PricingCta = { kind: "checkout" } | { kind: "current"; label: string } | { kind: "manage"; label: string };
+export type PricingCta =
+  | { kind: "checkout" }
+  | { kind: "current" | "manage"; label: string; href: string; portal: boolean };
 
 /** /pricing button for a paid tier, given the signed-in account (null when signed out or Free). */
-export function pricingCtaFor(tierId: string, account: { status?: string | null; plan?: string | null } | null | undefined): PricingCta {
+export function pricingCtaFor(
+  tierId: string,
+  account: { status?: string | null; plan?: string | null; hasStripeCustomer?: boolean | null } | null | undefined
+): PricingCta {
   if (!hasLiveSubscription(account)) return { kind: "checkout" };
-  if (planTier(account?.plan) === String(tierId).toLowerCase()) return { kind: "current", label: "Current plan · Manage billing" };
-  return { kind: "manage", label: "Change plan in Manage billing" };
+  const step = paidPlanNextStep(account?.hasStripeCustomer === true);
+  const kind = planTier(account?.plan) === String(tierId).toLowerCase() ? "current" : "manage";
+  return {
+    kind,
+    label: kind === "current" ? step.currentLabel : step.changeLabel,
+    href: step.href,
+    portal: step.portal,
+  };
 }
 
 export interface SuccessCopy {
