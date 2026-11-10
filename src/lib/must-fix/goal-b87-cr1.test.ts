@@ -1,6 +1,6 @@
 /** b87 CR-1 F-1/F-2/F-3 (TT 28 Oct 2026). Mocked Stripe only: no network, no charges. */
 import { readFileSync } from "node:fs";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 const s = vi.hoisted(() => ({ mode: "test" as "test" | "live", subs: [] as { status: string }[], created: 0, portal: 0 }));
@@ -22,10 +22,16 @@ const user = (over: Record<string, unknown>) => ({ _id: "u1", email: "t@example.
 const pro = planByKey("pro_monthly" as never)!;
 const base = "https://preview.example";
 
+const previousStripeKey = process.env.STRIPE_SECRET_KEY;
 beforeEach(() => {
   s.subs = [];
   s.created = 0;
   s.portal = 0;
+  process.env.STRIPE_SECRET_KEY = "sk_test_b99_configured";
+});
+afterEach(() => {
+  if (previousStripeKey === undefined) delete process.env.STRIPE_SECRET_KEY;
+  else process.env.STRIPE_SECRET_KEY = previousStripeKey;
 });
 
 describe("F-1 no second subscription", () => {
@@ -37,6 +43,7 @@ describe("F-1 no second subscription", () => {
       if (!r.ok) {
         expect(r.status).toBe(409);
         expect(r.portalUrl).toBe("https://billing.stripe.com/p/session/test_x");
+        expect(r.error).toMatch(/Manage billing/);
       }
       expect(s.created).toBe(0);
     });
@@ -47,11 +54,18 @@ describe("F-1 no second subscription", () => {
       expect(r.ok === false && r.status).toBe(409);
       expect(s.created).toBe(0);
     });
-    it(`${mode}: seeded Pro with no customer → 409, portal falls back to /settings/billing`, async () => {
+    it(`${mode}: Stripe configured but no customer → 409, contact link, no portal session`, async () => {
       s.mode = mode;
       const r = await createPlanCheckout({ user: user({ subscription_status: "active", subscription_plan: "pro_monthly" }), plan: pro, baseUrl: base });
-      expect(r.ok === false && r.portalUrl).toBe(`${base}/settings/billing`);
+      expect(r.ok).toBe(false);
+      if (!r.ok) {
+        expect(r.status).toBe(409);
+        expect(r.portalUrl).toBe(`${base}/contact`);
+        expect(r.error).not.toMatch(/Manage billing/);
+        expect(r.error).toMatch(/contact support/);
+      }
       expect(s.created).toBe(0);
+      expect(s.portal).toBe(0);
     });
     it(`${mode}: Free / canceled user still checks out, success URL carries the plan`, async () => {
       s.mode = mode;
@@ -63,14 +77,32 @@ describe("F-1 no second subscription", () => {
       expect(arg.success_url).toBe(`${base}/stripe/success?session_id={CHECKOUT_SESSION_ID}&plan=pro_monthly`);
     });
   }
+  it("a customer id with Stripe not configured points at contact and does not open a portal", async () => {
+    delete process.env.STRIPE_SECRET_KEY;
+    s.mode = "test";
+    const r = await createPlanCheckout({ user: user({ subscription_status: "active", subscription_plan: "pro_monthly", stripe_customer_id: "cus_1" }), plan: pro, baseUrl: base });
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.status).toBe(409);
+      expect(r.portalUrl).toBe(`${base}/contact`);
+      expect(r.error).not.toMatch(/manage billing/i);
+    }
+    expect(s.portal).toBe(0);
+    expect(s.created).toBe(0);
+  });
   it("both checkout routes return the portal URL with the 409", () => {
     for (const p of ["src/app/api/stripe/checkout/route.ts", "src/app/api/stripe/create-checkout-session/route.ts"]) {
       expect(readFileSync(p, "utf8")).toContain("data: { portalUrl: result.portalUrl }");
     }
   });
   it("/pricing shows Current plan / Manage billing for the account's own tier", () => {
-    expect(pricingCtaFor("pro", { status: "active", plan: "pro_monthly" })).toEqual({ kind: "current", label: "Current plan · Manage billing" });
-    expect(pricingCtaFor("starter", { status: "trialing", plan: "pro_yearly" }).kind).toBe("manage");
+    expect(pricingCtaFor("pro", { status: "active", plan: "pro_monthly", hasStripeCustomer: true })).toEqual({
+      kind: "current",
+      label: "Current plan · Manage billing",
+      href: "/settings/billing",
+      portal: true,
+    });
+    expect(pricingCtaFor("starter", { status: "trialing", plan: "pro_yearly", hasStripeCustomer: true }).kind).toBe("manage");
     expect(pricingCtaFor("pro", { status: "canceled", plan: "none" }).kind).toBe("checkout");
     expect(pricingCtaFor("pro", null).kind).toBe("checkout");
     expect(hasLiveSubscription({ status: "past_due", plan: "starter_monthly" })).toBe(true);

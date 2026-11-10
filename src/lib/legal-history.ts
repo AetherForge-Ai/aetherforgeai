@@ -65,6 +65,32 @@ export function latestLegalVersion(key: LegalPageKey): LegalVersion {
   return LEGAL_PAGES[key].versions[0];
 }
 
+const LEGAL_STAMP_MONTHS: Record<string, string> = {
+  Jan: "01",
+  Feb: "02",
+  Mar: "03",
+  Apr: "04",
+  May: "05",
+  Jun: "06",
+  Jul: "07",
+  Aug: "08",
+  Sep: "09",
+  Oct: "10",
+  Nov: "11",
+  Dec: "12",
+};
+
+/**
+ * The stamp LegalShell prints ("16 Oct 2026") as a sitemap lastmod day.
+ * Same string the page shows; only the shape changes.
+ */
+export function legalStampToIso(stamp: string): string {
+  const match = /^(\d{1,2}) ([A-Za-z]{3}) (\d{4})$/.exec(stamp.trim());
+  const month = match ? LEGAL_STAMP_MONTHS[match[2][0].toUpperCase() + match[2].slice(1).toLowerCase()] : undefined;
+  if (!match || !month) throw new Error(`Legal date must look like "16 Oct 2026": ${stamp}`);
+  return `${match[3]}-${month}-${match[1].padStart(2, "0")}`;
+}
+
 /** Stable anchor id for a section heading: "1. Information only — not financial advice" → "information-only-not-financial-advice". */
 export function legalAnchorId(heading: string): string {
   return heading
