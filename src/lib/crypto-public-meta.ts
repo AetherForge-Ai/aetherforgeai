@@ -52,20 +52,37 @@ export function cryptoDetailCopy(facts: CryptoDetailFacts): { title: string; des
       : null;
   const title = nzd != null ? `${label} price in NZD` : usd != null ? `${label} price in USD` : `${label} price`;
 
-  const parts = [label];
-  if (usd != null) {
-    const wall = facts.asOf ? formatDisplayDateTime(facts.asOf) : "—";
-    const asOf = !facts.asOf || wall === "—" ? "time not given by the data provider" : `as of ${wall}`;
-    const source = (facts.source || "").trim();
-    const priced = `${formatUnitPrice(usd, "USD")} ${asOf}`;
-    parts.push(source ? `${priced} · ${sourceLabel(source)}` : priced);
-  } else {
-    parts.push("No earlier price is stored for this coin.");
+  const nzdText = priceText(nzd, "NZD");
+  const usdText = priceText(usd, "USD");
+  const lead = nzdText && usdText ? `${nzdText} (${usdText})` : nzdText || usdText;
+  if (!lead) {
+    return { title, description: `${label} No earlier price is stored for this coin.` };
   }
-  if (nzd != null) parts.push(`${formatUnitPrice(nzd, "NZD")} in NZD.`);
+  const wall = facts.asOf ? formatDisplayDateTime(facts.asOf) : "—";
+  const asOf = !facts.asOf || wall === "—" ? "time not given by the data provider" : `as of ${wall}`;
+  const sourceName = namedSource(facts.source);
+  let sentence = `${label} ${lead} ${asOf}`;
+  if (sourceName) sentence += ` · Source: ${sourceName}`;
+  sentence += ".";
   const cap = fmtCompactUsd(facts.marketCapUsd);
-  if (cap !== "—") parts.push(`Market cap ${cap}.`);
-  return { title, description: parts.join(" ") };
+  if (cap !== "—" && !/nan|undefined/i.test(cap)) sentence += ` Market cap ${cap}.`;
+  return { title, description: sentence };
+}
+
+/** A printable unit price. Missing, zero, or non-finite amounts are left out. */
+function priceText(value: number | null, currency: "NZD" | "USD"): string | null {
+  if (value == null || !Number.isFinite(value) || value <= 0) return null;
+  const text = formatUnitPrice(value, currency);
+  if (!text || /nan|undefined/i.test(text)) return null;
+  return text;
+}
+
+function namedSource(source: string | null | undefined): string | null {
+  const raw = (source || "").trim();
+  if (!raw || /^(undefined|null|nan)$/i.test(raw)) return null;
+  const label = sourceLabel(raw).trim();
+  if (!label || /^(undefined|null|nan|—|-)$/i.test(label)) return null;
+  return label;
 }
 
 /** WebPage JSON-LD. The caller supplies the title and description already shown on the page. */

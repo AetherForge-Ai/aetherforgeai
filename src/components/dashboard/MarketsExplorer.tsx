@@ -21,6 +21,7 @@ import { coingeckoSupplied, countLine, stripLastGoodCell } from "@/lib/crypto-bo
 import { sourceLabel } from "@/lib/crypto-price-chain";
 import { DEX_EMPTY_NOTICE, dedupeDexRows, dexNoticeForShown, dexRowKey } from "@/lib/crypto-dex";
 import { explorerDetailHref, marketsTabHref, type MarketsTab } from "@/lib/market-detail-routes";
+import { publicCoinSlug } from "@/lib/crypto-slug";
 import type { PublicPriceRow } from "@/lib/public-market-types";
 import { paperAddSignupHref } from "@/lib/paper-add-link";
 import { useCryptoMarkets } from "@/hooks/useCryptoMarkets";
@@ -156,7 +157,7 @@ function seedDisplayRows(rows: PublicPriceRow[], market: "Crypto" | "DEX"): Disp
       marketCap: null,
       live: true,
       quoted: true,
-      coinId: row.quoteId,
+      coinId: row.quoteId ? publicCoinSlug(row.quoteId) : undefined,
       blockchain: row.blockchain || "",
       chainReason: row.blockchain ? undefined : "The feed did not send a platform for this coin.",
       maxSupply: null,
@@ -561,7 +562,9 @@ export function MarketsExplorer({
       if ((!dex.rows.length && seedDex.length) || (seedDex.length > dex.rows.length && seedDex.length > 0)) {
         all = seedDisplayRows(seedDex, "DEX");
       } else
-      all = dex.rows.slice(0, CRYPTO_TOP_N).map((row) => ({
+      all = dex.rows.slice(0, CRYPTO_TOP_N).map((row) => {
+        const detailId = resolvableCoinId(row.detailId);
+        return {
         key: dexRowKey({
           network: stripLastGoodCell(row.network),
           poolId: row.poolId,
@@ -580,12 +583,13 @@ export function MarketsExplorer({
         marketCap: null,
         live: !row.priceUnavailable && (row.price || 0) > 0,
         quoted: !row.priceUnavailable && (row.price || 0) > 0,
-        coinId: resolvableCoinId(row.detailId) || undefined,
+        coinId: detailId ? publicCoinSlug(detailId) : undefined,
         blockchain: stripLastGoodCell(row.network) && stripLastGoodCell(row.network) !== "Unavailable" ? stripLastGoodCell(row.network) : "",
         dex: stripLastGoodCell(row.dex || ""),
         paperMarket: "DEX" as const,
         priceUnavailable: row.priceUnavailable || !(row.price != null && row.price > 0),
-      }));
+        };
+      });
     return dedupeDexRows(all);
   }, [isDexTab, dex.rows, seedDex]);
 
@@ -619,7 +623,7 @@ export function MarketsExplorer({
         marketCap: c.marketCap > 0 ? c.marketCap : null,
         live: !c.priceUnavailable && c.price > 0,
         quoted: !c.priceUnavailable && c.price > 0,
-        coinId: c.id,
+        coinId: publicCoinSlug(c.id),
         blockchain: stripLastGoodCell(c.blockchain) && stripLastGoodCell(c.blockchain) !== "Unavailable" && stripLastGoodCell(c.blockchain) !== "Native" ? stripLastGoodCell(c.blockchain) : "",
         chainReason: c.blockchainReason || "The feed did not send a platform for this coin.",
         quotedAt: c.quotedAt || null,

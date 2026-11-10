@@ -10,6 +10,9 @@ import "server-only";
 import { coinGeckoEndpoint, redactSecrets } from "@/lib/coingecko-auth";
 import { tickerForCoingeckoId } from "@/lib/crypto-ids";
 import { peekTop400 } from "@/lib/crypto-coingecko";
+import { CROSS_PROVIDER_IDS } from "@/lib/crypto-provider-ids";
+
+export { CROSS_PROVIDER_IDS };
 import {
   chooseCoinDepth,
   detailFromGeckoMarkets,
@@ -26,28 +29,7 @@ import { readCryptoSnapshot } from "@/lib/crypto-snapshot";
 import { fetchYahooCoinDetail } from "@/lib/crypto-yahoo";
 import { withTimeout } from "@/lib/with-timeout";
 
-/**
- * b29 G-17: cross-provider id map. /markets links slugs from both CoinGecko and CoinPaprika lists,
- * and the six empty pages (bitcoin-cash, near-protocol, rain-protocol, stellar, tron, zcash) were
- * slugs the depth lookup could not resolve: CoinGecko knows NEAR as "near" (not "near-protocol")
- * and has no "rain-protocol" id, and the CoinPaprika search fallback called /v1/search without the
- * trailing slash (301, empty). Each id below was checked against the provider (19 Oct 2026):
- * CoinPaprika /v1/tickers/<id> 200; CoinGecko /coins/markets?ids=<id> returns the coin.
- */
-export const CROSS_PROVIDER_IDS: Record<string, { gecko: string | null; paprika: string; symbol: string }> = {
-  tether: { gecko: "tether", paprika: "usdt-tether", symbol: "USDT" },
-  "bitcoin-cash": { gecko: "bitcoin-cash", paprika: "bch-bitcoin-cash", symbol: "BCH" },
-  "near-protocol": { gecko: "near", paprika: "near-near-protocol", symbol: "NEAR" },
-  near: { gecko: "near", paprika: "near-near-protocol", symbol: "NEAR" },
-  "rain-protocol": { gecko: null, paprika: "rain-rain-protocol", symbol: "RAIN" },
-  stellar: { gecko: "stellar", paprika: "xlm-stellar", symbol: "XLM" },
-  tron: { gecko: "tron", paprika: "trx-tron", symbol: "TRX" },
-  zcash: { gecko: "zcash", paprika: "zec-zcash", symbol: "ZEC" },
-  // b30 G-17: 1H/30D were empty signed in. Checked 19 Oct 2026: CoinGecko ids "whitebit" and
-  // "leo-token"; CoinPaprika /v1/tickers/wbt-whitebit and /leo-leo-token both 200.
-  whitebit: { gecko: "whitebit", paprika: "wbt-whitebit", symbol: "WBT" },
-  "leo-token": { gecko: "leo-token", paprika: "leo-leo-token", symbol: "LEO" },
-};
+/** Provider ids live in crypto-provider-ids.ts so redirects and this lookup share one map. */
 const PAPRIKA_ID_BY_SLUG: Record<string, string> = Object.fromEntries(
   Object.entries(CROSS_PROVIDER_IDS).map(([slug, ids]) => [slug, ids.paprika])
 );
@@ -77,6 +59,17 @@ export async function snapshotCoinFor(slug: string): Promise<{ coin: CoinMarket;
   const saved = await withTimeout(() => readCryptoSnapshot(), 1_500, null);
   const coin = findListed(saved?.coins, slug);
   return coin && saved && coin.price > 0 ? { coin, at: saved.at, version: saved.version } : null;
+}
+
+/**
+ * Saved-list id for this slug, including a row whose price is missing.
+ * A zero price means the quote failed. It does not mean the coin is unknown.
+ */
+export async function savedCoinSlug(slug: string): Promise<string | null> {
+  const saved = await withTimeout(() => readCryptoSnapshot(), 1_500, null);
+  const coin = findListed(saved?.coins, slug) ?? findListed(peekTop400()?.coins, slug);
+  const id = (coin?.id || "").trim().toLowerCase();
+  return id || null;
 }
 
 async function fetchJson(url: string, headers: Record<string, string>, ms: number): Promise<unknown | null> {
