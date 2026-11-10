@@ -8,6 +8,9 @@ export const PORTFOLIO_ROUTE_ALIASES = [
   // They used to 307 to /dashboard/transactions, which then 308'd again (two hops).
   { source: "/transactions", destination: "/dashboard?tab=transactions", permanent: true },
   { source: "/ledger", destination: "/dashboard?tab=transactions", permanent: true },
+  // CRAWL-A F8: /portfolio is a retired page. One permanent hop to /dashboard,
+  // in the same alias step as /ledger (after the 308/301 tables, before the 404 rewrite).
+  { source: "/portfolio", destination: "/dashboard", permanent: true },
   { source: "/alerts", destination: "/dashboard/alerts", permanent: false },
   { source: "/notifications", destination: "/dashboard/alerts", permanent: false },
 ] as const;

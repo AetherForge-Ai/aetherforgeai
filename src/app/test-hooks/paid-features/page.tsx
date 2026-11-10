@@ -17,7 +17,7 @@ export default async function Page() {
   const plan = String(user?.subscription_plan || "free");
   const rows = paidFeatureSweep(plan);
   return (
-    <main className="mx-auto max-w-5xl space-y-4 p-6">
+    <div className="mx-auto max-w-5xl space-y-4 p-6">
       <h1 className="text-2xl font-bold">Paid feature sweep</h1>
       <p className="text-sm">
         Plan: <span data-paid-plan>{planLabel(plan)}</span> ({plan}). {rows.filter((r) => r.ok).length} of {rows.length} lines granted by the code.
@@ -44,6 +44,6 @@ export default async function Page() {
           ))}
         </tbody>
       </table>
-    </main>
+    </div>
   );
 }

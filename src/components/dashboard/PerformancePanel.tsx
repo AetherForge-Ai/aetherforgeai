@@ -45,7 +45,7 @@ export function PerformancePanel() {
   }, []);
 
   return (
-    <main className="mx-auto max-w-5xl space-y-6" aria-labelledby="perf-title">
+    <div className="mx-auto max-w-5xl space-y-6" aria-labelledby="perf-title">
       <header>
         <h1 id="perf-title" className="font-display text-2xl font-bold">Performance</h1>
         <p className="text-sm text-muted-foreground">
@@ -120,7 +120,7 @@ export function PerformancePanel() {
           </section>
         </>
       ) : null}
-    </main>
+    </div>
   );
 }
 
