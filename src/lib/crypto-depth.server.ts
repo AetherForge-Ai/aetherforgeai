@@ -62,12 +62,45 @@ export async function snapshotCoinFor(slug: string): Promise<{ coin: CoinMarket;
 }
 
 /**
+ * Ids that are this slug or its mapped CoinGecko / CoinPaprika id.
+ * A shared ticker is not an id. NEAR must not claim a different coin that also prints "NEAR".
+ */
+function exactListedIds(slug: string): Set<string> {
+  const ids = new Set<string>();
+  const add = (value: string | null | undefined) => {
+    const key = (value || "").trim().toLowerCase();
+    if (key) ids.add(key);
+  };
+  add(slug);
+  const direct = CROSS_PROVIDER_IDS[slug];
+  if (direct) {
+    add(direct.gecko);
+    add(direct.paprika);
+  }
+  for (const [key, row] of Object.entries(CROSS_PROVIDER_IDS)) {
+    if (key === slug || row.gecko === slug || row.paprika === slug) {
+      add(key);
+      add(row.gecko);
+      add(row.paprika);
+    }
+  }
+  return ids;
+}
+
+function findListedById(coins: CoinMarket[] | undefined, slug: string): CoinMarket | null {
+  if (!coins?.length) return null;
+  const ids = exactListedIds(slug);
+  return coins.find((coin) => ids.has((coin.id || "").trim().toLowerCase())) ?? null;
+}
+
+/**
  * Saved-list id for this slug, including a row whose price is missing.
+ * Match the slug or its mapped gecko/paprika id only. Never a ticker.
  * A zero price means the quote failed. It does not mean the coin is unknown.
  */
 export async function savedCoinSlug(slug: string): Promise<string | null> {
   const saved = await withTimeout(() => readCryptoSnapshot(), 1_500, null);
-  const coin = findListed(saved?.coins, slug) ?? findListed(peekTop400()?.coins, slug);
+  const coin = findListedById(saved?.coins, slug) ?? findListedById(peekTop400()?.coins, slug);
   const id = (coin?.id || "").trim().toLowerCase();
   return id || null;
 }

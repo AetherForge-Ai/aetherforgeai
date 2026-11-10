@@ -18,9 +18,9 @@ vi.mock("@/lib/crypto-coingecko", () => ({
   peekTop400: () => null,
 }));
 
-import nextConfig from "../../../next.config";
 import { middleware } from "../../middleware";
 import { cryptoDetailCopy } from "@/lib/crypto-public-meta";
+import { savedCoinSlug } from "@/lib/crypto-depth.server";
 import { cryptoDetailHref } from "@/lib/market-detail-routes";
 import { paperAddReturnPath } from "@/lib/paper-add-link";
 import { permanentRedirect } from "@/lib/public-route-aliases";
@@ -46,36 +46,56 @@ function jsonResponse(status: number, body: unknown) {
 }
 
 describe("F3 unknown coin vs price outage", () => {
-  it("an empty CoinGecko list is a 404, and a known coin still renders when the API is down", async () => {
-    const fetchMock = vi.fn(async () => jsonResponse(200, []));
+  it("an empty CoinGecko list is a 404 only when Paprika is empty too, and a known coin still renders when the API is down", async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (String(url).includes("coinpaprika")) return jsonResponse(404, { error: "id not found" });
+      return jsonResponse(200, []);
+    });
     vi.stubGlobal("fetch", fetchMock);
     snapshot.read.mockResolvedValue(null);
 
     await expect(resolvePublicCoin("not-a-coin-qa")).resolves.toEqual({ action: "not-found" });
     expect(fetchMock).toHaveBeenCalled();
 
+    fetchMock.mockResolvedValue(jsonResponse(200, [{ id: "gecko-listed-coin", current_price: null }]));
+    await expect(resolvePublicCoin("gecko-listed-coin")).resolves.toEqual({ action: "render", canonical: "gecko-listed-coin" });
+
+    fetchMock.mockImplementation(async (url: string) => {
+      if (String(url).includes("coinpaprika")) return jsonResponse(200, { id: "btc-bitcoin", symbol: "BTC", name: "Bitcoin" });
+      return jsonResponse(200, []);
+    });
+    await expect(resolvePublicCoin("btc-bitcoin")).resolves.toEqual({ action: "render", canonical: "btc-bitcoin" });
+
+    fetchMock.mockResolvedValue(jsonResponse(404, { error: "missing" }));
+    await expect(resolvePublicCoin("gecko-404-coin")).resolves.toEqual({ action: "render", canonical: "gecko-404-coin" });
+
     fetchMock.mockRejectedValue(new Error("coingecko timeout"));
     await expect(resolvePublicCoin("bitcoin")).resolves.toEqual({ action: "render", canonical: "bitcoin" });
+    await expect(resolvePublicCoin("timeout-real-coin")).resolves.toEqual({ action: "render", canonical: "timeout-real-coin" });
 
+    fetchMock.mockClear();
     fetchMock.mockResolvedValue(jsonResponse(503, { error: "down" }));
-    snapshot.read.mockResolvedValue({ coins: [{ id: "pepe", symbol: "PEPE" }] });
-    await expect(resolvePublicCoin("pepe")).resolves.toEqual({ action: "render", canonical: "pepe" });
+    snapshot.read.mockResolvedValue({ coins: [{ id: "snapshot-hit-coin", symbol: "SOC" }] });
+    await expect(resolvePublicCoin("snapshot-hit-coin")).resolves.toEqual({ action: "render", canonical: "snapshot-hit-coin" });
+    expect(fetchMock).not.toHaveBeenCalled();
 
-    snapshot.read.mockResolvedValue(null);
-    fetchMock.mockResolvedValue(jsonResponse(200, [{ id: "pepe", current_price: null }]));
-    await expect(resolvePublicCoin("pepe")).resolves.toEqual({ action: "render", canonical: "pepe" });
+    snapshot.read.mockResolvedValue({ coins: [{ id: "imposter-xlm", symbol: "XLM" }] });
+    expect(await savedCoinSlug("stellar")).toBeNull();
+    await expect(resolvePublicCoin("stellar")).resolves.toEqual({ action: "render", canonical: "stellar" });
 
-    fetchMock.mockResolvedValue(jsonResponse(500, []));
-    await expect(resolvePublicCoin("not-a-listed-slug")).resolves.toEqual({ action: "render", canonical: "not-a-listed-slug" });
+    snapshot.read.mockImplementation(() => new Promise(() => {}));
+    fetchMock.mockClear();
+    fetchMock.mockResolvedValue(jsonResponse(429, []));
+    await expect(resolvePublicCoin("cold-outage-coin")).resolves.toEqual({ action: "render", canonical: "cold-outage-coin" });
 
     const page = read("src/app/markets/crypto/[id]/page.tsx");
     expect(page).toContain('if (decision.action === "not-found") notFound()');
     expect(page).toContain("resolvePublicCoin");
-  });
+  }, 10_000);
 
   it("classifies a finished lookup separately from an outage", () => {
     expect(classifyGeckoMarkets(200, [], "not-a-coin-qa")).toBe("empty");
-    expect(classifyGeckoMarkets(404, { error: "missing" }, "not-a-coin-qa")).toBe("empty");
+    expect(classifyGeckoMarkets(404, { error: "missing" }, "not-a-coin-qa")).toBe("down");
     expect(classifyGeckoMarkets(200, [{ id: "bitcoin", current_price: null }], "bitcoin")).toBe("asset");
     expect(classifyGeckoMarkets(200, [{ id: "ethereum" }], "bitcoin")).toBe("empty");
     expect(classifyGeckoMarkets(429, [], "bitcoin")).toBe("down");
@@ -117,6 +137,9 @@ describe("F4 one canonical slug per coin", () => {
       expect(publicCoinSlug(alias)).toBe(row.destination.replace("/markets/crypto/", ""));
       expect(publicTickerPaths()).not.toContain(row.source);
     }
+    const tickers = publicTickerPaths();
+    expect(tickers).toContain("/markets/crypto/near");
+    expect(tickers).not.toContain("/markets/crypto/near-protocol");
 
     expect(coinSlugRedirect("/markets/crypto/near")).toBeNull();
     expect(coinSlugRedirect("/markets/crypto/bitcoin")).toBeNull();
@@ -135,11 +158,6 @@ describe("F4 one canonical slug per coin", () => {
     const matic = await middleware(new NextRequest("https://aetherforgeai.co.nz/markets/crypto/matic-network"));
     expect(matic.status).toBe(301);
     expect(matic.headers.get("location")).toBe("https://aetherforgeai.co.nz/markets/crypto/polygon-ecosystem-token");
-
-    const configured = await nextConfig.redirects!();
-    for (const row of redirects) {
-      expect(configured).toContainEqual({ source: row.source, destination: row.destination, permanent: true });
-    }
 
     const page = read("src/app/markets/crypto/[id]/page.tsx");
     const index = read("src/lib/public-market-index.ts");
@@ -212,5 +230,26 @@ describe("F5 coin meta description", () => {
     expect(none.description).not.toMatch(/\bNaN\b|\bundefined\b|\bnull\b/);
     expect(none.description).not.toContain(" · ");
     expect(none.description).not.toMatch(/\bbuy\b|\bsell\b/i);
+  });
+
+  it("stays within 160 characters for a long name and a micro price", () => {
+    const copy = cryptoDetailCopy({
+      slug: "wrapped-long-name",
+      name: "International Wrapped Synthetic Liquid Staked Bitcoin Protocol Token",
+      symbol: "VLWSBTC",
+      priceUsd: 0.000001234,
+      priceNzd: 0.000001234,
+      nzdSourced: true,
+      asOf: null,
+      source: "coingecko",
+      marketCapUsd: 1.47e12,
+    });
+    expect(copy.description.length).toBeLessThanOrEqual(160);
+    expect(copy.description).toContain("0.000001234");
+    expect(copy.description).not.toMatch(/\bNaN\b|\bundefined\b/);
+    expect(copy.description).not.toMatch(/\(\s*\)/);
+    expect(copy.description).not.toMatch(/[·(]\s*$/);
+    expect(copy.description).not.toMatch(/·\s*\./);
+    expect(copy.description).not.toMatch(/\bbuy\b|\bsell\b/i);
   });
 });

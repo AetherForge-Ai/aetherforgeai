@@ -5,7 +5,7 @@
  * pull-check:retest4-2026-10-11
  */
 
-import { formatDisplayDateTime, formatUnitPrice } from "@/lib/currency";
+import { formatDisplayDate, formatDisplayDateTime, formatUnitPrice } from "@/lib/currency";
 import { fmtCompactUsd } from "@/lib/crypto-market";
 import { sourceLabel } from "@/lib/crypto-price-chain";
 import { CRYPTO_VENDORS, type CryptoVendor } from "@/lib/crypto-vendors";
@@ -59,14 +59,43 @@ export function cryptoDetailCopy(facts: CryptoDetailFacts): { title: string; des
     return { title, description: `${label} No earlier price is stored for this coin.` };
   }
   const wall = facts.asOf ? formatDisplayDateTime(facts.asOf) : "—";
+  const dated = facts.asOf ? formatDisplayDate(facts.asOf) : "—";
   const asOf = !facts.asOf || wall === "—" ? "time not given by the data provider" : `as of ${wall}`;
+  const asOfShort = !facts.asOf || dated === "—" ? "time not stated" : `as of ${dated}`;
   const sourceName = namedSource(facts.source);
-  let sentence = `${label} ${lead} ${asOf}`;
+  const capText = fmtCompactUsd(facts.marketCapUsd);
+  const cap = capText !== "—" && !/nan|undefined/i.test(capText) ? capText : null;
+  return { title, description: fitCoinDescription(label, lead, asOf, asOfShort, sourceName, cap) };
+}
+
+/** Meta descriptions stay within 160 characters. Market cap goes first, then the clock. Numbers are never sliced. */
+const DESCRIPTION_MAX = 160;
+
+function pricedSentence(label: string, lead: string, asOf: string | null, sourceName: string | null, cap: string | null): string {
+  let sentence = `${label} ${lead}`;
+  if (asOf) sentence += ` ${asOf}`;
   if (sourceName) sentence += ` · Source: ${sourceName}`;
   sentence += ".";
-  const cap = fmtCompactUsd(facts.marketCapUsd);
-  if (cap !== "—" && !/nan|undefined/i.test(cap)) sentence += ` Market cap ${cap}.`;
-  return { title, description: sentence };
+  if (cap) sentence += ` Market cap ${cap}.`;
+  return sentence;
+}
+
+function fitCoinDescription(
+  label: string,
+  lead: string,
+  asOf: string,
+  asOfShort: string,
+  sourceName: string | null,
+  cap: string | null
+): string {
+  const attempts = [
+    pricedSentence(label, lead, asOf, sourceName, cap),
+    pricedSentence(label, lead, asOf, sourceName, null),
+    pricedSentence(label, lead, asOfShort, sourceName, null),
+    pricedSentence(label, lead, null, sourceName, null),
+    pricedSentence(label, lead, null, null, null),
+  ];
+  return attempts.find((text) => text.length <= DESCRIPTION_MAX) ?? attempts[attempts.length - 1];
 }
 
 /** A printable unit price. Missing, zero, or non-finite amounts are left out. */

@@ -4,8 +4,9 @@
  * A slug is a known coin when the local catalogue names it (vendor list, this provider map,
  * or a native-chain id the caller passes in) or the saved market list has a row for it.
  * That does not depend on a live price. CoinGecko returning an empty markets list, or HTTP 404,
- * is a completed lookup that found no asset. A timeout, a network error, or any status other
- * than 200/404 is an outage: it is not evidence the slug is fake, so it must not become a 404.
+ * is a completed lookup that found no asset. HTTP 404, a timeout, a network error, or any
+ * status other than 200 is an outage: it is not evidence the slug is fake, so it must not
+ * become a 404 on its own.
  */
 
 import { resolvableCoinId } from "@/lib/crypto-market";
@@ -89,11 +90,11 @@ export function coinSlugRedirect(pathname: string): string | null {
 
 /**
  * What a finished CoinGecko /coins/markets response means for this slug.
- * An empty array (or HTTP 404) is "no such coin". Any other failure is an outage.
- * A row with this id counts even when the price is missing.
+ * Only HTTP 200 with an array that does not contain this id is "no such coin".
+ * HTTP 404 is an outage, same as a timeout or a 5xx. A row with this id counts
+ * even when the price is missing.
  */
 export function classifyGeckoMarkets(status: number, body: unknown, slug: string): CoinUpstream {
-  if (status === 404) return "empty";
   if (status !== 200) return "down";
   if (!Array.isArray(body)) return "down";
   const want = slug.trim().toLowerCase();
