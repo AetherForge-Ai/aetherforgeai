@@ -37,6 +37,7 @@ describe("F-1 no second subscription", () => {
       if (!r.ok) {
         expect(r.status).toBe(409);
         expect(r.portalUrl).toBe("https://billing.stripe.com/p/session/test_x");
+        expect(r.error).toMatch(/Manage billing/);
       }
       expect(s.created).toBe(0);
     });
@@ -47,11 +48,18 @@ describe("F-1 no second subscription", () => {
       expect(r.ok === false && r.status).toBe(409);
       expect(s.created).toBe(0);
     });
-    it(`${mode}: seeded Pro with no customer → 409, portal falls back to /settings/billing`, async () => {
+    it(`${mode}: seeded Pro with no customer → 409, contact link, no Manage billing`, async () => {
       s.mode = mode;
       const r = await createPlanCheckout({ user: user({ subscription_status: "active", subscription_plan: "pro_monthly" }), plan: pro, baseUrl: base });
-      expect(r.ok === false && r.portalUrl).toBe(`${base}/settings/billing`);
+      expect(r.ok).toBe(false);
+      if (!r.ok) {
+        expect(r.status).toBe(409);
+        expect(r.portalUrl).toBe(`${base}/contact`);
+        expect(r.error).not.toMatch(/Manage billing/);
+        expect(r.error).toMatch(/contact support/);
+      }
       expect(s.created).toBe(0);
+      expect(s.portal).toBe(0);
     });
     it(`${mode}: Free / canceled user still checks out, success URL carries the plan`, async () => {
       s.mode = mode;

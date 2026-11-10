@@ -8,9 +8,6 @@ import { planByKey } from "@/lib/plans";
 /** Statuses that mean the account already has a subscription (a second checkout would double-bill). */
 const LIVE = new Set(["active", "trialing", "past_due"]);
 
-export const ALREADY_SUBSCRIBED =
-  "You already have a subscription. Change or manage your plan in Manage billing. No new checkout was started.";
-
 /** Where a subscriber goes when this account can open the Stripe customer portal. */
 export const MANAGE_BILLING_HREF = "/settings/billing";
 
@@ -64,6 +61,20 @@ export function paidPlanNextStep(hasStripeCustomer: boolean): PaidPlanNextStep {
     settingsLead: "This plan has no Stripe billing account. To change or cancel it,",
   };
 }
+
+/**
+ * Checkout 409 body. Shown by the checkout API (`error`) and toasted when a client
+ * does not redirect. "Manage billing" only when this account can open the portal.
+ */
+export function alreadySubscribedMessage(hasStripeCustomer: boolean): string {
+  if (paidPlanNextStep(hasStripeCustomer).portal) {
+    return "You already have a subscription. Change or manage your plan in Manage billing. No new checkout was started.";
+  }
+  return "You already have a subscription. To change or cancel it, contact support. No new checkout was started.";
+}
+
+/** Portal-account wording. Prefer alreadySubscribedMessage for a specific account. */
+export const ALREADY_SUBSCRIBED = alreadySubscribedMessage(true);
 
 export function hasLiveSubscription(account: { status?: string | null; plan?: string | null } | null | undefined): boolean {
   if (!account) return false;

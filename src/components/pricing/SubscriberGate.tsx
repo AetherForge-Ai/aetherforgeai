@@ -3,7 +3,7 @@
 /**
  * b88 (TT b87 P3): current subscribers (active, trialing, past_due) never see the trial
  * call to action on /pricing. Signed out or Free: children render as before.
- * Subscribers see Manage billing when a Stripe customer exists, and contact support otherwise.
+ * Subscribers see the portal label when a Stripe customer exists, and contact support otherwise.
  */
 import * as React from "react";
 import Link from "next/link";
@@ -18,7 +18,7 @@ export function SubscriberGate({
   children: React.ReactNode;
   /** b89: decided on the server from the session, so a subscriber never sees the trial copy flash. */
   initialSubscriber?: boolean;
-  /** True only when this account has a Stripe customer, so Manage billing exists. */
+  /** True only when this account has a Stripe customer, so the portal control exists. */
   hasStripeCustomer?: boolean;
   /** What a subscriber sees instead. Defaults to the current-plan link (portal or contact). */
   subscriberView?: React.ReactNode;

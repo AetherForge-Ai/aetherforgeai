@@ -3,9 +3,10 @@
  * (c) "Manage billing" only when a Stripe customer makes the portal control real.
  * (b) /methodology stays unpublished: the repo has index levels, not the named share and coin history.
  */
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { billingPortalReady, paidPlanNextStep, pricingCtaFor } from "@/lib/billing-guard";
+import { alreadySubscribedMessage, billingPortalReady, paidPlanNextStep, pricingCtaFor } from "@/lib/billing-guard";
 
 const read = (p: string) => readFileSync(p, "utf8");
 
@@ -96,6 +97,43 @@ describe("FIX-B99-1 (c) billing wording follows the portal", () => {
     expect(gate).not.toContain("Current plan · Manage billing");
     const portalCopy = JSON.stringify(paidPlanNextStep(true));
     expect(portalCopy).not.toMatch(/\bbuy\b|\bsell\b/i);
+  });
+
+  it("checkout 409 says Manage billing only when a Stripe customer exists", () => {
+    expect(alreadySubscribedMessage(true)).toBe(
+      "You already have a subscription. Change or manage your plan in Manage billing. No new checkout was started."
+    );
+    const handSet = alreadySubscribedMessage(false);
+    expect(handSet).toBe(
+      "You already have a subscription. To change or cancel it, contact support. No new checkout was started."
+    );
+    expect(handSet).not.toMatch(/Manage billing/);
+    const checkout = read("src/lib/stripe-checkout.ts");
+    expect(checkout).toContain("alreadySubscribedMessage(hasCustomer)");
+    expect(checkout).toContain("paidPlanNextStep(!!user.stripe_customer_id)");
+    expect(checkout).not.toContain("error: ALREADY_SUBSCRIBED");
+    expect(read("src/components/settings/BillingPortalButton.tsx")).toContain("paidPlanNextStep(true).action");
+    expect(read("src/components/settings/SettingsClient.tsx")).toContain("paidPlanNextStep(true).action");
+  });
+
+  it("no other src file hardcodes the Manage billing label", () => {
+    const allowed = new Set(["src/lib/billing-guard.ts"]);
+    const hits: string[] = [];
+    const walk = (dir: string) => {
+      for (const name of readdirSync(dir)) {
+        const full = path.join(dir, name);
+        if (statSync(full).isDirectory()) {
+          walk(full);
+          continue;
+        }
+        if (!/\.(ts|tsx)$/.test(name) || name.includes(".test.")) continue;
+        const rel = full.split(path.sep).join("/");
+        const text = read(rel);
+        if ((text.includes("Manage billing") || text.includes("Change plan in Manage billing")) && !allowed.has(rel)) hits.push(rel);
+      }
+    };
+    walk("src");
+    expect(hits).toEqual([]);
   });
 });
 

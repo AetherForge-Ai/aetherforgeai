@@ -16,6 +16,7 @@ import { Loader2, User, CreditCard, Crown, ExternalLink, Sparkles, ShieldCheck, 
 import Link from "next/link";
 import { PLANS, SALES_EMAIL, planByKey, planLabel, type Plan } from "@/lib/plans";
 import { isProPlan, limitScope, resolveTickerLimit } from "@/lib/entitlements";
+import { paidPlanNextStep } from "@/lib/billing-guard";
 import { formatDisplayDate, formatUsdWithRate, type FxRatesToNZD } from "@/lib/currency";
 import { resolveDisplayName } from "@/lib/user-display";
 import { useFxRates } from "@/hooks/useFxRates";
@@ -528,7 +529,7 @@ export function SettingsClient({
               ) : (
                 <ExternalLink className="mr-2 size-4" />
               )}
-              Manage billing
+              {paidPlanNextStep(true).action}
             </Button>
           ) : user.subscription_plan === "dual_yearly" ? (
             <p className="text-sm text-muted-foreground">This account is on the legacy Apex Dual plan.</p>
