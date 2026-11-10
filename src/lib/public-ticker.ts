@@ -65,6 +65,22 @@ async function edgeEquityPut(quotes: unknown): Promise<void> {
   }
 }
 
+/** M-2-STATUS: the equity quotes this isolate (or the colo copy) would serve on /api/ticker. */
+export async function tickerEquityQuotes(): Promise<
+  Array<{ symbol: string; quotedAt: string | null; price: number | null; changePct: number | null }>
+> {
+  const quotes = (lastGoodEquity ?? (await edgeEquityGet(800))) as Record<
+    string,
+    { quotedAt?: string | null; price?: number | null; changePct?: number | null }
+  > | null;
+  return Object.entries(quotes ?? {}).map(([symbol, quote]) => ({
+    symbol,
+    quotedAt: typeof quote?.quotedAt === "string" ? quote.quotedAt : null,
+    price: typeof quote?.price === "number" ? quote.price : null,
+    changePct: typeof quote?.changePct === "number" ? quote.changePct : null,
+  }));
+}
+
 /** b41 P3: newest equity quote time this isolate (or the colo copy) holds, for /status. */
 export async function lastGoodEquityAt(): Promise<string | null> {
   const quotes = (lastGoodEquity ?? (await edgeEquityGet(200))) as Record<string, { quotedAt?: string | null }> | null;
