@@ -181,7 +181,7 @@ describe("H-15 price providers", () => {
 
 describe("G-17 cross-provider ids", () => {
   it("whitebit and leo-token map to both providers", () => {
-    const src = read("src/lib/crypto-depth.server.ts");
+    const src = read("src/lib/crypto-provider-ids.ts");
     expect(src).toContain('whitebit: { gecko: "whitebit", paprika: "wbt-whitebit"');
     expect(src).toContain('"leo-token": { gecko: "leo-token", paprika: "leo-leo-token"');
   });
