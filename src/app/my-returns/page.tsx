@@ -201,7 +201,7 @@ export default async function ReturnsPage() {
   }
 
   const shell = (
-    <main className="mx-auto max-w-3xl px-4 py-12 sm:px-6">
+    <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6">
       <JsonLd
         data={breadcrumbJsonLd([
           { name: "Home", path: "/" },
@@ -235,7 +235,7 @@ export default async function ReturnsPage() {
           Docs
         </Link>
       </p>
-    </main>
+    </div>
   );
 
   if (!user) {

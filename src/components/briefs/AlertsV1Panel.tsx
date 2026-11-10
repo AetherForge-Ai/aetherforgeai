@@ -81,7 +81,7 @@ export function AlertsV1Panel() {
   };
 
   return (
-    <main className="mx-auto max-w-3xl space-y-5" aria-labelledby="alerts-v1-title">
+    <div className="mx-auto max-w-3xl space-y-5" aria-labelledby="alerts-v1-title">
       <header>
         <h1 id="alerts-v1-title" className="font-display text-2xl font-bold">Alerts</h1>
         <p className="text-sm text-muted-foreground">In-app alerts for price levels, % moves, news and ex-dividend dates. Checked every minute while this page is open. Each alert shows its source and time. Nothing is emailed.</p>
@@ -133,6 +133,6 @@ export function AlertsV1Panel() {
         </ul>
         {checkedAt ? <p className="mt-2 text-xs text-muted-foreground">Last checked {new Date(checkedAt).toLocaleTimeString("en-NZ", { timeZone: "Pacific/Auckland" })} (NZ time).</p> : null}
       </section>
-    </main>
+    </div>
   );
 }

@@ -243,6 +243,40 @@ export type DashboardView =
   | "nasdaq"
   | "dow";
 
+/** Visible H1 for a dashboard view. The member shell uses the same words before the book mounts. */
+export function dashboardPageTitle(view: DashboardView): string {
+  switch (view) {
+    case "home":
+      return "Dashboard";
+    case "bots":
+      return "Run AI Bots";
+    case "cash":
+      return "Cash Balance";
+    case "stocks":
+      return "Stock Portfolio Overview";
+    case "crypto":
+      return "Crypto Portfolio Overview";
+    case "metals":
+      return "Precious Metals Overview";
+    case "transactions":
+      return "Transaction Ledger";
+    case "alerts":
+      return "Price Alerts";
+    case "nzsx":
+      return "NZX 50";
+    case "asx":
+      return "ASX";
+    case "nasdaq":
+      return "NASDAQ";
+    case "dow":
+      return "Dow Jones";
+    default: {
+      const unseen: never = view;
+      return unseen;
+    }
+  }
+}
+
 export interface DashboardSubscription {
   status?: string | null;
   plan?: string | null;
@@ -2387,24 +2421,7 @@ export function PortfolioDashboard({
           : view === "dow"
             ? "Dow Jones"
             : "";
-  const pageTitle =
-    view === "bots"
-      ? "Run AI Bots"
-      : view === "cash"
-      ? "Cash Balance"
-      : view === "stocks"
-        ? "Stock Portfolio Overview"
-        : view === "crypto"
-          ? "Crypto Portfolio Overview"
-          : view === "metals"
-            ? "Precious Metals Overview"
-            : view === "transactions"
-              ? "Transaction Ledger"
-              : view === "alerts"
-                ? "Price Alerts"
-                : isMarket
-                ? marketTitle
-                : "Dashboard";
+  const pageTitle = dashboardPageTitle(view);
 
   return (
     <MarketIntelProvider bot={bot}>
