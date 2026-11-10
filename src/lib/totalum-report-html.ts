@@ -60,7 +60,8 @@ export function renderTotalumReport(
   } = {}
 ): string {
   const s = synthesis;
-  const gainColor = s.totalGainNZD >= 0 ? "#059669" : "#dc2626";
+  // M-7: light text-green token. This HTML cannot read --text-green.
+  const gainColor = s.totalGainNZD >= 0 ? "#047857" : "#dc2626";
   const classOf = (key: string) => s.classAllocation.find((row) => row.assetClass === key)?.valueNZD ?? 0;
   const book = opts.book ?? {
     cashNZD: classOf("cash"),
@@ -96,7 +97,7 @@ export function renderTotalumReport(
         <td>${esc(p.assetClass)}</td>
         <td class="num">${p.weight.toFixed(1)}%</td>
         <td class="num">${nzd(p.valueNZD)}</td>
-        <td class="num" style="color:${p.gainNZD >= 0 ? "#059669" : "#dc2626"}">${pct(p.gainPct)}</td>
+        <td class="num" style="color:${p.gainNZD >= 0 ? "#047857" : "#dc2626"}">${pct(p.gainPct)}</td>
       </tr>`
     )
     .join("");
@@ -108,7 +109,7 @@ export function renderTotalumReport(
       (sc) => `
       <tr>
         <td><strong>${sc.horizon}</strong></td>
-        <td class="num" style="color:#059669">${pct(sc.bullPct)} · ${nzd(sc.bullValue)}</td>
+        <td class="num" style="color:#047857">${pct(sc.bullPct)} · ${nzd(sc.bullValue)}</td>
         <td class="num">${pct(sc.basePct)} · ${nzd(sc.baseValue)}</td>
         <td class="num" style="color:#dc2626">${pct(sc.bearPct)} · ${nzd(sc.bearValue)}</td>
       </tr>`
@@ -120,8 +121,8 @@ export function renderTotalumReport(
       (t) => `
       <tr>
         <td><strong>${esc(t.name)}</strong><div class="sub">${esc(t.description)}</div></td>
-        <td class="num" style="color:${t.impactNZD >= 0 ? "#059669" : "#dc2626"}">${pct(t.impactPct)}</td>
-        <td class="num" style="color:${t.impactNZD >= 0 ? "#059669" : "#dc2626"}">${nzd(t.impactNZD)}</td>
+        <td class="num" style="color:${t.impactNZD >= 0 ? "#047857" : "#dc2626"}">${pct(t.impactPct)}</td>
+        <td class="num" style="color:${t.impactNZD >= 0 ? "#047857" : "#dc2626"}">${nzd(t.impactNZD)}</td>
         <td class="num">${nzd(t.newValueNZD)}</td>
       </tr>`
     )
