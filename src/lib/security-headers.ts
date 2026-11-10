@@ -58,7 +58,10 @@ export function makeCspNonce(): string {
 
 export function enforcedCsp(allowTotalumTest = CSP_ALLOW_TOTALUM_TEST, nonce?: string): string {
   const [self, ...hosts] = SCRIPT_SOURCES;
-  const script = nonce ? [self, `'nonce-${nonce}'`, "'strict-dynamic'", ...hosts] : [self, ...hosts];
+  // wasm-unsafe-eval: tesseract.js compiles the hosted LSTM core in the browser.
+  // Without it Chromium blocks WebAssembly.instantiate, createWorker never settles,
+  // and eng.traineddata.gz is never requested.
+  const script = nonce ? [self, `'nonce-${nonce}'`, "'strict-dynamic'", "'wasm-unsafe-eval'", ...hosts] : [self, "'wasm-unsafe-eval'", ...hosts];
   return [
     `script-src ${script.join(" ")}`,
     "object-src 'none'",

@@ -50,7 +50,7 @@ export function PublicMarketTables({ index }: { index: PublicMarketIndex }) {
               </thead>
               <tbody>
                 {tab.rows.map((row) => (
-                  <tr key={`${tab.id}-${row.href || `${row.symbol}-${row.blockchain || ""}`}`} data-price-row className="border-b border-border/40">
+                  <tr key={`${tab.id}-${row.poolId || row.quoteId || row.href || row.symbol}`} data-price-row className="border-b border-border/40">
                     <td className="py-1.5 pr-3">
                       {row.href ? (
                         <Link href={row.href} className="font-semibold text-primary hover:underline">

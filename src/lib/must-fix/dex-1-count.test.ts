@@ -1,12 +1,24 @@
 /** b97 DEX-1 (TT P3): on /markets?tab=dex the "Showing N of up to 400" label equals the rows rendered after dedupe. */
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { dedupeDexRows, dexNoticeForShown } from "@/lib/crypto-dex";
+import { dedupeDexRows, dexNoticeForShown, dexRowKey } from "@/lib/crypto-dex";
 import { dexCoverageLine } from "@/lib/crypto-coverage";
 
 const src = readFileSync("src/components/dashboard/MarketsExplorer.tsx", "utf8");
 
 describe("DEX-1 shown count equals rendered rows", () => {
+  it("duplicate pools share one row and the label matches that count", () => {
+    const fixture = [
+      { network: "Ethereum", poolId: "eth_0xpool", address: "eth_0xtoken", name: "Alpha", symbol: "AAA" },
+      { network: "ethereum", poolId: "ETH_0xPOOL", address: "eth_0xtoken", name: "Alpha duplicate", symbol: "AAA" },
+      { network: "Ethereum", poolId: "eth_0xother", address: "eth_0xtokenb", name: "Alpha", symbol: "AAA" },
+    ];
+    const rendered = dedupeDexRows(fixture.map((row) => ({ ...row, key: dexRowKey(row) })));
+    expect(rendered.map((row) => row.key)).toEqual(["ethereum|eth_0xpool", "ethereum|eth_0xother"]);
+    expect(dexCoverageLine(rendered.length)).toBe(`Showing ${rendered.length} of up to 400`);
+    expect(rendered.every((row) => row.key !== row.name && !/^\d+$/.test(row.key))).toBe(true);
+  });
+
   it("dedupes by network|pool key (case-insensitive), keeping the first", () => {
     const rows = [{ key: "solana|AbC" }, { key: "solana|abc" }, { key: "base|abc" }, { key: "solana|xyz" }];
     expect(dedupeDexRows(rows).map((r) => r.key)).toEqual(["solana|AbC", "base|abc", "solana|xyz"]);
@@ -27,6 +39,7 @@ describe("DEX-1 shown count equals rendered rows", () => {
     expect(src).toMatch(/if \(isDexTab\) \{\n\s+all = dexAll;/);
     expect(src).toMatch(/\? dexAll\.length\n/);
     expect(src).toContain("dexNoticeForShown(dex.notice, dexAll.length)");
+    expect(src).toContain("dexRowKey(");
     expect(src).not.toMatch(/\? dex\.rows\.length \|\| seedDexTab\?\.listCount/);
   });
 });
