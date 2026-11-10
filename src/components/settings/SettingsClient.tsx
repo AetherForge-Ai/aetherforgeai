@@ -16,7 +16,7 @@ import { Loader2, User, CreditCard, Crown, ExternalLink, Sparkles, ShieldCheck, 
 import Link from "next/link";
 import { PLANS, SALES_EMAIL, planByKey, planLabel, type Plan } from "@/lib/plans";
 import { isProPlan, limitScope, resolveTickerLimit } from "@/lib/entitlements";
-import { paidPlanNextStep } from "@/lib/billing-guard";
+import { billingPortalReady, hasLiveSubscription, paidPlanNextStep } from "@/lib/billing-guard";
 import { formatDisplayDate, formatUsdWithRate, type FxRatesToNZD } from "@/lib/currency";
 import { resolveDisplayName } from "@/lib/user-display";
 import { useFxRates } from "@/hooks/useFxRates";
@@ -143,6 +143,12 @@ export function SettingsClient({
 
   const isActive = user.subscription_status === "active";
   const onFreePlan = isFreeReportPlan(user.subscription_plan);
+  const portalReady = billingPortalReady({
+    stripeConfigured: user.stripeConfigured,
+    stripeCustomerId: user.hasCustomer ? "customer" : null,
+  });
+  const supportStep = paidPlanNextStep(portalReady);
+  const handSetPaid = !portalReady && hasLiveSubscription({ plan: user.subscription_plan, status: user.subscription_status });
   // DASH-CLEAN-E: confirm the plan from the CR-6c source (GET /api/account/plan) so the
   // switch grid never offers the plan the account is already on.
   // b87 CR-1 F-3: "Trial ends 11 Nov 2026" while the subscription is trialing.
@@ -529,7 +535,7 @@ export function SettingsClient({
               ) : (
                 <ExternalLink className="mr-2 size-4" />
               )}
-              {paidPlanNextStep(true).action}
+              {supportStep.action}
             </Button>
           ) : user.subscription_plan === "dual_yearly" ? (
             <p className="text-sm text-muted-foreground">This account is on the legacy Apex Dual plan.</p>
@@ -546,6 +552,15 @@ export function SettingsClient({
               </Link>
             </Button>
           )}
+          {handSetPaid ? (
+            <p data-billing-next="support" className="mt-4 text-sm leading-relaxed text-muted-foreground">
+              {supportStep.settingsLead}{" "}
+              <Link href={supportStep.href} className="font-medium text-primary hover:underline">
+                {supportStep.action}
+              </Link>
+              .
+            </p>
+          ) : null}
         </div>
 
         {/* Change plan — automatic proration */}

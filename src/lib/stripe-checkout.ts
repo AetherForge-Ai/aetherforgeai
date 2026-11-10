@@ -6,14 +6,14 @@
  * and the response echoes { testMode: true, priceId, unitAmount }.
  */
 import "server-only";
-import type { AppUser } from "@/lib/session";
+import { isStripeConfigured, type AppUser } from "@/lib/session";
 import type { Plan as PlanDef } from "@/lib/plans";
 import { isSelfServeCheckoutPlan } from "@/lib/plans";
 import { publicPriceSlot } from "@/lib/public-catalog";
 import { ensurePublicPrice } from "@/lib/ensure-public-price";
 import { totalumSdk } from "@/lib/totalum";
 import { checkoutStripe } from "@/lib/stripe-mode";
-import { alreadySubscribedMessage, hasLiveSubscription, paidPlanNextStep } from "@/lib/billing-guard";
+import { alreadySubscribedMessage, billingPortalReady, hasLiveSubscription, paidPlanNextStep } from "@/lib/billing-guard";
 import { HOLDING_CAPS_V2 } from "@/lib/feature-flags";
 import { trialPaymentCollection } from "@/lib/holding-caps";
 
@@ -37,10 +37,10 @@ export async function createPlanCheckout(opts: { user: AppUser; plan: PlanDef; b
   if (!client) return { ok: false, status: 503, error: TEST_KEY_MISSING };
 
   // b87 CR-1 F-1: an account that is already active, trialing or past_due never gets a second
-  // checkout (double billing, second trial). Live and test mode alike: 409 + where to manage billing.
+  // checkout (double billing, second trial). Live and test mode alike: 409 and where this account can change the plan.
   if (await alreadySubscribed(user, client)) {
-    const hasCustomer = !!user.stripe_customer_id;
-    return { ok: false, status: 409, error: alreadySubscribedMessage(hasCustomer), portalUrl: await billingPortalUrl(user, client, baseUrl) };
+    const portal = billingPortalReady({ stripeConfigured: isStripeConfigured(), stripeCustomerId: user.stripe_customer_id });
+    return { ok: false, status: 409, error: alreadySubscribedMessage(portal), portalUrl: await billingPortalUrl(user, client, baseUrl) };
   }
 
   const selfServe = isSelfServeCheckoutPlan(plan);
@@ -113,9 +113,9 @@ async function alreadySubscribed(user: AppUser, client: ModeClient): Promise<boo
   }
 }
 
-/** Stripe portal when this account has a customer; /contact when it does not. */
+/** Stripe portal only when the same check as /settings/billing says the control exists. */
 async function billingPortalUrl(user: AppUser, client: ModeClient, baseUrl: string): Promise<string> {
-  const step = paidPlanNextStep(!!user.stripe_customer_id);
+  const step = paidPlanNextStep(billingPortalReady({ stripeConfigured: isStripeConfigured(), stripeCustomerId: user.stripe_customer_id }));
   const fallback = `${baseUrl}${step.href}`;
   if (!step.portal) return fallback;
   try {

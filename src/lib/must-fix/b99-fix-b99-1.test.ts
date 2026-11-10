@@ -109,11 +109,21 @@ describe("FIX-B99-1 (c) billing wording follows the portal", () => {
     );
     expect(handSet).not.toMatch(/Manage billing/);
     const checkout = read("src/lib/stripe-checkout.ts");
-    expect(checkout).toContain("alreadySubscribedMessage(hasCustomer)");
-    expect(checkout).toContain("paidPlanNextStep(!!user.stripe_customer_id)");
+    const ready = "billingPortalReady({ stripeConfigured: isStripeConfigured(), stripeCustomerId: user.stripe_customer_id })";
+    expect(checkout).toContain(`alreadySubscribedMessage(portal)`);
+    expect(checkout).toContain(`const portal = ${ready}`);
+    expect(checkout).toContain(`paidPlanNextStep(${ready})`);
+    expect(checkout).not.toContain("!!user.stripe_customer_id");
     expect(checkout).not.toContain("error: ALREADY_SUBSCRIBED");
     expect(read("src/components/settings/BillingPortalButton.tsx")).toContain("paidPlanNextStep(true).action");
-    expect(read("src/components/settings/SettingsClient.tsx")).toContain("paidPlanNextStep(true).action");
+    const settings = read("src/components/settings/SettingsClient.tsx");
+    expect(settings).toContain("billingPortalReady(");
+    expect(settings).toContain("const supportStep = paidPlanNextStep(portalReady)");
+    expect(settings).toContain("hasLiveSubscription({ plan: user.subscription_plan, status: user.subscription_status })");
+    expect(settings).toContain('data-billing-next="support"');
+    expect(settings).toContain("href={supportStep.href}");
+    expect(settings).toContain("{supportStep.settingsLead}");
+    expect(settings).toContain("isProPlan(user.subscription_plan) ?");
   });
 
   it("no other src file hardcodes the Manage billing label", () => {
@@ -128,8 +138,8 @@ describe("FIX-B99-1 (c) billing wording follows the portal", () => {
         }
         if (!/\.(ts|tsx)$/.test(name) || name.includes(".test.")) continue;
         const rel = full.split(path.sep).join("/");
-        const text = read(rel);
-        if ((text.includes("Manage billing") || text.includes("Change plan in Manage billing")) && !allowed.has(rel)) hits.push(rel);
+        const text = read(rel).toLowerCase();
+        if (text.includes("manage billing") && !allowed.has(rel)) hits.push(rel);
       }
     };
     walk("src");
