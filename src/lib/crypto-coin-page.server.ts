@@ -19,6 +19,64 @@ import {
 } from "@/lib/crypto-slug";
 
 const PROBE_MS = 1_200;
+/** Settled probe answers only. Outages are never stored. */
+const PROBE_CACHE_SECONDS = 10 * 60;
+const PROBE_CACHE_NAME = "aetherforge-coin-probe";
+
+type ProbeCache = {
+  match(request: Request): Promise<Response | undefined>;
+  put(request: Request, response: Response): Promise<void>;
+};
+
+function probeCacheRequest(slug: string): Request {
+  return new Request(`https://coin-probe.invalid/v1/${encodeURIComponent(slug)}`);
+}
+
+/**
+ * Shared across Workers isolates in the colo (Cache API). Not an in-process map.
+ * When the runtime has no Cache API the lookup is simply uncached.
+ */
+async function openProbeCache(): Promise<ProbeCache | null> {
+  const storage = (globalThis as { caches?: { open?: (name: string) => Promise<ProbeCache> } }).caches;
+  if (typeof storage?.open !== "function") return null;
+  try {
+    return await storage.open(PROBE_CACHE_NAME);
+  } catch {
+    return null;
+  }
+}
+
+async function readSettledProbe(slug: string): Promise<CoinPageDecision | null> {
+  const cache = await openProbeCache();
+  if (!cache) return null;
+  try {
+    const hit = await cache.match(probeCacheRequest(slug));
+    if (!hit) return null;
+    const expires = Date.parse(hit.headers.get("expires") || "");
+    if (!Number.isFinite(expires) || expires <= Date.now()) return null;
+    const data = (await hit.json()) as CoinPageDecision;
+    if (data?.action !== "not-found" && data?.action !== "render" && data?.action !== "redirect") return null;
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+async function writeSettledProbe(slug: string, decision: CoinPageDecision): Promise<void> {
+  const cache = await openProbeCache();
+  if (!cache) return;
+  try {
+    const response = new Response(JSON.stringify(decision), {
+      headers: {
+        "content-type": "application/json",
+        expires: new Date(Date.now() + PROBE_CACHE_SECONDS * 1000).toUTCString(),
+      },
+    });
+    await cache.put(probeCacheRequest(slug), response);
+  } catch {
+    // A cache write must not change the answer we already have.
+  }
+}
 
 async function probeOnce(slug: string, path: string, keyless: boolean): Promise<CoinUpstream> {
   const endpoint = coinGeckoEndpoint(process.env, keyless);
@@ -93,12 +151,16 @@ function paprikaSearchState(status: number, body: unknown, slug: string): CoinUp
   if (status !== 200) return "down";
   const currencies =
     body && typeof body === "object" && Array.isArray((body as { currencies?: unknown }).currencies)
-      ? ((body as { currencies: Array<{ id?: string }> }).currencies)
+      ? ((body as { currencies: Array<{ id?: string; symbol?: string }> }).currencies)
       : [];
   const want = slug.trim().toLowerCase();
   const match = currencies.some((row) => {
     const id = String(row?.id || "").trim().toLowerCase();
-    return id === want || id.endsWith(`-${want}`);
+    const symbol = String(row?.symbol || "").trim().toLowerCase();
+    if (!id) return false;
+    // Exact id, or CoinPaprika's <symbol>-<slug>. A bare suffix ("-protocol") is a different coin.
+    if (id === want) return true;
+    return !!symbol && id === `${symbol}-${want}`;
   });
   return match ? "asset" : "empty";
 }
@@ -120,8 +182,34 @@ async function probePaprikaCoin(slug: string): Promise<CoinUpstream> {
   return paprikaSearchState(search.status, search.body, slug);
 }
 
-/** One answer per request, shared by generateMetadata and the page. */
-export const resolvePublicCoin = cache(async (id: string): Promise<CoinPageDecision> => {
+type SettledProbe = { settled: boolean; decision: CoinPageDecision };
+
+/** Network lookup. `settled` is false for an outage, which must not be cached. */
+async function probeUnknownCoin(raw: string): Promise<SettledProbe> {
+  const gecko = await probeGeckoCoin(raw);
+  // A CoinGecko failure is not "no such coin". Do not ask Paprika to turn an outage into a 404.
+  if (gecko === "down") {
+    return { settled: false, decision: decideCoinPage({ slug: raw, knownCanonical: null, upstream: "down" }) };
+  }
+  if (gecko === "asset") {
+    return {
+      settled: true,
+      decision: decideCoinPage({ slug: raw, knownCanonical: null, upstream: "asset", upstreamCanonical: raw }),
+    };
+  }
+  const paprika = await probePaprikaCoin(raw);
+  return {
+    settled: paprika !== "down",
+    decision: decideCoinPage({
+      slug: raw,
+      knownCanonical: null,
+      upstream: paprika,
+      upstreamCanonical: paprika === "asset" ? raw : null,
+    }),
+  };
+}
+
+async function resolvePublicCoinOnce(id: string): Promise<CoinPageDecision> {
   const raw = resolvableCoinId(id);
   if (!raw) return { action: "render", canonical: "" };
 
@@ -139,21 +227,14 @@ export const resolvePublicCoin = cache(async (id: string): Promise<CoinPageDecis
   if (known) {
     return decideCoinPage({ slug: raw, knownCanonical: known, upstream: "down" });
   }
-  const gecko = await probeGeckoCoin(raw);
-  // A CoinGecko failure is not "no such coin". Do not ask Paprika to turn an outage into a 404.
-  if (gecko !== "empty") {
-    return decideCoinPage({
-      slug: raw,
-      knownCanonical: null,
-      upstream: gecko,
-      upstreamCanonical: gecko === "asset" ? raw : null,
-    });
-  }
-  const paprika = await probePaprikaCoin(raw);
-  return decideCoinPage({
-    slug: raw,
-    knownCanonical: null,
-    upstream: paprika,
-    upstreamCanonical: paprika === "asset" ? raw : null,
-  });
-});
+
+  const cached = await readSettledProbe(raw);
+  if (cached) return cached;
+
+  const probed = await probeUnknownCoin(raw);
+  if (probed.settled) await writeSettledProbe(raw, probed.decision);
+  return probed.decision;
+}
+
+/** One answer per request, shared by generateMetadata and the page. Settled probes also last 10 minutes. */
+export const resolvePublicCoin = cache(resolvePublicCoinOnce);

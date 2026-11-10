@@ -3,7 +3,7 @@
  * A known coin still renders when the price API is down. An empty CoinGecko list is a real miss.
  */
 import { readFileSync } from "node:fs";
-import { describe, expect, it, vi } from "vitest";
+import { afterAll, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
 vi.mock("server-only", () => ({}));
@@ -35,6 +35,28 @@ import {
 } from "@/lib/crypto-slug";
 
 const read = (path: string) => readFileSync(path, "utf8");
+
+/** Workers Cache API stand-in so a settled probe can be replayed without another fetch. */
+const probeStore = new Map<string, { expires: number; body: string }>();
+const previousCaches = (globalThis as { caches?: unknown }).caches;
+(globalThis as { caches?: { open: (name: string) => Promise<unknown> } }).caches = {
+  open: async () => ({
+    async match(request: Request) {
+      const hit = probeStore.get(request.url);
+      if (!hit || hit.expires <= Date.now()) return undefined;
+      return new Response(hit.body, {
+        headers: { "content-type": "application/json", expires: new Date(hit.expires).toUTCString() },
+      });
+    },
+    async put(request: Request, response: Response) {
+      const expires = Date.parse(response.headers.get("expires") || "");
+      probeStore.set(request.url, { expires, body: await response.text() });
+    },
+  }),
+};
+afterAll(() => {
+  (globalThis as { caches?: unknown }).caches = previousCaches;
+});
 
 function jsonResponse(status: number, body: unknown) {
   return {
@@ -92,6 +114,54 @@ describe("F3 unknown coin vs price outage", () => {
     expect(page).toContain('if (decision.action === "not-found") notFound()');
     expect(page).toContain("resolvePublicCoin");
   }, 10_000);
+
+  it("renders when Paprika is down, 404s an empty search, and caches only a settled miss", async () => {
+    snapshot.read.mockResolvedValue(null);
+    const fetchMock = vi.fn(async (url: string) => {
+      const u = String(url);
+      if (u.includes("coinpaprika")) return jsonResponse(503, { error: "down" });
+      return jsonResponse(200, []);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(resolvePublicCoin("gecko-empty-paprika-down")).resolves.toEqual({
+      action: "render",
+      canonical: "gecko-empty-paprika-down",
+    });
+    const callsAfterDown = fetchMock.mock.calls.length;
+    expect(callsAfterDown).toBeGreaterThan(0);
+    await expect(resolvePublicCoin("gecko-empty-paprika-down")).resolves.toEqual({
+      action: "render",
+      canonical: "gecko-empty-paprika-down",
+    });
+    expect(fetchMock.mock.calls.length).toBeGreaterThan(callsAfterDown);
+
+    fetchMock.mockImplementation(async (url: string) => {
+      const u = String(url);
+      if (u.includes("/v1/search/")) return jsonResponse(200, { currencies: [] });
+      if (u.includes("coinpaprika")) return jsonResponse(404, { error: "id not found" });
+      return jsonResponse(200, []);
+    });
+    await expect(resolvePublicCoin("empty-search-coin")).resolves.toEqual({ action: "not-found" });
+
+    fetchMock.mockImplementation(async (url: string) => {
+      const u = String(url);
+      if (u.includes("/v1/search/")) {
+        return jsonResponse(200, {
+          currencies: [
+            { id: "near-near-protocol", symbol: "NEAR" },
+            { id: "rain-rain-protocol", symbol: "RAIN" },
+          ],
+        });
+      }
+      if (u.includes("coinpaprika")) return jsonResponse(404, { error: "id not found" });
+      return jsonResponse(200, []);
+    });
+    await expect(resolvePublicCoin("protocol")).resolves.toEqual({ action: "not-found" });
+
+    fetchMock.mockClear();
+    await expect(resolvePublicCoin("protocol")).resolves.toEqual({ action: "not-found" });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 
   it("classifies a finished lookup separately from an outage", () => {
     expect(classifyGeckoMarkets(200, [], "not-a-coin-qa")).toBe("empty");
