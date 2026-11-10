@@ -96,10 +96,10 @@ async function bookFlexCash(user: SyncUser, rows: readonly FlexCashRow[], seen: 
       row.kind === "dividend"
         ? { type: "dividend", ticker: row.symbol.toUpperCase(), asset_type: "stock", amount: nzd, dividend_gross: row.amount, fx_rate: fx, fx_source: "IBKR FXRateToBase", executed_at: row.date, trade_date: row.date, notes: note }
         : { type: row.kind, amount: nzd, executed_at: row.date, trade_date: row.date, notes: note };
-    const saved = (await applyTransaction(user, input as never)) as { ledgerId?: string; transaction?: { _id?: string }; cashBalance?: number; pendingCash?: number };
-    const id = saved.ledgerId || saved.transaction?._id || "";
+    const saved = (await applyTransaction(user, input as never)) as { ledgerId?: string; transaction?: { _id?: string }; cashBalance?: number; pendingCash?: number } | undefined;
+    const id = saved?.ledgerId || saved?.transaction?._id || "";
     if (id) written.push(id);
-    const nextCash = saved.pendingCash ?? saved.cashBalance;
+    const nextCash = saved?.pendingCash ?? saved?.cashBalance;
     if (typeof nextCash === "number" && Number.isFinite(nextCash)) {
       const session = user as { cash_balance?: number; cash_read_at?: number };
       session.cash_balance = nextCash;
