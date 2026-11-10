@@ -15,6 +15,7 @@ import { CHANGELOG_ENTRIES } from "@/lib/changelog-entries";
 import { gsc404Redirect } from "@/lib/gsc-404-redirects";
 import { portfolioAliasRedirect, portfolioAliasStatus } from "@/lib/portfolio-route-aliases";
 import { permanentRedirect, publicAliasRedirect } from "@/lib/public-route-aliases";
+import { documentAccess } from "@/lib/route-gate";
 
 const read = (file: string) => readFileSync(file, "utf8");
 
@@ -93,6 +94,23 @@ describe("CRAWL-A F2: signed-out /pricing does not call /api/account/plan", () =
     const cardFetch = cards.indexOf('fetch("/api/account/plan"');
     const cardEffect = cards.slice(cards.lastIndexOf("useEffect", cardFetch), cardFetch);
     expect(cardEffect).toContain("if (!signedInId)");
+  });
+
+  it("a signed-in visitor on public /pricing is a member document, not guest", async () => {
+    // Public is the page gate. The session mode has no "public" value.
+    expect(documentAccess("/pricing")).toBe("public");
+    expect(read("src/components/DocumentSession.tsx")).toContain('export type DocumentSessionMode = "guest" | "member"');
+    expect(read("src/app/layout.tsx")).toContain('headerList.get("x-af-doc") === "member" ? "member" : "guest"');
+    const signedIn = new NextRequest("https://aetherforgeai.co.nz/pricing", {
+      headers: { cookie: "__Secure-better-auth.session_token=signed-in-token" },
+    });
+    const member = await middleware(signedIn);
+    expect(member.status).toBe(200);
+    expect(member.headers.get("location")).toBeNull();
+    expect(member.headers.get("x-middleware-request-x-af-doc")).toBe("member");
+    const signedOut = await middleware(new NextRequest("https://aetherforgeai.co.nz/pricing"));
+    expect(signedOut.status).toBe(200);
+    expect(signedOut.headers.get("x-middleware-request-x-af-doc")).toBe("guest");
   });
 });
 
