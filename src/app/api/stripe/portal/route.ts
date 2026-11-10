@@ -4,8 +4,8 @@ import { getCurrentUser } from "@/lib/session";
 
 /**
  * POST /api/stripe/portal
- * Opens the Stripe Customer Portal for the logged-in user to manage billing,
- * update payment methods, and cancel/upgrade their subscription.
+ * Opens the Stripe Customer Portal for the logged-in user,
+ * so they can update payment methods and change or cancel their subscription.
  */
 export async function POST(req: Request) {
   try {
