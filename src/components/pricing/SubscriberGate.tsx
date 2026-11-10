@@ -6,6 +6,7 @@
  */
 import * as React from "react";
 import Link from "next/link";
+import { useDocumentSessionMode } from "@/components/DocumentSession";
 import { hasLiveSubscription } from "@/lib/billing-guard";
 
 export function SubscriberGate({
@@ -19,8 +20,12 @@ export function SubscriberGate({
   /** What a subscriber sees instead. Defaults to the Manage billing link. */
   subscriberView?: React.ReactNode;
 }) {
+  const mode = useDocumentSessionMode();
   const [subscriber, setSubscriber] = React.useState(initialSubscriber);
   React.useEffect(() => {
+    // CRAWL-A F2: a guest document has no session. Do not call the plan route
+    // (it answers 401). Members still read the plan the same way.
+    if (mode !== "member") return;
     let alive = true;
     fetch("/api/account/plan", { cache: "no-store" })
       .then((r) => (r.ok ? (r.json() as Promise<{ plan?: string; status?: string }>) : null))
@@ -31,7 +36,7 @@ export function SubscriberGate({
     return () => {
       alive = false;
     };
-  }, []);
+  }, [mode]);
   if (!subscriber) return <>{children}</>;
   if (subscriberView !== undefined) return <>{subscriberView}</>;
   return (

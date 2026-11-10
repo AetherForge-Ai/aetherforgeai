@@ -43,9 +43,9 @@ export default function TestHooksPanel({ enabled }: { enabled: boolean }) {
     document.cookie = next ? `${FEED_OFF_COOKIE}=1; path=/; max-age=3600; samesite=lax` : `${FEED_OFF_COOKIE}=; path=/; max-age=0`;
     setFeedOff(next);
   }
-  if (!enabled) return <main className="mx-auto max-w-xl p-6"><h1 className="text-xl font-semibold">Test-mode hooks are off</h1></main>;
+  if (!enabled) return <div className="mx-auto max-w-xl p-6"><h1 className="text-xl font-semibold">Test-mode hooks are off</h1></div>;
   return (
-    <main className="mx-auto max-w-xl space-y-6 p-6">
+    <div className="mx-auto max-w-xl space-y-6 p-6">
       <h1 className="text-xl font-semibold">Test-mode hooks</h1>
       <section>
         <h2 className="font-semibold">Price feed (G-05)</h2>
@@ -85,6 +85,6 @@ export default function TestHooksPanel({ enabled }: { enabled: boolean }) {
         <pre className="mt-2 overflow-x-auto text-xs">{funnel}</pre>
       </section>
       <p className="mt-6 text-sm"><a className="underline" href="/test-hooks/track-record">Track record scorecard (test view)</a></p>
-    </main>
+    </div>
   );
 }

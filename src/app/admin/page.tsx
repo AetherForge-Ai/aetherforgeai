@@ -29,7 +29,7 @@ export default async function AdminPage() {
   const [users, chats, reports, feeds] = await Promise.all([rows("user"), rows("chat_message"), rows("report"), loadStatusFeeds().catch(() => [])]);
   const s = summariseOwnerRows(users, chats, reports, Date.now(), normalizePlanKey, CAP);
   return (
-    <main className="mx-auto max-w-3xl px-4 py-10">
+    <div className="mx-auto max-w-3xl px-4 py-10">
       <h1 className="font-display text-3xl font-bold">Owner admin</h1>
       <p className="mt-2 text-sm text-muted-foreground">Read-only. Counts only. Each view is logged.</p>
       <section className="mt-6">
@@ -65,6 +65,6 @@ export default async function AdminPage() {
           ))}
         </ul>
       </section>
-    </main>
+    </div>
   );
 }

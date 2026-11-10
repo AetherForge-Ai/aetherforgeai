@@ -96,7 +96,7 @@ export default async function StartHerePage() {
   const cfg = DIP_CTA_CONFIG;
 
   const body = (
-    <main className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6">
+    <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6">
       <p className="text-sm font-semibold text-primary">Start here</p>
       <h1 className="mt-1 font-display text-3xl font-extrabold tracking-tight sm:text-4xl">AetherForge, explained simply</h1>
       <p className="mt-3 text-lg leading-relaxed">
@@ -193,7 +193,7 @@ export default async function StartHerePage() {
       <p className="mt-8 text-sm text-muted-foreground" data-nfa-footer>
         AetherForge AI gives general information only. It is not financial advice and does not consider your situation. Investing can lose money.
       </p>
-    </main>
+    </div>
   );
 
   if (!user) return <AppShell guest user={{ name: "Guest", email: "Sign in to activate your account" }}>{body}</AppShell>;
