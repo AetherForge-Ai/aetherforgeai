@@ -33,7 +33,7 @@ export function FeedFreshnessHookPanel() {
   }
 
   return (
-    <main className="mx-auto max-w-xl space-y-4 p-6">
+    <div className="mx-auto max-w-xl space-y-4 p-6">
       <h1 className="text-xl font-semibold">Feed freshness hook</h1>
       <p className="text-sm text-muted-foreground">
         Marks one price feed stale or failed for this browser, then clears the mark. Open Status afterwards. Equity and crypto dots on the home tape follow the same mark.
@@ -76,6 +76,6 @@ export function FeedFreshnessHookPanel() {
           Home tape
         </a>
       </p>
-    </main>
+    </div>
   );
 }

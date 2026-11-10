@@ -1,6 +1,8 @@
 import { snapshotMetaOther } from "@/lib/crypto-snapshot";
 import type { Metadata } from "next";
+import { notFound, permanentRedirect } from "next/navigation";
 import { cache } from "react";
+import { resolvePublicCoin } from "@/lib/crypto-coin-page.server";
 import { getCurrentUser } from "@/lib/session";
 import { publicPageMetadata } from "@/lib/reviewed-book";
 import { MarketsAppFrame } from "@/components/dashboard/MarketsAppFrame";
@@ -21,6 +23,14 @@ import { CoinDepthFacts } from "@/components/markets/CoinDepthFacts";
 export const dynamic = "force-dynamic";
 
 const siteOrigin = process.env.NEXT_PUBLIC_APP_URL || "https://www.aetherforgeai.co.nz";
+
+function redirectPath(to: string, sp: { buy?: string; market?: string }): string {
+  const params = new URLSearchParams();
+  if (sp.buy === "1") params.set("buy", "1");
+  if (sp.market === "dex") params.set("market", "dex");
+  const q = params.toString();
+  return q ? `${to}?${q}` : to;
+}
 
 /**
  * One read for the document title and the page.
@@ -100,11 +110,21 @@ const loadCryptoDetailFacts = cache(async (id: string): Promise<{ facts: CryptoD
   };
 });
 
-export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
-  const { id } = await params;
-  if (isJunkCoin(decodeURIComponent(id))) {
+export async function generateMetadata({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ buy?: string; market?: string }>;
+}): Promise<Metadata> {
+  const { id: requested } = await params;
+  if (isJunkCoin(decodeURIComponent(requested))) {
     return { title: pageTitle("Token not listed"), robots: { index: false, follow: false } };
   }
+  const decision = await resolvePublicCoin(requested);
+  if (decision.action === "not-found") notFound();
+  if (decision.action === "redirect") permanentRedirect(redirectPath(decision.to, await searchParams));
+  const id = decision.canonical || requested;
   const loaded = await loadCryptoDetailFacts(id);
   const copy = cryptoDetailCopy(loaded.facts);
   const base = publicPageMetadata(`/markets/crypto/${id}`, copy);
@@ -124,10 +144,10 @@ export default async function CryptoDetailPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ buy?: string; market?: string }>;
 }) {
-  const { id } = await params;
+  const { id: requested } = await params;
   const sp = await searchParams;
-  const user = await getCurrentUser();
-  if (isJunkCoin(decodeURIComponent(id))) {
+  if (isJunkCoin(decodeURIComponent(requested))) {
+    const user = await getCurrentUser();
     return (
       <MarketsAppFrame user={user}>
         <section className="mx-auto w-full max-w-3xl px-4 py-16 text-center sm:px-6">
@@ -142,6 +162,11 @@ export default async function CryptoDetailPage({
       </MarketsAppFrame>
     );
   }
+  const decision = await resolvePublicCoin(requested);
+  if (decision.action === "not-found") notFound();
+  if (decision.action === "redirect") permanentRedirect(redirectPath(decision.to, sp));
+  const user = await getCurrentUser();
+  const id = decision.canonical || requested;
   const coinId = resolvableCoinId(id);
   const loaded = await loadCryptoDetailFacts(id);
   const copy = cryptoDetailCopy(loaded.facts);

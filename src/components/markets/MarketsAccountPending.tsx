@@ -20,7 +20,7 @@ export function MarketsAccountPending() {
     return () => clearTimeout(t);
   }, [tries, router]);
   return (
-    <main className="mx-auto max-w-3xl p-6" aria-busy="true" data-markets-account-pending>
+    <div className="mx-auto max-w-3xl p-6" aria-busy="true" data-markets-account-pending>
       <h1 className="text-xl font-semibold">Markets</h1>
       {tries < ACCOUNT_PENDING_MAX_TRIES ? (
         <p className="mt-2 text-sm opacity-80" role="status">Loading your account…</p>
@@ -29,6 +29,6 @@ export function MarketsAccountPending() {
           Your account is taking longer than usual. <a className="underline" href="/markets">Reload the page</a>.
         </p>
       )}
-    </main>
+    </div>
   );
 }
