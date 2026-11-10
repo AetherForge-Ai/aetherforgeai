@@ -10,6 +10,7 @@ import { commitImport, emptyBook } from "@/lib/import/book";
 import { IMPORT_MAX_BYTES, IMPORT_TOO_LARGE } from "@/lib/import/limits";
 import { previewImport } from "@/lib/import/plan";
 import type { ColumnMap } from "@/lib/import/types";
+import { formatNzd } from "@/lib/currency";
 
 const DIR = path.join(process.cwd(), "src/lib/import/fixtures");
 const read = (name: string) => readFileSync(path.join(DIR, name), "utf8");
@@ -188,6 +189,9 @@ vi.mock("@/lib/metals", () => ({
 }));
 
 import { runH10Import } from "@/lib/import/persist";
+import { applyFlexStatement } from "@/lib/broker-sync/ibkr-sync.server";
+import { flexCashRows, flexTradesCsv } from "@/lib/broker-sync/ibkr-flex";
+import { parseIbkr } from "@/lib/import/parsers/ibkr";
 
 const previousFetch = globalThis.fetch;
 if (!harness.fetchInstalled) {
@@ -468,6 +472,38 @@ describe("H-10 live write path", () => {
       expect(exact.body.data?.written).toBe(want.rows);
     }, 60_000);
   }
+
+  it("an IBKR Flex sync on a short book keeps the statement cash and does not invent a deposit", async () => {
+    const xml = readFileSync("src/lib/broker-sync/fixtures/ibkr-flex-statement.xml", "utf8");
+    const user = openBook(0);
+    for (const day of ["2026-03-02", "2026-03-15", "2026-03-20"]) harness.fx.set(`USD|${day}`, 1.7);
+    const out = await applyFlexStatement(user as never, xml);
+    expect(out.trades).toBe(2);
+    expect(out.cash).toBe(2);
+    const invented = rowsOf(user._id).filter((row) => /would otherwise make paper cash negative/.test(String(row.notes || "")));
+    expect(invented).toHaveLength(0);
+    const draft = parseIbkr(parseCsv(flexTradesCsv(xml))) as unknown as { rows: Array<{ cashEffectNzd: number }> };
+    const tradeCash = draft.rows.reduce((sum, row) => sum + row.cashEffectNzd, 0);
+    const statementCash = flexCashRows(xml).reduce((sum, row) => sum + Math.round(row.amount * (row.fxRateToBase ?? 1) * 100) / 100, 0);
+    expect(Math.abs(cashOf(user._id) - (tradeCash + statementCash))).toBeLessThanOrEqual(0.01);
+    expect(harness.network).toEqual([]);
+  });
+
+  it("a CSV commit on a short book still records a paper deposit and names the amount", async () => {
+    const file = "ibkr.csv";
+    const text = read(file);
+    const want = expected[file];
+    await seedRates(file, text, want);
+    const user = openBook(0);
+    const outcome = await commit(user, text);
+    expect(outcome.status, JSON.stringify(outcome.body)).toBe(200);
+    const deposits = rowsOf(user._id, "deposit");
+    expect(deposits.length).toBeGreaterThan(0);
+    for (const row of deposits) expect(String(row.notes || "")).toMatch(/would otherwise make paper cash negative/);
+    const deposited = deposits.reduce((sum, row) => sum + Number(row.cash_nzd || 0), 0);
+    expect(String(outcome.body.data?.summary || "")).toContain(`Paper deposit ${formatNzd(deposited)}`);
+    expect(minCash()).toBeGreaterThanOrEqual(-0.01);
+  });
 
   it("does not use Math.random in the import path and the fake store rejects an unknown method", () => {
     const files = walk("src/lib/import").concat(["src/app/api/import/route.ts", "src/app/import/page.tsx", "src/app/import/import-client.tsx"]);

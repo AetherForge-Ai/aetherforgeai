@@ -322,6 +322,8 @@ export async function runH10Import(
   };
   // A buy that would take paper cash below zero is funded by a paper deposit in this same batch,
   // credited before that buy. The running figure is the file's own NZ$ effect.
+  // Broker sync must not invent cash: the statement's own cash lines fund the buys.
+  const fundShortfall = source !== "broker-sync";
   type WriteStep =
     | { kind: "deposit"; amount: number; date: string; line: number }
     | { kind: "trade"; row: ImportRow };
@@ -329,7 +331,7 @@ export async function runH10Import(
   let running = roundCents(typeof user.cash_balance === "number" ? user.cash_balance : 0);
   for (const row of preview.toWrite) {
     const next = roundCents(running + row.cashEffectNzd);
-    if (row.cashEffectNzd < -0.001 && next < -0.001) {
+    if (fundShortfall && row.cashEffectNzd < -0.001 && next < -0.001) {
       const topUp = roundCents(-row.cashEffectNzd - running);
       if (topUp > 0) {
         steps.push({ kind: "deposit", amount: topUp, date: row.date, line: row.line });
@@ -416,6 +418,10 @@ export async function runH10Import(
   invalidateBookCache(user._id);
   // Sum in cents so the total matches the rows to NZ$0.01.
   const cash = written.reduce((sum, row) => sum + Math.round(row.cashEffectNzd * 100), 0) / 100;
+  const deposited = roundCents(steps.reduce((sum, step) => sum + (step.kind === "deposit" ? step.amount : 0), 0));
+  const summary = `${written.length} trade${written.length === 1 ? "" : "s"} saved. Cash effect ${formatNzd(cash)}.${
+    deposited > 0 ? ` Paper deposit ${formatNzd(deposited)}.` : ""
+  }`;
   return NextResponse.json({
     ok: true,
     data: {
@@ -423,7 +429,7 @@ export async function runH10Import(
       written: written.length,
       batchId,
       duplicates,
-      summary: `${written.length} trade${written.length === 1 ? "" : "s"} saved. Cash effect ${formatNzd(cash)}.`,
+      summary,
     },
   });
 }
