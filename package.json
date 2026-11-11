@@ -30,7 +30,7 @@
     "publish": true
   },
   "dependencies": {
-    "@hookform/resolvers": "^5.2.1",
+    "@hookform/resolvers": "^7.0.3",
     "@next/swc-linux-x64-gnu": "^15.5.28",
     "@next/swc-linux-x64-musl": "^15.5.28",
     "@noble/ciphers": "^2.0.1",
