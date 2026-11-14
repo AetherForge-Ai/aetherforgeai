@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getTradeSessionUser } from "@/lib/session";
+import { goalTestHooksOn } from "@/lib/goal-test-hooks";
 import { testHooksAllowedFor } from "@/lib/test-hooks";
 import { applyTransaction } from "@/lib/transactions";
 import { invalidateBookCache } from "@/lib/book-cache";
@@ -9,15 +10,25 @@ import { OVERSEAS_FIXTURE_TAG, overseasFixtureRows } from "@/lib/overseas-fixtur
 
 export const dynamic = "force-dynamic";
 
+const NOT_FOUND = () => NextResponse.json({ ok: false, error: "Not found" }, { status: 404, headers: { "Cache-Control": "no-store" } });
+
 /**
  * b30 H-9: seeds the overseas FIF fixture on the signed-in account. 404 for anyone not in
  * GOAL_TEST_HOOK_USER_IDS (with GOAL_TEST_HOOKS=1). No password here: the seed script signs in
  * with FIXTURE_EMAIL / FIXTURE_PASSWORD from its own environment.
+ * HOOKS-PROD-OFF: GET is 404 while hooks are off (it was 405, because only POST existed).
  */
+export async function GET() {
+  if (!goalTestHooksOn()) return NOT_FOUND();
+  const user = await getTradeSessionUser().catch(() => null);
+  if (!user || !testHooksAllowedFor(user as { _id?: string; email?: string })) return NOT_FOUND();
+  return NOT_FOUND();
+}
+
 export async function POST() {
   const user = await getTradeSessionUser();
-  if (!user || !testHooksAllowedFor(user as { _id?: string; email?: string })) {
-    return NextResponse.json({ ok: false, error: "Not found" }, { status: 404 });
+  if (!goalTestHooksOn() || !user || !testHooksAllowedFor(user as { _id?: string; email?: string })) {
+    return NOT_FOUND();
   }
   const { rows, split } = overseasFixtureRows();
   const done: string[] = [];

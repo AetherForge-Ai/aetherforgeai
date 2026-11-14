@@ -1,3 +1,5 @@
+import { goalTestHooksOn } from "@/lib/goal-test-hooks";
+
 /**
  * DIAG-FLAGS-1: flag booleans for GET /api/health.
  *
@@ -33,12 +35,12 @@ export function flagEnabled(name: DiagFlagName, raw: string | undefined): boolea
 }
 
 /**
- * Build-time edge snapshot. Each flag is a direct property read so the middleware
- * compiler can inline it. Do not route this through `env[name]`.
+ * Edge snapshot. GOAL_TEST_HOOKS goes through goalTestHooksOn so a release
+ * build cannot report the baked string "1" as on.
  */
 export function edgeFlagState(): Record<DiagFlagName, boolean> {
   return {
-    GOAL_TEST_HOOKS: process.env.GOAL_TEST_HOOKS === "1",
+    GOAL_TEST_HOOKS: goalTestHooksOn(),
     PORTFOLIO_SHARING: (process.env.PORTFOLIO_SHARING || "").trim().toLowerCase() === "on",
     HEADMASTER_GOALS: process.env.HEADMASTER_GOALS === "1",
     NEW_PRICE_STRUCTURE:
@@ -53,7 +55,9 @@ export function runtimeFlagState(
   env: Record<string, string | undefined> = process.env,
 ): Record<DiagFlagName, boolean> {
   const flags = {} as Record<DiagFlagName, boolean>;
-  for (const name of DIAG_FLAG_NAMES) flags[name] = flagEnabled(name, env[name]);
+  for (const name of DIAG_FLAG_NAMES) {
+    flags[name] = name === "GOAL_TEST_HOOKS" ? goalTestHooksOn(env) : flagEnabled(name, env[name]);
+  }
   return flags;
 }
 

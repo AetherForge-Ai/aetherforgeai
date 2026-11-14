@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getTradeSessionUser } from "@/lib/session";
+import { goalTestHooksOn } from "@/lib/goal-test-hooks";
 import { testHooksAllowedFor } from "@/lib/test-hooks";
 import { BROKER_KEY_MISSING, brokerKeyConfigured, encryptToken } from "@/lib/broker-sync/token-crypto.server";
 import { deleteConnection, findConnection, publicConnection, saveConnection } from "@/lib/broker-sync/connection-store.server";
@@ -19,7 +20,7 @@ const notFound = () => NextResponse.json({ ok: false, error: "Not found" }, { st
  *   DELETE                    disconnect (row deleted)
  */
 async function allowedUser() {
-  if (process.env.GOAL_TEST_HOOKS !== "1") return null;
+  if (process.env.GOAL_TEST_HOOKS !== "1" || !goalTestHooksOn()) return null;
   const user = await getTradeSessionUser().catch(() => null);
   return user && testHooksAllowedFor(user as { _id?: string; email?: string }) ? user : null;
 }
