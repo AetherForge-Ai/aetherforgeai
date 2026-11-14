@@ -15,7 +15,8 @@ import {
 import { gsc404Redirect } from "@/lib/gsc-404-redirects";
 import { coinSlugRedirect } from "@/lib/crypto-slug";
 import { permanentRedirect, publicAliasRedirect } from "@/lib/public-route-aliases";
-import { documentAccess, sharingPageHidden } from "@/lib/route-gate";
+import { EDGE_FLAGS_HEADER, edgeFlagState, encodeEdgeFlags, runtimeFlagState } from "@/lib/diag-flags";
+import { documentAccess, sharingPageHidden, signedOutSharedMissing } from "@/lib/route-gate";
 import { makeCspNonce, nonceCsp } from "@/lib/security-headers";
 import {
   anonymousAccountApi,
@@ -172,6 +173,12 @@ function finish(response: NextResponse, request: NextRequest, signedIn: boolean,
   return response;
 }
 
+function rewriteMissing(request: NextRequest, signedIn: boolean) {
+  const missing = request.nextUrl.clone();
+  missing.pathname = "/__missing";
+  return finish(NextResponse.rewrite(missing), request, signedIn);
+}
+
 /** b40: pages with no signed-out view. /dashboard keeps its own signed-out gate and is not listed. */
 const SIGNED_IN_ONLY = ["/settings", "/account", "/profile", "/onboarding", "/import"];
 function isSignedInOnlyPage(pathname: string): boolean {
@@ -215,9 +222,18 @@ export async function middleware(request: NextRequest) {
 
   // b87 G-27: with PORTFOLIO_SHARING off, /shared is 404 signed in or out (before the sign-in redirect).
   if (sharingPageHidden(pathname)) {
-    const missing = request.nextUrl.clone();
-    missing.pathname = "/__missing";
-    return finish(NextResponse.rewrite(missing), request, signedIn);
+    return rewriteMissing(request, signedIn);
+  }
+
+  // DIAG-FLAGS-1: hooks (often inlined into this bundle at build) make sharingPageHidden
+  // return false, and /shared is a member route, so a signed-out request 307s to
+  // /login?redirect=%2Fshared before the page can 404. 404 when both the edge
+  // snapshot and the runtime read say PORTFOLIO_SHARING is off.
+  if (
+    !signedIn &&
+    signedOutSharedMissing(pathname, edgeFlagState().PORTFOLIO_SHARING, runtimeFlagState().PORTFOLIO_SHARING)
+  ) {
+    return rewriteMissing(request, signedIn);
   }
 
   // b40 (TT b39 P1 sign-out leak): a signed-in-only page requested with no session cookie is redirected
@@ -257,7 +273,14 @@ export async function middleware(request: NextRequest) {
   const csp = nonceCsp(nonce);
   requestHeaders.set("x-nonce", nonce);
   requestHeaders.set("content-security-policy", csp);
+  // Edge snapshot for the health route only. Overwrites any client-supplied header.
+  const edgeFlagsHeader = pathname === "/api/health" ? encodeEdgeFlags(edgeFlagState()) : null;
+  if (edgeFlagsHeader) requestHeaders.set(EDGE_FLAGS_HEADER, edgeFlagsHeader);
   const response = NextResponse.next({ request: { headers: requestHeaders } });
+  if (edgeFlagsHeader) {
+    response.headers.set(EDGE_FLAGS_HEADER, edgeFlagsHeader);
+    response.headers.set("Cache-Control", "no-store");
+  }
   finish(response, request, signedIn, nonce);
   // b29 H-4/G-10: stamp book writes so other isolates' cached books are skipped for this browser.
   if (signedIn && isBookWriteRequest(pathname, request.method)) {
