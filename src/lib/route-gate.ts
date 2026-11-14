@@ -2,6 +2,7 @@
  * Which documents are public, which ask for a sign-in, and which are missing.
  * Legacy aliases are applied before this gate. Unknown paths are not sent to login.
  */
+import { goalTestHooksOn } from "@/lib/goal-test-hooks";
 
 const PUBLIC_DOCUMENT_ROUTES = [
   "/",
@@ -115,8 +116,8 @@ function onSharedPath(pathname: string): boolean {
  */
 export function sharingPageHidden(pathname: string, env: Record<string, string | undefined> = process.env): boolean {
   const onShared = onSharedPath(pathname);
-  // b91 G-27: with test hooks on (preview), the page itself decides (404 unless an allow-listed test account).
-  if (env.GOAL_TEST_HOOKS === "1") return false;
+  // b91 G-27: with test hooks on (preview, not a production release), the page itself decides.
+  if (goalTestHooksOn(env)) return false;
   return onShared && String(env.PORTFOLIO_SHARING || "").trim().toLowerCase() !== "on";
 }
 

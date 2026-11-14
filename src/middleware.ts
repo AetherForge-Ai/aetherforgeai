@@ -16,6 +16,7 @@ import { gsc404Redirect } from "@/lib/gsc-404-redirects";
 import { coinSlugRedirect } from "@/lib/crypto-slug";
 import { permanentRedirect, publicAliasRedirect } from "@/lib/public-route-aliases";
 import { EDGE_FLAGS_HEADER, edgeFlagState, encodeEdgeFlags, runtimeFlagState } from "@/lib/diag-flags";
+import { goalTestHooksOn } from "@/lib/goal-test-hooks";
 import { documentAccess, sharingPageHidden, signedOutSharedMissing } from "@/lib/route-gate";
 import { makeCspNonce, nonceCsp } from "@/lib/security-headers";
 import {
@@ -303,7 +304,7 @@ export async function middleware(request: NextRequest) {
   }
 
   if (access === "test-hooks") {
-    if (signedIn && process.env.GOAL_TEST_HOOKS === "1") return response;
+    if (signedIn && goalTestHooksOn()) return response;
   } else if (access === "member") {
     if (!signedIn) {
       const loginUrl = new URL("/login", request.url);

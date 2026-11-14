@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getTradeSessionUser } from "@/lib/session";
+import { goalTestHooksOn } from "@/lib/goal-test-hooks";
 import { testHooksAllowedFor } from "@/lib/test-hooks";
 import { showWorking } from "@/lib/ai-working";
 
@@ -14,9 +15,18 @@ const MAX_SAMPLES = 100;
  * confidence and unsupported figures, plus totals. Pure check: no AI call, no writes, no new table.
  * 404 unless GOAL_TEST_HOOKS=1 and the signed-in id is allow-listed.
  */
-export async function POST(req: Request) {
+export async function GET() {
+  if (!goalTestHooksOn()) return NextResponse.json({ ok: false, error: "Not found" }, { status: 404, headers: PRIVATE });
   const user = await getTradeSessionUser().catch(() => null);
   if (!user || !testHooksAllowedFor(user as { _id?: string; email?: string })) {
+    return NextResponse.json({ ok: false, error: "Not found" }, { status: 404, headers: PRIVATE });
+  }
+  return NextResponse.json({ ok: false, error: "Not found" }, { status: 404, headers: PRIVATE });
+}
+
+export async function POST(req: Request) {
+  const user = await getTradeSessionUser().catch(() => null);
+  if (!goalTestHooksOn() || !user || !testHooksAllowedFor(user as { _id?: string; email?: string })) {
     return NextResponse.json({ ok: false, error: "Not found" }, { status: 404, headers: PRIVATE });
   }
   const body = (await req.json().catch(() => ({}))) as { samples?: unknown };
