@@ -37,6 +37,7 @@ interface PreviewData {
   skipped: RowNote[];
   toWrite: PreviewRow[];
   cashNzd: number;
+  cashWarning?: string | null;
   error?: string | null;
   written?: number;
   batchId?: string;
@@ -139,8 +140,7 @@ export function ImportClient() {
     await send("preview", body);
   }
 
-  const cashRefusal = preview?.error && /below zero/i.test(preview.error) ? preview.error : "";
-  const canSave = Boolean(preview && preview.toWrite.length > 0 && !preview.needsMapping && !saved && !cashRefusal);
+  const canSave = Boolean(preview && preview.toWrite.length > 0 && !preview.needsMapping && !saved);
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-10">
@@ -222,9 +222,9 @@ export function ImportClient() {
           <p className="mt-1 text-sm text-muted-foreground">
             {preview.toWrite.length} trade{preview.toWrite.length === 1 ? "" : "s"} ready. Cash effect {formatNzd(preview.cashNzd)}.
           </p>
-          {cashRefusal ? (
-            <p className="mt-2 text-sm text-destructive" role="alert" data-testid="import-cash-refusal">
-              {cashRefusal} Nothing was saved.
+          {preview.cashWarning ? (
+            <p className="mt-2 text-sm text-muted-foreground" data-testid="import-cash-warning">
+              {preview.cashWarning}
             </p>
           ) : null}
           {preview.toWrite.length ? (

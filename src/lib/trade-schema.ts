@@ -59,3 +59,10 @@ export const tradeSchema = z.object({
   /** One Review. A second click with the same key returns the first write. Not a database column. */
   idempotency_key: z.string().max(80).optional(),
 });
+
+/** Drop a client attempt to book negative cash. Not a schema field, so a parse drops it too. */
+export function stripBookedCashOverride(body: unknown): void {
+  if (body && typeof body === "object" && !Array.isArray(body)) {
+    delete (body as Record<string, unknown>).allowBookedCashBelowZero;
+  }
+}
