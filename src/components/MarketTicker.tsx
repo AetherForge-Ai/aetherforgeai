@@ -10,7 +10,7 @@ import { formatDisplayDate, formatMoney, formatSignedPercent } from "@/lib/curre
 import { formatTapeItem, fxRateLine, type TapeDisplay } from "@/lib/tape-display";
 import { useFxRates } from "@/hooks/useFxRates";
 import { savedSnapshotLabel } from "@/lib/status-feeds";
-import { cryptoFreshnessLabel, latestQuoteTime, metalUpdatedPhrase, tapeEquityPrefix, tapeMarketsPrefix } from "@/lib/market-freshness";
+import { cryptoFreshnessLabel, latestQuoteTime, metalUpdatedPhrase, parseQuoteTime, tapeEquityPrefix, tapeMarketsPrefix } from "@/lib/market-freshness";
 import { cryptoVenueForLabel } from "@/lib/crypto-price-chain";
 import { priceBadge } from "@/lib/price-confidence";
 import { forcedRefreshMisses, type FeedForce } from "@/lib/feed-freshness-hook";
@@ -414,9 +414,14 @@ export function MarketTicker({ className, compact = false, initial = null, serve
     setUseServerClock(false);
   }, []);
   const now = useServerClock && serverClock ? serverClock : new Date();
-  const nzxStatus = tapeEquityPrefix(nzx, "NZX", now);
-  const asxStatus = tapeEquityPrefix(asx, "ASX", now);
-  const marketsStatus = tapeMarketsPrefix({ nzx, asx }, now);
+  // H-1-TAPE-SSR-2: with no stamped equity quote the prefix stays blank. The
+  // client fetch fills "Close <date>" once a quote time arrives. The server
+  // HTML does not say "Close unavailable".
+  const equityStamped = [...nzx, ...asx].some((row) => parseQuoteTime(row.quotedAt));
+  const keepPrefix = (label: string) => (equityStamped || label !== "Close unavailable" ? label : "");
+  const nzxStatus = keepPrefix(tapeEquityPrefix(nzx, "NZX", now));
+  const asxStatus = keepPrefix(tapeEquityPrefix(asx, "ASX", now));
+  const marketsStatus = keepPrefix(tapeMarketsPrefix({ nzx, asx }, now));
   const cryptoStatus = cryptoFreshnessLabel(latestQuoteTime(crypto.map((row) => row.quotedAt)), now);
   const asOfLabel = formatAsOf(asOf);
   // b37 M-2: one "Prices last updated" line on the signed-in strip, from the newest quote time shown
@@ -456,7 +461,7 @@ export function MarketTicker({ className, compact = false, initial = null, serve
   if (compact) {
     const blend = [...nzx.slice(0, 6), ...asx.slice(0, 5), ...crypto.slice(0, 5)];
     return (
-      <div className={cn("w-full border-y border-border/50", className)} title={statusTitle} data-market-ticker="compact" aria-busy={!loaded || undefined}>
+      <div className={cn("w-full border-y border-border/50", className)} title={statusTitle} data-market-ticker="compact" data-tape-pending={equityStamped ? undefined : ""} aria-busy={!loaded || undefined}>
         <TickerRow
           quotes={blend}
           animationClass="animate-ticker"
