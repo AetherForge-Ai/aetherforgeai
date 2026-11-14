@@ -145,11 +145,6 @@ export interface TransactionInput {
    * so the cash write can follow the row and roll back by id.
    */
   deferCash?: boolean;
-  /**
-   * Broker-file confirm only. The file is the cash record, so a negative balance is saved.
-   * Manual entry does not set this.
-   */
-  allowBookedCashBelowZero?: boolean;
 }
 
 export interface ConfirmStepMs {
@@ -377,6 +372,8 @@ export async function movementRejectionForUser(
   input: TransactionInput,
   opts: {
     fromHoldingEdit?: boolean;
+    /** Server-only. Never read from a request body. */
+    allowBookedCashBelowZero?: boolean;
     cashPromise?: Promise<number>;
     holdingPromise?: Promise<{ shares?: number; purchase_date?: string | null } | null>;
   } = {}
@@ -479,7 +476,7 @@ export async function movementRejectionForUser(
     held,
     firstBuyDate,
     hasAsset: previewHasAsset,
-    cashKnown: !input.allowBookedCashBelowZero,
+    cashKnown: !opts.allowBookedCashBelowZero,
     cashAfterNzd: preview.cashAfterNzd,
     cashChangeNzd: preview.cashChangeNzd,
     needsCash:
@@ -537,7 +534,7 @@ async function detailedDividendParts(
 export async function applyTransaction(
   user: AppUser,
   input: TransactionInput,
-  opts?: { fromHoldingEdit?: boolean; rejectionChecked?: boolean; priorLedger?: Promise<TransactionLedger | undefined> }
+  opts?: { fromHoldingEdit?: boolean; rejectionChecked?: boolean; priorLedger?: Promise<TransactionLedger | undefined>; allowBookedCashBelowZero?: boolean }
 ): Promise<TransactionResult> {
   const mapKey = confirmMapKey(user._id, input.idempotency_key);
   const confirmSteps: ConfirmStepMs = { holdings: 0, quote: 0, ledger: 0, cash: 0, cache: 0 };
@@ -631,7 +628,7 @@ async function addDrpSharesToHolding(
 async function applyTransactionUnlocked(
   user: AppUser,
   input: TransactionInput,
-  opts?: { fromHoldingEdit?: boolean; rejectionChecked?: boolean; priorLedger?: Promise<TransactionLedger | undefined> },
+  opts?: { fromHoldingEdit?: boolean; rejectionChecked?: boolean; priorLedger?: Promise<TransactionLedger | undefined>; allowBookedCashBelowZero?: boolean },
   confirmSteps: ConfirmStepMs = { holdings: 0, quote: 0, ledger: 0, cash: 0, cache: 0 }
 ): Promise<TransactionResult> {
   const checkStarted = Date.now();
@@ -734,7 +731,7 @@ async function applyTransactionUnlocked(
     }
     const credits = input.type === "deposit" || input.type === "dividend" || openingCash;
     const delta = credits ? amount - fee : -(amount + fee);
-    if ((input.type === "withdraw" || input.type === "tax") && !input.allowBookedCashBelowZero && exceedsAvailableCash(-delta, currentCash)) {
+    if ((input.type === "withdraw" || input.type === "tax") && !opts?.allowBookedCashBelowZero && exceedsAvailableCash(-delta, currentCash)) {
       throw new Error(
         input.type === "tax"
           ? "Insufficient cash balance for this tax line"
@@ -1103,7 +1100,7 @@ async function applyTransactionUnlocked(
     });
     if (!moved.ok) throw new Error(moved.error || `${ticker} live price unavailable`);
     const costNZD = round(-moved.cashDeltaNZD);
-    if (!input.allowBookedCashBelowZero && exceedsAvailableCash(costNZD, currentCash)) {
+    if (!opts?.allowBookedCashBelowZero && exceedsAvailableCash(costNZD, currentCash)) {
       throw new Error(
         `Insufficient cash — this buy needs NZ$${costNZD.toFixed(2)} and you have NZ$${currentCash.toFixed(2)} available.`
       );
@@ -1336,7 +1333,7 @@ async function applyTransactionUnlocked(
   });
   if (!sold.ok) throw new Error(sold.error || `${ticker} live price unavailable`);
   const proceedsNZD = sold.cashDeltaNZD;
-  if (!input.allowBookedCashBelowZero && proceedsNZD < -1e-6 && sold.cashNZD < -1e-6) {
+  if (!opts?.allowBookedCashBelowZero && proceedsNZD < -1e-6 && sold.cashNZD < -1e-6) {
     throw new Error("This would take cash below zero.");
   }
   // FIFO-style split: price P&L at sell FX; FX P&L vs lot FX (legacy avg uses buy FX ≈ current if unknown).

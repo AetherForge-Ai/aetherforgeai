@@ -2,6 +2,7 @@ import "@/lib/book-version.server";
 import { NextResponse } from "next/server";
 import { getTradeSessionUser } from "@/lib/session";
 import { applyTransaction } from "@/lib/transactions";
+import { stripBookedCashOverride } from "@/lib/trade-schema";
 import { invalidateBookCache } from "@/lib/book-cache";
 import { totalumSdk } from "@/lib/totalum";
 import { holdingAfterSplit, splitInputError, splitNote } from "@/lib/stock-split";
@@ -18,6 +19,7 @@ export async function POST(req: Request) {
     const user = await getTradeSessionUser();
     if (!user) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
     const body = (await req.json().catch(() => ({}))) as { ticker?: string; asset_type?: string; ratio?: number; date?: string };
+    stripBookedCashOverride(body);
     const ticker = String(body.ticker || "").trim().toUpperCase();
     const assetType = body.asset_type === "crypto" ? "crypto" : "stock";
     const res = await totalumSdk.crud.query("stock", { _filter: { user: user._id }, _limit: 1000 });

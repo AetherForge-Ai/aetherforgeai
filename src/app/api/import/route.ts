@@ -41,6 +41,7 @@ import { getTradeSessionUser } from "@/lib/session";
 import { totalumSdk } from "@/lib/totalum";
 import { runH10Import } from "@/lib/import/persist";
 import { applyTransaction } from "@/lib/transactions";
+import { stripBookedCashOverride } from "@/lib/trade-schema";
 
 export const dynamic = "force-dynamic";
 
@@ -221,6 +222,7 @@ export async function POST(req: Request) {
       tickerFixes?: unknown;
       broker?: unknown;
     };
+    stripBookedCashOverride(body);
     const text = typeof body.text === "string" ? body.text : "";
     if (importTextTooLarge(text)) {
       return NextResponse.json({ ok: false, error: IMPORT_TOO_LARGE }, { status: 413 });

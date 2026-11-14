@@ -8,6 +8,7 @@ import { logLedgerAudit, appendAuditNote } from "@/lib/ledger-audit";
 import { totalumSdk } from "@/lib/totalum";
 import { normalizeTicker, lookupTicker } from "@/lib/market";
 import { applyTransaction } from "@/lib/transactions";
+import { stripBookedCashOverride } from "@/lib/trade-schema";
 import { planHoldingCorrection } from "@/lib/holding-correction";
 import { currencyForTicker } from "@/lib/currency";
 import { invalidateBookCache } from "@/lib/book-cache";
@@ -52,6 +53,7 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
     }
 
     const body = (await req.json().catch(() => ({}))) as unknown;
+    stripBookedCashOverride(body);
     const parsed = updateSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json({ ok: false, error: parsed.error.flatten() }, { status: 400 });

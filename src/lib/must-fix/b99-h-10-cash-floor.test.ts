@@ -12,6 +12,7 @@ const harness = vi.hoisted(() => {
   let seq = 0;
   let buyCreates = 0;
   let failBuyNumber = 0;
+  let sessionUser: { _id: string; cash_balance: number; email: string; name: string } | null = null;
 
   function bucket(name: string): Row[] {
     let rows = collections.get(name);
@@ -69,10 +70,16 @@ const harness = vi.hoisted(() => {
     bucket,
     reset,
     set failBuyNumber(value: number) { failBuyNumber = value; },
+    setSession(user: { _id: string; cash_balance: number; email: string; name: string } | null) { sessionUser = user; },
+    get sessionUser() { return sessionUser; },
   };
 });
 
 vi.mock("server-only", () => ({}));
+vi.mock("@/lib/session", () => ({
+  getTradeSessionUser: async () => harness.sessionUser,
+  getStableSessionUser: async () => harness.sessionUser,
+}));
 vi.mock("@/lib/totalum", () => ({ totalumSdk: { crud: harness.methods } }));
 vi.mock("@/lib/fx", () => ({
   historicalNzdPerUnit: async (currency: string) => (currency === "AUD" ? 1.1 : currency === "USD" ? 1.6 : currency === "NZD" ? 1 : null),
@@ -98,6 +105,7 @@ vi.mock("@/lib/metals", () => ({ getMetalsSpot: async () => ({}) }));
 import { runH10Import } from "@/lib/import/persist";
 import { applyTransaction } from "@/lib/transactions";
 import { importCashWarning } from "@/lib/import/cash-guard";
+import { POST as postTransaction } from "@/app/api/transactions/route";
 
 const IBKR = readFileSync("src/lib/import/fixtures/ibkr.csv", "utf8");
 const WARNING = "Your cash will be NZ$-588.90 after this import. Add a deposit if that's not right.";
@@ -106,7 +114,9 @@ function openBook(cash: number) {
   harness.reset();
   const id = "cash-floor-user";
   harness.bucket("user").push({ _id: id, cash_balance: cash });
-  return { _id: id, email: "qa@example.test", name: "QA", cash_balance: cash, subscription_plan: "starter_monthly", ticker_limit: 50 };
+  const user = { _id: id, email: "qa@example.test", name: "QA", cash_balance: cash, subscription_plan: "starter_monthly", ticker_limit: 50 };
+  harness.setSession(user);
+  return user;
 }
 
 function cashOf(): number {
@@ -155,6 +165,89 @@ describe("H-10 cash floor", () => {
     expect(trades()).toHaveLength(0);
     expect(cashOf()).toBe(0);
     expect(readFileSync("src/components/dashboard/RecordTransactionPanel.tsx", "utf8")).toContain('failSave("This would take cash below zero.")');
+    await expect(applyTransaction(user as never, {
+      type: "buy",
+      ticker: "AIR.NZ",
+      asset_type: "stock",
+      quantity: 1,
+      price: 5,
+      fees: 0,
+      executed_at: "2026-03-02",
+      trade_date: "2026-03-02",
+      allowBookedCashBelowZero: true,
+    } as never)).rejects.toThrow(/Insufficient cash|below zero/);
+  });
+
+  it("POST /api/transactions ignores allowBookedCashBelowZero on a buy, a withdrawal and a sell", async () => {
+    const user = openBook(0);
+    harness.bucket("stock").push({
+      _id: "hold-air",
+      ticker: "AIR.NZ",
+      asset_type: "stock",
+      shares: 1,
+      purchase_price: 1,
+      user: user._id,
+    });
+    const post = (body: Record<string, unknown>) =>
+      postTransaction(new Request("http://t/api/transactions", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ...body, allowBookedCashBelowZero: true }),
+      }));
+    const buy = await post({ type: "buy", ticker: "AIR.NZ", asset_type: "stock", quantity: 1, price: 5, confirm: true });
+    const buyBody = (await buy.json()) as { error?: string };
+    expect(buy.status).toBe(400);
+    expect(JSON.stringify(buyBody.error)).toMatch(/Insufficient cash|below zero/);
+
+    const withdrawn = await post({ type: "withdraw", amount: 25 });
+    const withdrawBody = (await withdrawn.json()) as { error?: string };
+    expect(withdrawn.status).toBe(400);
+    expect(String(withdrawBody.error)).toMatch(/Insufficient cash|below zero/);
+
+    const sold = await post({ type: "sell", ticker: "AIR.NZ", asset_type: "stock", quantity: 1, price: 1, fees: 20, confirm: true });
+    const sellBody = (await sold.json()) as { error?: string };
+    expect(sold.status).toBe(400);
+    expect(String(sellBody.error)).toMatch(/Insufficient cash|below zero/);
+    expect(cashOf()).toBe(0);
+    expect(harness.bucket("transaction")).toHaveLength(0);
+  });
+
+  it("a generic column-map file still funds the shortfall and does not warn", async () => {
+    const text = readFileSync("src/lib/import/fixtures/generic.csv", "utf8");
+    const mapping = {
+      date: "Booked",
+      ticker: "Instrument",
+      side: "What",
+      quantity: "Units",
+      price: "Unit price",
+      fee: "Charge",
+      currency: "Money code",
+      fx: "NZD per unit",
+    };
+    const user = openBook(0);
+    const preview = await runH10Import(user as never, text, { engine: "h10", action: "preview", mapping });
+    const previewBody = (await preview.json()) as { data?: { broker?: string; cashWarning?: string | null } };
+    expect(previewBody.data?.broker).toBe("generic");
+    expect(previewBody.data?.cashWarning ?? null).toBeNull();
+    const saved = await runH10Import(user as never, text, { engine: "h10", action: "commit", mapping });
+    const body = (await saved.json()) as { data?: { written?: number } };
+    expect(saved.status, JSON.stringify(body)).toBe(200);
+    expect(body.data?.written).toBe(2);
+    expect(harness.bucket("transaction").some((row) => /would otherwise make paper cash negative/.test(String(row.notes || "")))).toBe(true);
+    expect(cashOf()).toBeGreaterThanOrEqual(-0.01);
+  });
+
+  it("a broker-sync commit of a recognised file allows negative cash and invents no deposit", async () => {
+    const user = openBook(0);
+    const preview = await runH10Import(user as never, IBKR, { engine: "h10", action: "preview" }, "broker-sync");
+    const previewBody = (await preview.json()) as { data?: { cashWarning?: string | null } };
+    expect(previewBody.data?.cashWarning).toBe("Your cash will be NZ$-588.90 after this import. Add a deposit if that's not right.");
+    const saved = await runH10Import(user as never, IBKR, { engine: "h10", action: "commit" }, "broker-sync");
+    const body = (await saved.json()) as { data?: { written?: number } };
+    expect(saved.status, JSON.stringify(body)).toBe(200);
+    expect(body.data?.written).toBe(3);
+    expect(harness.bucket("transaction").some((row) => row.type === "deposit")).toBe(false);
+    expect(Math.abs(cashOf() - -588.9)).toBeLessThanOrEqual(0.01);
   });
 
   it("a failed import still writes nothing", async () => {
