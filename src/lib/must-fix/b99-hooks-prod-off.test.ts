@@ -23,7 +23,7 @@ afterEach(() => {
 describe("HOOKS-PROD-OFF", () => {
   it("pins the release marker to public/build-version.txt and does not bump it", () => {
     expect(BUILD_RELEASE_ID).toBe(readFileSync("public/build-version.txt", "utf8").trim());
-    expect(BUILD_RELEASE_ID).toBe("v3-b99-2026-11-15");
+    expect(BUILD_RELEASE_ID).toBe("v3-b100-2026-11-15");
     expect(isProductionRelease(BUILD_RELEASE_ID)).toBe(true);
     expect(isProductionRelease("")).toBe(false);
     expect(isProductionRelease("preview")).toBe(false);
