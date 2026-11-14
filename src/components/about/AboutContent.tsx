@@ -331,7 +331,7 @@ export function AboutContent() {
       <SiteHeader />
 
       {/* ─────────────────────────  HERO  ───────────────────────── */}
-      <section className="relative isolate overflow-hidden">
+      <section className="m7-on-dark relative isolate overflow-hidden">
         {/* Background image */}
         <img
           src={ABOUT_HERO_IMG}
@@ -377,7 +377,7 @@ export function AboutContent() {
             <h1 className="mt-6 max-w-4xl font-display text-4xl font-extrabold leading-[1.05] tracking-tight text-white sm:text-5xl lg:text-6xl">
               About{" "}
               <span className="relative whitespace-nowrap">
-                <span style={{ color: "#34D399" }}>AetherForge AI</span>
+                <span className="text-gain">AetherForge AI</span>
               </span>
             </h1>
           </Reveal>
@@ -528,11 +528,11 @@ export function AboutContent() {
       </section>
 
       {/* ─────────────────────────  WHY AETHERFORGE  ───────────────────────── */}
-      <section id="why" className="scroll-mt-24 bg-[#0F172A] py-20 sm:py-28">
+      <section id="why" className="m7-on-dark scroll-mt-24 bg-[#0F172A] py-20 sm:py-28">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
           <div className="mx-auto max-w-2xl text-center">
             <Reveal>
-              <p className="text-sm font-bold uppercase tracking-[0.2em]" style={{ color: "#34D399" }}>
+              <p className="text-sm font-bold uppercase tracking-[0.2em] text-gain">
                 Why AetherForge AI?
               </p>
               <h2 className="mt-4 font-display text-3xl font-bold tracking-tight text-white sm:text-4xl">
