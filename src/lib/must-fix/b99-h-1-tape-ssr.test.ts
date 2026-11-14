@@ -246,6 +246,8 @@ describe("H-1-TAPE-SSR tape prefix in server HTML", () => {
     }
     expect(prefix(markets)).toBe("Close 13 Nov 2026");
     expect(home).toContain('data-tape-prefix="Close 13 Nov 2026"');
+    expect(home).toMatch(/aria-hidden="true"[^>]*data-tape-prefix="Close 13 Nov 2026"|data-tape-prefix="Close 13 Nov 2026"[^>]*aria-hidden="true"/);
+    expect(read("src/app/page.tsx")).toMatch(/aria-hidden="true" data-tape-prefix=\{close\}/);
   });
 });
 

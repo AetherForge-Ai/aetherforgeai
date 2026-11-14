@@ -124,7 +124,7 @@ export async function HomeTickerBand() {
   return (
     <>
       {close ? (
-        <p className="sr-only" data-tape-prefix={close}>
+        <p className="sr-only" aria-hidden="true" data-tape-prefix={close}>
           {close}
         </p>
       ) : null}
