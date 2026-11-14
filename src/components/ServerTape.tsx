@@ -1,11 +1,11 @@
 import { connection } from "next/server";
 import { MarketTicker } from "@/components/MarketTicker";
-import { loadServerTape } from "@/lib/tape-ssr";
+import { loadRequestTape } from "@/lib/tape-ssr";
 
 /**
- * Compact tape for AppShell. The suspense fallback holds the band and does not
- * say "Close unavailable" — that phrase is only the resolved neutral fallback
- * when the snapshot has no quote time.
+ * Compact tape for AppShell. The suspense fallback holds the band. A resolved
+ * tape with no stamped quote also stays on that pending state, so the HTML
+ * never says "Close unavailable" before the client has a quote time.
  */
 export function TapePending() {
   return (
@@ -20,6 +20,6 @@ export async function ServerTape() {
   // Per request. A static shell would render this at build time, when the edge
   // cache has no snapshot, and bake "Close unavailable" into the HTML.
   await connection();
-  const tape = await loadServerTape();
-  return <MarketTicker compact initial={tape} serverNow={new Date().toISOString()} />;
+  const tape = await loadRequestTape();
+  return <MarketTicker compact initial={tape} serverNow={tape ? new Date().toISOString() : null} />;
 }

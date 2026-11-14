@@ -1,4 +1,5 @@
 import { parseQuoteTime } from "@/lib/market-freshness";
+import { loadPublicTickerBounded } from "@/lib/public-ticker";
 import { edgeJsonGet } from "@/lib/ticker-serve";
 import type { TapeRow, TickerTapeFeed } from "@/lib/ticker-feed";
 
@@ -87,6 +88,30 @@ function quoteRow(quote: { symbol: string; quotedAt: string | null; price: numbe
     asOf: quote.quotedAt ?? "",
     quotedAt: quote.quotedAt,
   };
+}
+
+/** A feed counts only when an equity row has a real price and a quote time. */
+export function quotedTape(feed: TickerTapeFeed | null): TickerTapeFeed | null {
+  if (!feed?.rows) return null;
+  const keep = (rows: TapeRow[]) => rows.filter((row) => positivePrice(row.price) != null);
+  const nzx = keep(feed.rows.nzx ?? []);
+  const asx = keep(feed.rows.asx ?? []);
+  const crypto = keep(feed.rows.crypto ?? []);
+  if (![...nzx, ...asx].some((row) => parseQuoteTime(row.quotedAt))) return null;
+  return { ...feed, rows: { nzx, asx, crypto } };
+}
+
+/**
+ * Same order as the home band: the bounded live public ticker, then the stored
+ * snapshot. Both reads are capped, and they run together so the wait is the
+ * longer of the two, not the sum.
+ */
+export async function loadRequestTape(): Promise<TickerTapeFeed | null> {
+  const [live, stored] = await Promise.all([
+    loadPublicTickerBounded().catch(() => null),
+    loadServerTape(),
+  ]);
+  return quotedTape(live) ?? quotedTape(stored);
 }
 
 /**
