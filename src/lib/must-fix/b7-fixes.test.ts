@@ -127,7 +127,7 @@ describe("H-13 exact TT headlines", () => {
 
 describe("build", () => {
   it("version", () => {
-    expect(read("public/build-version.txt").trim()).toBe("v3-b98-2026-11-10");
+    expect(read("public/build-version.txt").trim()).toBe("v3-b99-2026-11-15");
     expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-must-fix-b7-2026-10-17");
   });
 });
