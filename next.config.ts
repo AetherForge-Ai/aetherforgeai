@@ -116,7 +116,6 @@ const nextConfig: NextConfig = {
       { source: "/try", destination: "/free-trial", permanent: false },
       { source: "/signup", destination: "/register", permanent: false },
       { source: "/holdings", destination: "/dashboard", permanent: false },
-      { source: "/portfolio", destination: "/dashboard", permanent: false },
       { source: "/how", destination: "/how-it-works", permanent: false },
       { source: "/billing", destination: "/settings/billing", permanent: false },
       // b62 GSC-404 (Search Console "Not found (404)", 22 Oct 2026): retired or guessed URLs, one 308 each.

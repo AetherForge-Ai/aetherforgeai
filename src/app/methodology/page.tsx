@@ -39,7 +39,7 @@ export default function MethodologyPage() {
   return (
     <div className="min-h-screen bg-background">
       <SiteHeader />
-      <main className="mx-auto max-w-3xl px-4 py-12 sm:px-6">
+      <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6">
         <h1 className="font-display text-3xl font-bold tracking-tight">How a score is worked out</h1>
         <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
           Stox (shares) and Koins (crypto) use the same rules-based engine. This page explains the inputs and the limits.
@@ -85,7 +85,7 @@ export default function MethodologyPage() {
         <div className="mt-10">
           <FmcStatement />
         </div>
-      </main>
+      </div>
     </div>
   );
 }

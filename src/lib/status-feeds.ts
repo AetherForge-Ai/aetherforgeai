@@ -1,4 +1,6 @@
 import { formatDisplayDateTime } from "@/lib/currency";
+import { FEED_FRESHNESS_WINDOWS } from "@/lib/feed-freshness-hook";
+import { TICKER_TAPE } from "@/lib/ticker-feed";
 
 /** A provider timestamp older than this is shown as unavailable. Not an uptime claim. */
 export const STATUS_STALE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -152,6 +154,161 @@ export function savedSnapshotLabel(at: string, now = Date.now()): string {
 export const DEX_STATUS_LABEL = "DEX tokens";
 /** b62 TT P2: DEX list age bands (same as crypto quotes). */
 export const DEX_STATUS_WINDOW = { amberMs: 15 * 60 * 1000, redMs: 60 * 60 * 1000 };
+
+/** M-2-STATUS: a feed with no provider stamp. Never "undefined" and never blank. */
+export const NO_SAVED_TIME_YET = "— no saved time yet";
+
+export interface CryptoCoinStamp {
+  symbol?: string | null;
+  price?: number | null;
+  quotedAt?: string | null;
+}
+
+export interface EquityQuoteStamp {
+  symbol?: string | null;
+  quotedAt?: string | null;
+  price?: number | null;
+  changePct?: number | null;
+}
+
+export interface StatusTickerSources {
+  /** Coins on the snapshot the ticker turns into tape rows. */
+  cryptoCoins?: CryptoCoinStamp[] | null;
+  /** Snapshot `at`. Used only when a served coin has no quotedAt of its own. */
+  cryptoSnapshotAt?: string | null;
+  /** Equity quotes the ticker handler serves (tape / last-good). */
+  equityQuotes?: EquityQuoteStamp[] | null;
+  /** Saved NZX/ASX prints. Used only when the ticker has no quote time for that venue. */
+  savedEquityQuotes?: EquityQuoteStamp[] | null;
+  dexAt?: string | null;
+  fxFetchedAt?: string | null;
+  fxAsOf?: string | null;
+  metalsQuotedAt?: string | null;
+  metalsAsOf?: string | null;
+  aiCheckedAt?: string | null;
+}
+
+export interface StatusLastOkLine {
+  label: string;
+  /** ISO stamp this line was built from. Null when the feed has no stamp. */
+  at: string | null;
+  row: StatusFeedRow;
+  body: string;
+}
+
+export type StatusLastOkKind = "freshness" | "saved" | "probe";
+
+function usableIso(at: string | null | undefined): string | null {
+  if (typeof at !== "string" || !at.trim() || !Number.isFinite(Date.parse(at))) return null;
+  return at;
+}
+
+/**
+ * M-2-STATUS: the quote time GET /api/ticker puts on a crypto row.
+ * quotesFromCoins uses `coin.quotedAt || snapshot.at`, not the snapshot stamp alone.
+ * The newest of those times is the feed's last good print.
+ */
+export function cryptoQuotedAtServedByTicker(
+  coins: CryptoCoinStamp[] | null | undefined,
+  snapshotAt: string | null | undefined,
+): string | null {
+  const wanted = new Set(TICKER_TAPE.crypto.map((row) => row.symbol.toUpperCase()));
+  const times: Array<string | null | undefined> = [];
+  for (const coin of coins ?? []) {
+    const symbol = (coin.symbol || "").trim().toUpperCase();
+    if (!wanted.has(symbol) || !(typeof coin.price === "number" && coin.price > 0)) continue;
+    times.push(coin.quotedAt || snapshotAt || null);
+  }
+  return latestIso(times);
+}
+
+/** Newest quotedAt for one venue. A ticker row has a finite change; a stored print may not. */
+export function newestVenueQuotedAt(
+  quotes: EquityQuoteStamp[] | null | undefined,
+  venue: "NZX" | "ASX",
+): string | null {
+  const suffix = venue === "NZX" ? ".NZ" : ".AX";
+  const venueQuotes = (quotes ?? []).filter((quote) => (quote.symbol || "").trim().toUpperCase().endsWith(suffix));
+  const served = venueQuotes.filter(
+    (quote) =>
+      typeof quote.changePct === "number" &&
+      Number.isFinite(quote.changePct) &&
+      (quote.price == null || (typeof quote.price === "number" && quote.price > 0)),
+  );
+  const pool = served.length
+    ? served
+    : venueQuotes.filter((quote) => quote.price == null || (typeof quote.price === "number" && quote.price > 0));
+  return latestIso(pool.map((quote) => quote.quotedAt));
+}
+
+/** Ticker quote time when the handler has one; otherwise the stored share-price time. */
+export function venueLastOkAt(
+  tickerQuotes: EquityQuoteStamp[] | null | undefined,
+  savedQuotes: EquityQuoteStamp[] | null | undefined,
+  venue: "NZX" | "ASX",
+): string | null {
+  return newestVenueQuotedAt(tickerQuotes, venue) ?? newestVenueQuotedAt(savedQuotes, venue);
+}
+
+function noSavedLine(label: string): StatusLastOkLine {
+  const row: StatusFeedRow = { label, tone: "amber", text: NO_SAVED_TIME_YET };
+  return { label, at: null, row, body: statusFeedBody(row) };
+}
+
+/** One /status Last OK line in NZ time, or "no saved time yet" when the stamp is missing. */
+export function statusLastOkLine(
+  label: string,
+  at: string | null | undefined,
+  now = Date.now(),
+  kind: StatusLastOkKind = "freshness",
+  window: { amberMs: number; redMs: number } = FEED_FRESHNESS_WINDOWS.crypto,
+): StatusLastOkLine {
+  const stamp = usableIso(at);
+  if (!stamp) return noSavedLine(label);
+  if (kind === "saved") {
+    const row: StatusFeedRow = { label, tone: "amber", text: statusSavedLabel(stamp, now) };
+    return { label, at: stamp, row, body: statusFeedBody(row) };
+  }
+  if (kind === "probe") {
+    const text = formatStatusTime(stamp);
+    if (text === "—") return noSavedLine(label);
+    const row: StatusFeedRow = { label, tone: "ok", text };
+    return { label, at: stamp, row, body: statusFeedBody(row) };
+  }
+  const row = shapeStatusFeed({ label, at: stamp, now, amberMs: window.amberMs, redMs: window.redMs });
+  if (row.text === "unavailable") return noSavedLine(label);
+  return { label, at: stamp, row, body: statusFeedBody(row) };
+}
+
+/**
+ * M-2-STATUS: Last OK lines for the feeds /status lists.
+ * Crypto uses the ticker's quotedAt, not a separate older snapshot stamp.
+ */
+export function buildStatusLastOk(sources: StatusTickerSources, now = Date.now()): StatusLastOkLine[] {
+  const fxAt = usableIso(sources.fxFetchedAt) ?? usableIso(sources.fxAsOf);
+  const metalsAt = usableIso(sources.metalsQuotedAt) ?? usableIso(sources.metalsAsOf);
+  return [
+    statusLastOkLine("NZX shares", venueLastOkAt(sources.equityQuotes, sources.savedEquityQuotes, "NZX"), now, "saved"),
+    statusLastOkLine("ASX shares", venueLastOkAt(sources.equityQuotes, sources.savedEquityQuotes, "ASX"), now, "saved"),
+    statusLastOkLine(
+      "Crypto quotes",
+      cryptoQuotedAtServedByTicker(sources.cryptoCoins, sources.cryptoSnapshotAt),
+      now,
+      "freshness",
+      FEED_FRESHNESS_WINDOWS.crypto,
+    ),
+    statusLastOkLine("DEX tokens", sources.dexAt, now, "freshness", DEX_STATUS_WINDOW),
+    statusLastOkLine("Exchange rates", fxAt, now, "freshness", FEED_FRESHNESS_WINDOWS.fx),
+    statusLastOkLine("Metals spot", metalsAt, now, "freshness", FEED_FRESHNESS_WINDOWS.metals),
+    statusLastOkLine("AI guide", sources.aiCheckedAt, now, "probe"),
+  ];
+}
+
+/** A missing provider time reads as "no saved time yet" on /status. */
+export function withNoSavedTime(row: StatusFeedRow): StatusFeedRow {
+  if (row.text === "unavailable") return { ...row, tone: "amber", text: NO_SAVED_TIME_YET };
+  return row;
+}
 
 /**
  * b62 TT P2: the DEX row. "Last OK" is the saved DEX list's own time; a refresh that failed

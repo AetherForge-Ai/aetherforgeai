@@ -4,9 +4,12 @@ import type { MetadataRoute } from "next";
 const siteUrl = process.env.NEXT_PUBLIC_APP_URL || "https://www.aetherforgeai.co.nz";
 
 /**
- * robots.txt — allow crawling of public pages, disallow the authenticated app
- * surface and API, and point crawlers to the sitemap.
- * This file is the sitemap line. public/robots.txt must not shadow it.
+ * robots.txt — one User-agent group, the Disallow rules, and the sitemap line.
+ * public/robots.txt must not shadow this file.
+ * Do not set `host`. Next prints it as `Host: <url>`, which Google ignores and
+ * which Yandex does not accept (it wants a bare hostname).
+ * A second `User-agent: *` / `Allow: /` group is prepended by Cloudflare when
+ * Bot Preference Sync is on. That switch is a zone setting, not this file.
  */
 export default function robots(): MetadataRoute.Robots {
   return {
@@ -16,6 +19,5 @@ export default function robots(): MetadataRoute.Robots {
       disallow: ["/api/", "/dashboard", "/settings", "/account", "/stripe/", "/import"],
     },
     sitemap: `${siteUrl}/sitemap.xml`,
-    host: siteUrl,
   };
 }

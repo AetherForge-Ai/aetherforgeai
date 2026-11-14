@@ -390,6 +390,23 @@ export async function loadSavedQuoteLine(ticker: string, now = Date.now()): Prom
  * b34 M-2 (GOAL-LOCK #16, Chief ruling): the newest saved NZX/ASX print time (this isolate's saved
  * prints, else the bundled saved snapshot). Used by /status instead of "unavailable".
  */
+/** M-2-STATUS: saved NZX/ASX prints (memory, then the bundled seed) with their quote times. */
+export function savedEquityQuotes(): Array<{ symbol: string; quotedAt: string | null; price: number; changePct: number }> {
+  const out: Array<{ symbol: string; quotedAt: string | null; price: number; changePct: number }> = [];
+  const add = (ticker: string, print: SavedPrint | undefined) => {
+    if (!print || !/\.(NZ|AX)$/i.test(ticker)) return;
+    out.push({
+      symbol: ticker.toUpperCase(),
+      quotedAt: print.quotedAt,
+      price: print.price,
+      changePct: print.changePct,
+    });
+  };
+  for (const [ticker, print] of Object.entries(seed)) add(ticker, print);
+  for (const [ticker, print] of memory) add(ticker, print);
+  return out;
+}
+
 export function latestSavedEquityAt(): string | null {
   let best: string | null = null;
   const consider = (ticker: string, print: SavedPrint | undefined) => {

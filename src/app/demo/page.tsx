@@ -13,7 +13,7 @@ export default function DemoPage() {
   return (
     <div className="min-h-screen">
       <SiteHeader />
-      <main className="mx-auto max-w-4xl px-4 py-12 sm:px-6" data-demo-book>
+      <div className="mx-auto max-w-4xl px-4 py-12 sm:px-6" data-demo-book>
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">Example</p>
         <h1 className="mt-2 font-display text-3xl font-bold">Example book (read-only)</h1>
         <p className="mt-3 text-sm text-muted-foreground">{DEMO_BOOK.notice}</p>
@@ -58,7 +58,7 @@ export default function DemoPage() {
         <p className="mt-10 text-sm">
           This page is read-only. <Link className="font-semibold text-primary hover:underline" href="/register">Create a free account</Link> to keep your own book.
         </p>
-      </main>
+      </div>
     </div>
   );
 }

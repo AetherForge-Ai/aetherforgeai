@@ -47,8 +47,11 @@ function monthlyEquivalent(yearly: number): string {
 
 export function PricingCards({
   initialFx = null,
+  hasStripeCustomer = false,
 }: {
   initialFx?: { rates: FxRatesToNZD; asOf: string } | null;
+  /** Server truth: a Stripe customer exists, so the portal button is on /settings/billing. */
+  hasStripeCustomer?: boolean;
 }) {
   const router = useRouter();
   const { data: session } = useSession();
@@ -72,7 +75,7 @@ export function PricingCards({
     };
   }, [signedInId]);
   // b87 CR-1 F-1: the signed-in account's plan, so an existing subscriber is never offered a second trial.
-  const [account, setAccount] = useState<{ plan?: string; status?: string } | null>(null);
+  const [account, setAccount] = useState<{ plan?: string; status?: string; hasStripeCustomer?: boolean } | null>(null);
   useEffect(() => {
     if (!signedInId) {
       setAccount(null);
@@ -82,13 +85,13 @@ export function PricingCards({
     fetch("/api/account/plan", { cache: "no-store" })
       .then((r) => (r.ok ? (r.json() as Promise<{ plan?: string; status?: string }>) : null))
       .then((j) => {
-        if (alive) setAccount(j);
+        if (alive) setAccount(j ? { plan: j.plan, status: j.status, hasStripeCustomer } : null);
       })
       .catch(() => {});
     return () => {
       alive = false;
     };
-  }, [signedInId]);
+  }, [signedInId, hasStripeCustomer]);
 
   async function openBilling() {
     const res = await api.post<{ url: string }>("/api/stripe/portal", {});
@@ -121,8 +124,11 @@ export function PricingCards({
       return;
     }
     // b87 CR-1 F-1: never a payment link or checkout for an account that already subscribes.
+    // FIX-B99-1: open the portal only when this account has a Stripe customer. Otherwise contact support.
     if (pricingCtaFor(tier.id, account).kind !== "checkout") {
-      void openBilling();
+      const step = pricingCtaFor(tier.id, account);
+      if (step.kind !== "checkout" && step.portal) void openBilling();
+      else if (step.kind !== "checkout") router.push(step.href);
       return;
     }
     setLoadingTier(tier.id);

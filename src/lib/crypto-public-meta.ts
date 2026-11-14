@@ -5,7 +5,7 @@
  * pull-check:retest4-2026-10-11
  */
 
-import { formatDisplayDateTime, formatUnitPrice } from "@/lib/currency";
+import { formatDisplayDate, formatDisplayDateTime, formatUnitPrice } from "@/lib/currency";
 import { fmtCompactUsd } from "@/lib/crypto-market";
 import { sourceLabel } from "@/lib/crypto-price-chain";
 import { CRYPTO_VENDORS, type CryptoVendor } from "@/lib/crypto-vendors";
@@ -52,20 +52,66 @@ export function cryptoDetailCopy(facts: CryptoDetailFacts): { title: string; des
       : null;
   const title = nzd != null ? `${label} price in NZD` : usd != null ? `${label} price in USD` : `${label} price`;
 
-  const parts = [label];
-  if (usd != null) {
-    const wall = facts.asOf ? formatDisplayDateTime(facts.asOf) : "—";
-    const asOf = !facts.asOf || wall === "—" ? "time not given by the data provider" : `as of ${wall}`;
-    const source = (facts.source || "").trim();
-    const priced = `${formatUnitPrice(usd, "USD")} ${asOf}`;
-    parts.push(source ? `${priced} · ${sourceLabel(source)}` : priced);
-  } else {
-    parts.push("No earlier price is stored for this coin.");
+  const nzdText = priceText(nzd, "NZD");
+  const usdText = priceText(usd, "USD");
+  const lead = nzdText && usdText ? `${nzdText} (${usdText})` : nzdText || usdText;
+  if (!lead) {
+    return { title, description: `${label} No earlier price is stored for this coin.` };
   }
-  if (nzd != null) parts.push(`${formatUnitPrice(nzd, "NZD")} in NZD.`);
-  const cap = fmtCompactUsd(facts.marketCapUsd);
-  if (cap !== "—") parts.push(`Market cap ${cap}.`);
-  return { title, description: parts.join(" ") };
+  const wall = facts.asOf ? formatDisplayDateTime(facts.asOf) : "—";
+  const dated = facts.asOf ? formatDisplayDate(facts.asOf) : "—";
+  const asOf = !facts.asOf || wall === "—" ? "time not given by the data provider" : `as of ${wall}`;
+  const asOfShort = !facts.asOf || dated === "—" ? "time not stated" : `as of ${dated}`;
+  const sourceName = namedSource(facts.source);
+  const capText = fmtCompactUsd(facts.marketCapUsd);
+  const cap = capText !== "—" && !/nan|undefined/i.test(capText) ? capText : null;
+  return { title, description: fitCoinDescription(label, lead, asOf, asOfShort, sourceName, cap) };
+}
+
+/** Meta descriptions stay within 160 characters. Market cap goes first, then the clock. Numbers are never sliced. */
+const DESCRIPTION_MAX = 160;
+
+function pricedSentence(label: string, lead: string, asOf: string | null, sourceName: string | null, cap: string | null): string {
+  let sentence = `${label} ${lead}`;
+  if (asOf) sentence += ` ${asOf}`;
+  if (sourceName) sentence += ` · Source: ${sourceName}`;
+  sentence += ".";
+  if (cap) sentence += ` Market cap ${cap}.`;
+  return sentence;
+}
+
+function fitCoinDescription(
+  label: string,
+  lead: string,
+  asOf: string,
+  asOfShort: string,
+  sourceName: string | null,
+  cap: string | null
+): string {
+  const attempts = [
+    pricedSentence(label, lead, asOf, sourceName, cap),
+    pricedSentence(label, lead, asOf, sourceName, null),
+    pricedSentence(label, lead, asOfShort, sourceName, null),
+    pricedSentence(label, lead, null, sourceName, null),
+    pricedSentence(label, lead, null, null, null),
+  ];
+  return attempts.find((text) => text.length <= DESCRIPTION_MAX) ?? attempts[attempts.length - 1];
+}
+
+/** A printable unit price. Missing, zero, or non-finite amounts are left out. */
+function priceText(value: number | null, currency: "NZD" | "USD"): string | null {
+  if (value == null || !Number.isFinite(value) || value <= 0) return null;
+  const text = formatUnitPrice(value, currency);
+  if (!text || /nan|undefined/i.test(text)) return null;
+  return text;
+}
+
+function namedSource(source: string | null | undefined): string | null {
+  const raw = (source || "").trim();
+  if (!raw || /^(undefined|null|nan)$/i.test(raw)) return null;
+  const label = sourceLabel(raw).trim();
+  if (!label || /^(undefined|null|nan|—|-)$/i.test(label)) return null;
+  return label;
 }
 
 /** WebPage JSON-LD. The caller supplies the title and description already shown on the page. */

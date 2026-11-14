@@ -178,12 +178,14 @@ describe("b29 H-1 one snapshot, time only moves forward", () => {
 
 describe("b29 G-17 cross-provider id map", () => {
   it("maps the six empty coins and tether to checked provider ids", () => {
+    const map = read("src/lib/crypto-provider-ids.ts");
     const src = read("src/lib/crypto-depth.server.ts");
     for (const [slug, paprika] of [["bitcoin-cash", "bch-bitcoin-cash"], ["near-protocol", "near-near-protocol"], ["rain-protocol", "rain-rain-protocol"], ["stellar", "xlm-stellar"], ["tron", "trx-tron"], ["zcash", "zec-zcash"], ["tether", "usdt-tether"]]) {
-      expect(src).toContain(`"${slug}"`);
-      expect(src).toContain(`"${paprika}"`);
+      expect(map).toContain(`"${slug}"`);
+      expect(map).toContain(`"${paprika}"`);
     }
-    expect(src).toContain('"near-protocol": { gecko: "near"');
+    expect(map).toContain('"near-protocol": { gecko: "near"');
+    expect(src).toContain("CROSS_PROVIDER_IDS");
     expect(src).toContain("/v1/search/?q=");
   });
 });

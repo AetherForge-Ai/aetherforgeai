@@ -13,6 +13,7 @@ import {
   shouldClearAnonymousAuthCookies,
 } from "@/lib/private-document";
 import { gsc404Redirect } from "@/lib/gsc-404-redirects";
+import { coinSlugRedirect } from "@/lib/crypto-slug";
 import { permanentRedirect, publicAliasRedirect } from "@/lib/public-route-aliases";
 import { documentAccess, sharingPageHidden } from "@/lib/route-gate";
 import { makeCspNonce, nonceCsp } from "@/lib/security-headers";
@@ -196,6 +197,14 @@ export async function middleware(request: NextRequest) {
   const moved = permanentRedirect(pathname);
   if (moved) {
     return finish(NextResponse.redirect(new URL(moved, request.url), 301), request, signedIn);
+  }
+
+  // One URL per coin. Alias slugs (near-protocol, Paprika ids, and any later pair in the same map) 308 to the CoinGecko id.
+  const coinAlias = coinSlugRedirect(pathname);
+  if (coinAlias) {
+    const url = new URL(coinAlias, request.url);
+    url.search = request.nextUrl.search;
+    return finish(NextResponse.redirect(url, 308), request, signedIn);
   }
 
   const alias = publicAliasRedirect(pathname) ?? portfolioAliasRedirect(pathname);
