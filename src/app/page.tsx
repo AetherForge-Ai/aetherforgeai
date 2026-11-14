@@ -1,7 +1,10 @@
 import { Suspense } from "react";
 import Link from "next/link";
+import { connection } from "next/server";
 import { BOT_COUNT_LINE, PAPER_BOOK_STATEMENT, SMITTY_ROLE_LINE } from "@/lib/public-copy";
 import { loadPublicTickerBounded } from "@/lib/public-ticker";
+import { tapeMarketsPrefix } from "@/lib/market-freshness";
+import { loadServerTape } from "@/lib/tape-ssr";
 import { getMetalsSpot } from "@/lib/metals";
 import { publicPageMetadata } from "@/lib/reviewed-book";
 import { SiteHeader } from "@/components/SiteHeader";
@@ -92,18 +95,42 @@ function TickerFallback() {
   );
 }
 
-/** M-1: the tape must not hold the hero HTML. The client ticker still fills this in. */
-async function HomeTickerBand() {
-  const [tape, metals] = await Promise.all([
+function quotedTape<T extends { rows?: { nzx?: Array<{ quotedAt?: string | null }>; asx?: Array<{ quotedAt?: string | null }> } }>(feed: T | null): T | null {
+  if (!feed?.rows) return null;
+  const stamped = [...(feed.rows.nzx ?? []), ...(feed.rows.asx ?? [])].some((row) => !!row.quotedAt);
+  return stamped ? feed : null;
+}
+
+/**
+ * M-1: the tape must not hold the hero HTML. The client ticker still fills the
+ * band. The close line is server HTML from the same snapshot, rendered per request.
+ */
+export async function HomeTickerBand() {
+  await connection();
+  const [live, metals, stored] = await Promise.all([
     loadPublicTickerBounded(),
     Promise.race([
       getMetalsSpot().catch(() => null),
       new Promise<null>((resolve) => setTimeout(() => resolve(null), 1200)),
     ]),
+    loadServerTape(),
   ]);
+  const tape = quotedTape(live) ?? quotedTape(stored);
   const metalsInitial = metals?.live && metals.quotedAt ? metals : null;
+  const now = new Date();
+  const label = tape ? tapeMarketsPrefix(tape.rows, now) : "";
+  const close = label.startsWith("Close ") && !label.includes("unavailable") ? label : "";
   // b38 CLS: hold the band at its loaded height while the footer row fills in.
-  return <MarketTicker initial={tape} initialMetals={metalsInitial} className="min-h-[302px] min-[390px]:min-h-[284px] bg-zinc-950 md:min-h-[201px] lg:min-h-[179px]" />;
+  return (
+    <>
+      {close ? (
+        <p className="sr-only" aria-hidden="true" data-tape-prefix={close}>
+          {close}
+        </p>
+      ) : null}
+      <MarketTicker initial={tape} serverNow={now.toISOString()} initialMetals={metalsInitial} className="min-h-[302px] min-[390px]:min-h-[284px] bg-zinc-950 md:min-h-[201px] lg:min-h-[179px]" />
+    </>
+  );
 }
 
 /** M-1: spot cards stream after the hero. The same feed and the same copy. */

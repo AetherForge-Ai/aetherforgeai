@@ -155,7 +155,7 @@ function TickerRow({
             Live
           </span>
         ) : status ? (
-          <span className="max-w-[14rem] truncate text-[0.55rem] font-medium normal-case tracking-normal text-zinc-300">
+          <span data-tape-prefix={status} className="max-w-[14rem] truncate text-[0.55rem] font-medium normal-case tracking-normal text-zinc-300">
             {status}
           </span>
         ) : null}
@@ -298,8 +298,20 @@ interface MarketTickerProps {
   compact?: boolean;
   /** Server-rendered tape so the first HTML can include prices. */
   initial?: TickerFeed | null;
+  /**
+   * H-1-TAPE-SSR: clock used for the server prefix. The first paint keeps it so
+   * hydration matches that HTML. Mount then uses the client clock; the close
+   * date does not change while the quote time is the same.
+   */
+  serverNow?: string | null;
   /** Server-rendered metals spot. Baseline prices are not passed in. */
   initialMetals?: MetalsSpotFeed | null;
+}
+
+function clockFrom(iso: string | null | undefined): Date | null {
+  if (!iso) return null;
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? null : date;
 }
 
 interface TickerFeed {
@@ -318,7 +330,7 @@ function hasTape(feed: TickerFeed | null | undefined): boolean {
   return feed.rows.nzx.length + feed.rows.asx.length + feed.rows.crypto.length > 0;
 }
 
-export function MarketTicker({ className, compact = false, initial = null, initialMetals = null }: MarketTickerProps) {
+export function MarketTicker({ className, compact = false, initial = null, serverNow = null, initialMetals = null }: MarketTickerProps) {
   const [nzx, setNzx] = useState<Quote[]>(initial?.rows.nzx ?? []);
   const [asx, setAsx] = useState<Quote[]>(initial?.rows.asx ?? []);
   const [crypto, setCrypto] = useState<Quote[]>(initial?.rows.crypto ?? []);
@@ -394,11 +406,18 @@ export function MarketTicker({ className, compact = false, initial = null, initi
   }, []);
 
   const liveTape = tickerLiveLabel({ live, rows: { crypto } });
-  // H-1-TAPE: recompute from the hydrated /api/ticker rows (state), not the empty server placeholder.
-  const nzxStatus = tapeEquityPrefix(nzx, "NZX");
-  const asxStatus = tapeEquityPrefix(asx, "ASX");
-  const marketsStatus = tapeMarketsPrefix({ nzx, asx });
-  const cryptoStatus = cryptoFreshnessLabel(latestQuoteTime(crypto.map((row) => row.quotedAt)));
+  // H-1-TAPE: the prefix reads the rows in state (seeded from the server snapshot, then /api/ticker).
+  // H-1-TAPE-SSR: the first paint uses the server clock so the HTML and hydration agree.
+  const serverClock = clockFrom(serverNow);
+  const [useServerClock, setUseServerClock] = useState(serverClock != null);
+  useEffect(() => {
+    setUseServerClock(false);
+  }, []);
+  const now = useServerClock && serverClock ? serverClock : new Date();
+  const nzxStatus = tapeEquityPrefix(nzx, "NZX", now);
+  const asxStatus = tapeEquityPrefix(asx, "ASX", now);
+  const marketsStatus = tapeMarketsPrefix({ nzx, asx }, now);
+  const cryptoStatus = cryptoFreshnessLabel(latestQuoteTime(crypto.map((row) => row.quotedAt)), now);
   const asOfLabel = formatAsOf(asOf);
   // b37 M-2: one "Prices last updated" line on the signed-in strip, from the newest quote time shown
   // (equity as-of or crypto), so the strip no longer mixes "Close · 16 Oct" with "as of 19 Oct".
