@@ -3,7 +3,8 @@
  * close label. An empty snapshot stays on the neutral fallback, and the client
  * first paint matches that HTML (no hydration mismatch).
  */
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import path from "node:path";
 import { createElement } from "react";
 import { renderToStaticMarkup, renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -12,8 +13,16 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/tax",
 }));
 
+vi.mock("next/server", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("next/server")>();
+  return { ...actual, connection: vi.fn(async () => undefined) };
+});
+
 const edgeJsonGet = vi.hoisted(() => vi.fn());
-const tickerEquityQuotes = vi.hoisted(() => vi.fn(async () => [] as Array<{ symbol: string; quotedAt: string | null; price: number | null; changePct: number | null }>));
+const tickerEquityQuotes = vi.hoisted(() =>
+  vi.fn(async () => [] as Array<{ symbol: string; quotedAt: string | null; price: number | null; changePct: number | null }>),
+);
+const loadPublicTickerBounded = vi.hoisted(() => vi.fn(async () => null));
 
 vi.mock("@/lib/ticker-serve", () => ({
   edgeJsonGet: (...args: unknown[]) => edgeJsonGet(...args),
@@ -21,10 +30,17 @@ vi.mock("@/lib/ticker-serve", () => ({
 
 vi.mock("@/lib/public-ticker", () => ({
   tickerEquityQuotes: () => tickerEquityQuotes(),
+  loadPublicTickerBounded: () => loadPublicTickerBounded(),
+}));
+
+vi.mock("@/lib/metals", () => ({
+  getMetalsSpot: vi.fn(async () => null),
 }));
 
 import { MarketTicker } from "@/components/MarketTicker";
 import { ServerTape, TapePending } from "@/components/ServerTape";
+import { HomeTickerBand } from "@/app/page";
+import { connection } from "next/server";
 import { closeLabelFor } from "@/lib/market-freshness";
 import { loadServerTape, tapeFeedFromStored } from "@/lib/tape-ssr";
 import type { TickerTapeFeed } from "@/lib/ticker-feed";
@@ -79,6 +95,9 @@ describe("H-1-TAPE-SSR tape prefix in server HTML", () => {
     edgeJsonGet.mockReset();
     tickerEquityQuotes.mockReset();
     tickerEquityQuotes.mockResolvedValue([]);
+    loadPublicTickerBounded.mockReset();
+    loadPublicTickerBounded.mockResolvedValue(null);
+    vi.mocked(connection).mockClear();
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(SATURDAY);
   });
@@ -161,6 +180,7 @@ describe("H-1-TAPE-SSR tape prefix in server HTML", () => {
     expect(shell).not.toContain("Close unavailable");
     const server = read("src/components/ServerTape.tsx");
     expect(server).toContain("loadServerTape()");
+    expect(server).toContain("await connection()");
     expect(server).toContain("initial={tape}");
     expect(server).toContain("serverNow=");
     const loader = read("src/lib/tape-ssr.ts");
@@ -172,10 +192,140 @@ describe("H-1-TAPE-SSR tape prefix in server HTML", () => {
     const layout = read("src/app/layout.tsx");
     const lazy = read("src/components/LazyMarketTicker.tsx");
     expect(page).toContain("LazyMarketTicker");
-    expect(page).not.toContain("tape-ssr");
-    expect(page).not.toContain("ServerTape");
+    expect(page).toContain("await connection()");
+    expect(page).toContain("loadServerTape()");
+    expect(page).not.toContain("<ServerTape");
     expect(layout).not.toContain("tape-ssr");
     expect(layout).not.toContain("ServerTape");
     expect(lazy).toMatch(/ssr:\s*false/);
+    expect(vi.mocked(connection)).not.toHaveBeenCalled();
+  });
+
+  it("drops rows whose price is missing, zero, or not a finite positive number", async () => {
+    const junk = {
+      rows: {
+        nzx: [
+          { symbol: "FPH.NZ", price: 0, quotedAt: FRI_CLOSE },
+          { symbol: "AIR.NZ", price: Number.NaN, quotedAt: FRI_CLOSE },
+          { symbol: "MEL.NZ", price: null, quotedAt: FRI_CLOSE },
+          { symbol: "CEN.NZ", price: Number.POSITIVE_INFINITY, quotedAt: FRI_CLOSE },
+          { symbol: "SPK.NZ", name: "Spark", price: 3.2, change: 0.1, currency: "NZD", quotedAt: FRI_CLOSE },
+        ],
+        asx: [{ symbol: "BHP.AX", price: -1, quotedAt: FRI_CLOSE }],
+        crypto: [{ symbol: "BTC", price: 0, quotedAt: FRI_CLOSE }],
+      },
+    };
+    const feed = tapeFeedFromStored(junk);
+    expect(feed?.rows.nzx.map((row) => row.symbol)).toEqual(["SPK.NZ"]);
+    expect(feed?.rows.asx).toEqual([]);
+    expect(feed?.rows.crypto).toEqual([]);
+    edgeJsonGet.mockResolvedValue(null);
+    tickerEquityQuotes.mockResolvedValue([
+      { symbol: "FPH.NZ", quotedAt: FRI_CLOSE, price: 0, changePct: 1 },
+      { symbol: "AIR.NZ", quotedAt: FRI_CLOSE, price: 0.55, changePct: 0.2 },
+    ]);
+    const loaded = await loadServerTape();
+    expect(loaded?.rows.nzx.map((row) => row.symbol)).toEqual(["AIR.NZ"]);
+    const html = renderToString(createElement(MarketTicker, { compact: true, initial: feed, serverNow: SATURDAY.toISOString() }));
+    expect(html).toContain("SPK.NZ");
+    expect(html).not.toContain("FPH.NZ");
+    expect(html).not.toContain("BHP.AX");
+    expect(html).not.toMatch(/\$0\.00/);
+  });
+
+  it("opts the tape out of static caching and renders Close <date> for / and /markets when a snapshot is seeded", async () => {
+    expect(vi.mocked(connection)).not.toHaveBeenCalled();
+    edgeJsonGet.mockImplementation(async (key: string) => (key === "body" ? storedBody(fridayFeed()) : null));
+    const markets = renderToString(await ServerTape());
+    const home = renderToString(await HomeTickerBand());
+    expect(vi.mocked(connection).mock.calls.length).toBeGreaterThanOrEqual(2);
+    for (const html of [markets, home]) {
+      expect(html).toMatch(/Close \d{1,2} [A-Za-z]{3} \d{4}/);
+      expect(html).toContain("Close 13 Nov 2026");
+      expect(html).not.toContain("Close unavailable");
+    }
+    expect(prefix(markets)).toBe("Close 13 Nov 2026");
+    expect(home).toContain('data-tape-prefix="Close 13 Nov 2026"');
+  });
+});
+
+function walk(dir: string, out: string[] = []): string[] {
+  for (const name of readdirSync(dir)) {
+    if (name === "node_modules" || name === ".next") continue;
+    const full = path.join(dir, name);
+    if (statSync(full).isDirectory()) walk(full, out);
+    else if (/\.tsx?$/.test(name)) out.push(full.split(path.sep).join("/"));
+  }
+  return out;
+}
+
+function isClientModule(file: string): boolean {
+  return /^\uFEFF?\s*["']use client["']/.test(read(file));
+}
+
+function segmentFlags(file: string): { dynamic: string | null; revalidate: string | null } {
+  const text = read(file);
+  return {
+    dynamic: text.match(/export const dynamic = ["']([^"']+)["']/)?.[1] ?? null,
+    revalidate: text.match(/export const revalidate = ([^;\n]+)/)?.[1]?.trim() ?? null,
+  };
+}
+
+/** Page, then each ancestor layout, then the root layout. */
+function configChain(file: string): string[] {
+  const chain = [file];
+  let dir = path.posix.dirname(file);
+  while (dir.startsWith("src/app")) {
+    const layout = `${dir}/layout.tsx`;
+    chain.push(layout);
+    if (dir === "src/app") break;
+    const parent = path.posix.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return chain;
+}
+
+describe("H-1-TAPE-SSR AppShell routes are dynamic and AppShell stays a server component", () => {
+  const sources = walk("src");
+  const importers = sources.filter((file) => /import\s*\{[^}]*\bAppShell\b[^}]*\}\s*from\s*["']@\/components\/AppShell["']/.test(read(file)));
+
+  it("every AppShell importer is a server module", () => {
+    expect(importers.length).toBeGreaterThan(0);
+    const clients = importers.filter(isClientModule);
+    expect(clients).toEqual([]);
+    expect(isClientModule("src/components/AppShell.tsx")).toBe(false);
+    expect(isClientModule("src/components/ServerTape.tsx")).toBe(false);
+  });
+
+  it("no AppShell route is static or ISR", () => {
+    const pages = new Set<string>();
+    for (const file of importers) {
+      if (file.endsWith("/page.tsx")) pages.add(file);
+      else {
+        const spec = file.replace(/^src\//, "@/").replace(/\.tsx$/, "");
+        for (const other of sources) {
+          if (other.endsWith("/page.tsx") && read(other).includes(spec)) pages.add(other);
+        }
+      }
+    }
+    expect(pages.size).toBeGreaterThanOrEqual(25);
+    const root = segmentFlags("src/app/layout.tsx");
+    expect(root.dynamic).toBe("force-dynamic");
+    expect(root.revalidate).toBe("0");
+    const findings: string[] = [];
+    for (const page of [...pages].sort()) {
+      const chain = configChain(page).filter((file) => sources.includes(file) || file === "src/app/layout.tsx");
+      const flags = chain.map((file) => ({ file, ...segmentFlags(file) }));
+      const dynamic = flags.some((flag) => flag.dynamic === "force-dynamic" || flag.revalidate === "0");
+      const isr = flags.some((flag) => flag.revalidate != null && flag.revalidate !== "0" && flag.revalidate !== "false");
+      const frozen = flags.some((flag) => flag.dynamic === "force-static");
+      expect(dynamic, page).toBe(true);
+      expect(isr, page).toBe(false);
+      expect(frozen, page).toBe(false);
+      const own = flags[0];
+      findings.push(`${page} dynamic=${own.dynamic ?? "inherited"} revalidate=${own.revalidate ?? "inherited"}`);
+    }
+    expect(findings.join("\n")).not.toMatch(/force-static|revalidate= [1-9]/);
   });
 });

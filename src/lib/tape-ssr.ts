@@ -13,17 +13,23 @@ const BODY_MS = 200;
 const EQUITY_MS = 200;
 const QUOTE_MS = 200;
 
+/** A tape row with no real print is omitted. Zero is not a price. */
+function positivePrice(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : null;
+}
+
 function asRows(value: unknown): TapeRow[] {
   if (!Array.isArray(value)) return [];
   const out: TapeRow[] = [];
   for (const item of value) {
     if (!item || typeof item !== "object") continue;
     const row = item as Partial<TapeRow>;
-    if (typeof row.symbol !== "string" || !row.symbol) continue;
+    const price = positivePrice(row.price);
+    if (typeof row.symbol !== "string" || !row.symbol || price == null) continue;
     out.push({
       symbol: row.symbol,
       name: typeof row.name === "string" && row.name ? row.name : row.symbol,
-      price: typeof row.price === "number" && Number.isFinite(row.price) ? row.price : 0,
+      price,
       change: typeof row.change === "number" && Number.isFinite(row.change) ? row.change : null,
       currency: typeof row.currency === "string" && row.currency ? row.currency : "NZD",
       provider: typeof row.provider === "string" ? row.provider : "",
@@ -67,12 +73,14 @@ export function tapeFeedFromStored(value: unknown): TickerTapeFeed | null {
   return null;
 }
 
-function quoteRow(quote: { symbol: string; quotedAt: string | null; price: number | null; changePct: number | null }): TapeRow {
+function quoteRow(quote: { symbol: string; quotedAt: string | null; price: number | null; changePct: number | null }): TapeRow | null {
+  const price = positivePrice(quote.price);
+  if (price == null) return null;
   const nz = quote.symbol.endsWith(".NZ");
   return {
     symbol: quote.symbol,
     name: quote.symbol,
-    price: typeof quote.price === "number" && quote.price > 0 ? quote.price : 0,
+    price,
     change: typeof quote.changePct === "number" ? quote.changePct : null,
     currency: nz ? "NZD" : "AUD",
     provider: "",
@@ -98,9 +106,10 @@ export async function loadServerTape(): Promise<TickerTapeFeed | null> {
       new Promise<null>((resolve) => setTimeout(() => resolve(null), QUOTE_MS)),
     ]);
     if (!quotes?.length) return null;
+    const row = (quote: (typeof quotes)[number]) => quoteRow(quote);
     return tapeFeedFromStored({
-      nzx: quotes.filter((quote) => quote.symbol.endsWith(".NZ")).map(quoteRow),
-      asx: quotes.filter((quote) => quote.symbol.endsWith(".AX")).map(quoteRow),
+      nzx: quotes.filter((quote) => quote.symbol.endsWith(".NZ")).map(row).filter((item) => item != null),
+      asx: quotes.filter((quote) => quote.symbol.endsWith(".AX")).map(row).filter((item) => item != null),
     });
   } catch {
     return null;

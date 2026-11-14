@@ -1,3 +1,4 @@
+import { connection } from "next/server";
 import { MarketTicker } from "@/components/MarketTicker";
 import { loadServerTape } from "@/lib/tape-ssr";
 
@@ -16,6 +17,9 @@ export function TapePending() {
 }
 
 export async function ServerTape() {
+  // Per request. A static shell would render this at build time, when the edge
+  // cache has no snapshot, and bake "Close unavailable" into the HTML.
+  await connection();
   const tape = await loadServerTape();
   return <MarketTicker compact initial={tape} serverNow={new Date().toISOString()} />;
 }
