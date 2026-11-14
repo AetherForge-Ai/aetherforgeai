@@ -44,7 +44,17 @@ jobs:
           check /settings '307|302'    # signed-in-only page -> /login
           check /kiwisaver 404         # no such page: KiwiSaver lives in the signed-in Goals tab
           check /api/ticker '200|503'  # 503 = app JSON when CI has no price data
+          check /api/health 200        # DIAG-FLAGS-1: flag booleans, not the HTML 404
+          check /shared 404            # DIAG-FLAGS-1: signed-out, sharing off → 404 (not 307 /login)
           exit $FAIL
+      - name: DIAG-FLAGS-1 health body
+        run: |
+          curl -sD headers.txt -o health.json http://127.0.0.1:8787/api/health
+          grep -q '"flags"' health.json
+          grep -q 'PORTFOLIO_SHARING' health.json
+          grep -q 'GOAL_TEST_HOOKS' health.json
+          grep -qi '^cache-control:.*no-store' headers.txt
+          if grep -q 'GOAL_TEST_HOOK_USER_IDS' health.json; then echo "health leaked the allow-list key"; exit 1; fi
       - name: /markets p95 TTFB < 2 s over 40 signed-out requests
         run: |
           : > t.txt
