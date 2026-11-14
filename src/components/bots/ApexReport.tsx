@@ -193,7 +193,7 @@ function actionTone(action: DirectRecommendation["action"]): string {
     case "HOLD":
       return "bg-sky-500/15 text-sky-700 border-sky-500/30";
     case "BUY":
-      return "bg-teal-500/15 text-teal-300 border-teal-500/30";
+      return "bg-teal-500/15 text-gain border-teal-500/30";
     case "ACCUMULATE":
       return "bg-emerald-500/15 text-gain border-emerald-500/30";
   }

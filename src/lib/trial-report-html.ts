@@ -33,7 +33,7 @@ const INK = "#e7ecf6";
 const MUTE = "#93a1bd";
 const FAINT = "#5f6c88";
 const LINE = "#1e2942";
-const GREEN = "#34d399";
+const GREEN = "#34d399"; // M-7 text-green dark pair. Fixed dark email/PDF; cannot read --text-green.
 const RED = "#fb7185";
 
 function esc(s: unknown): string {

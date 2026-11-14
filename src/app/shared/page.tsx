@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { SharedWithMe } from "@/components/sharing/SharedWithMe";
 import { featureOnFor } from "@/lib/preview-grading";
+import { decideSharedPage } from "@/lib/shared-access";
 import { getCurrentUser } from "@/lib/session";
 import { resolveDisplayName } from "@/lib/user-display";
 
@@ -11,8 +12,10 @@ export const metadata = { title: "Shared with me · AetherForge AI", robots: { i
 /** b66 G-27: books shared with this account (read-only). Behind PORTFOLIO_SHARING=on (off = 404). */
 export default async function SharedWithMePage() {
   const user = await getCurrentUser();
+  // DIAG-FLAGS-1: both PORTFOLIO_SHARING readings off → 404 before the login redirect.
   // b91 G-27: flag off = 404, except for allow-listed test accounts (preview grading).
-  if (!featureOnFor("PORTFOLIO_SHARING", user as never)) notFound();
+  const gate = decideSharedPage(user as never);
+  if (gate === "not-found" || !featureOnFor("PORTFOLIO_SHARING", user as never)) notFound();
   if (!user) redirect("/login?redirect=/shared");
   return (
     <AppShell

@@ -1,8 +1,6 @@
-"use client";
-
-import { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 import { TopNav } from "@/components/TopNav";
-import { MarketTicker } from "@/components/MarketTicker";
+import { ServerTape, TapePending } from "@/components/ServerTape";
 import { DisclaimerNotice } from "@/components/legal/DisclaimerNotice";
 
 export interface ShellUser {
@@ -39,8 +37,10 @@ export function AppShell({
       <div className="relative flex min-h-screen flex-col">
         <TopNav />
 
-        {/* Live market ticker banner across the top of the app (dark chrome) */}
-        <MarketTicker compact />
+        {/* H-1-TAPE-SSR: the prefix comes from the ticker snapshot, streamed so it does not hold the first byte. */}
+        <Suspense fallback={<TapePending />}>
+          <ServerTape />
+        </Suspense>
 
         <div className="mx-auto w-full max-w-7xl flex-1 px-2 py-4 sm:px-4 sm:py-5 lg:px-6">
           {/* Light content sheet — the "main viewing part" stays exactly as-is */}

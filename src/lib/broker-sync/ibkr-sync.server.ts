@@ -13,6 +13,7 @@ import {
   parseFlexResponse,
   sendRequestUrl,
   statementPending,
+  type FlexCashRow,
 } from "@/lib/broker-sync/ibkr-flex";
 import { isSandboxConnection } from "@/lib/broker-sync/ibkr-sandbox";
 import { IBKR_FLEX_FIXTURE } from "@/lib/broker-sync/ibkr-flex-fixture";
@@ -78,44 +79,100 @@ async function knownRefs(userId: string): Promise<Set<string>> {
   return new Set(((res?.data as unknown as Array<{ notes?: string }>) || []).map((r) => refOf(r.notes)).filter(Boolean));
 }
 
+/** Statement deposits and withdrawals, then dividends. A missing rate is not guessed. */
+async function bookFlexCash(user: SyncUser, rows: readonly FlexCashRow[], seen: Set<string>, written: string[]): Promise<{ cash: number; duplicates: number }> {
+  let cash = 0;
+  let duplicates = 0;
+  for (const row of rows) {
+    if (seen.has(row.id)) {
+      duplicates += 1;
+      continue;
+    }
+    const fx = row.currency.toUpperCase() === "NZD" ? 1 : row.fxRateToBase;
+    if (fx == null) continue;
+    const nzd = Math.round(row.amount * fx * 100) / 100;
+    const note = `Synced from IBKR Flex. ref=${row.id}`;
+    const input =
+      row.kind === "dividend"
+        ? { type: "dividend", ticker: row.symbol.toUpperCase(), asset_type: "stock", amount: nzd, dividend_gross: row.amount, fx_rate: fx, fx_source: "IBKR FXRateToBase", executed_at: row.date, trade_date: row.date, notes: note }
+        : { type: row.kind, amount: nzd, executed_at: row.date, trade_date: row.date, notes: note };
+    const saved = (await applyTransaction(user, input as never)) as { ledgerId?: string; transaction?: { _id?: string }; cashBalance?: number; pendingCash?: number } | undefined;
+    const id = saved?.ledgerId || saved?.transaction?._id || "";
+    if (id) written.push(id);
+    const nextCash = saved?.pendingCash ?? saved?.cashBalance;
+    if (typeof nextCash === "number" && Number.isFinite(nextCash)) {
+      const session = user as { cash_balance?: number; cash_read_at?: number };
+      session.cash_balance = nextCash;
+      session.cash_read_at = Date.now();
+    }
+    seen.add(row.id);
+    cash += 1;
+  }
+  return { cash, duplicates };
+}
+
+async function storedCash(user: SyncUser): Promise<number> {
+  const read = totalumSdk.crud.getRecordById;
+  if (typeof read === "function") {
+    try {
+      const res = await read("user", user._id);
+      const cash = Number((res as { data?: { cash_balance?: number } } | undefined)?.data?.cash_balance);
+      if (Number.isFinite(cash)) return cash;
+    } catch {
+      /* The session figure is the fallback when this read is not on the client. */
+    }
+  }
+  return typeof user.cash_balance === "number" ? user.cash_balance : 0;
+}
+
+/** Drop statement cash rows from a failed trade commit and put the balance back. Refs go with the rows. */
+async function unwindFlexCash(user: SyncUser, ids: readonly string[], cashBefore: number): Promise<void> {
+  for (const id of [...ids].reverse()) {
+    if (!id) continue;
+    await totalumSdk.crud.deleteRecordById("transaction", id).catch(() => undefined);
+  }
+  await totalumSdk.crud.editRecordById("user", user._id, { cash_balance: cashBefore });
+  const session = user as { cash_balance?: number; cash_read_at?: number };
+  session.cash_balance = cashBefore;
+  delete session.cash_read_at;
+}
+
 /** Writes trades through the H-10 import path and dividends/cash through applyTransaction. */
 export async function applyFlexStatement(user: SyncUser, statement: string): Promise<Omit<SyncResult, "ok" | "message">> {
+  const looksXml = statement.trimStart().startsWith("<");
+  if (!looksXml) {
+    throw new Error("IBKR Flex sync only accepts a Flex XML statement. Nothing was written.");
+  }
   let trades = 0;
   let duplicates = 0;
-  const looksXml = statement.trimStart().startsWith("<");
-  const csv = looksXml ? flexTradesCsv(statement) : statement;
-  if (csv.split("\n").length > 1) {
-    const res = await runH10Import(user, csv, { engine: "h10", action: "commit" }, "broker-sync");
-    const body = (await res.json().catch(() => ({}))) as { ok?: boolean; code?: string; data?: { written?: number; duplicates?: number[] }; error?: string };
-    if (body.ok) {
-      trades = body.data?.written ?? 0;
-      duplicates += body.data?.duplicates?.length ?? 0;
-    } else if (res.status !== 409) {
-      throw new Error(body.error || "The trades in the IBKR statement could not be saved.");
-    }
-  }
-  let cash = 0;
-  if (looksXml) {
-    const rows = flexCashRows(statement);
-    const seen = rows.length ? await knownRefs(user._id) : new Set<string>();
-    for (const row of rows) {
-      if (seen.has(row.id)) {
-        duplicates += 1;
-        continue;
+  const csv = flexTradesCsv(statement);
+  const rows = flexCashRows(statement);
+  const seen = rows.length ? await knownRefs(user._id) : new Set<string>();
+  const cashBefore = await storedCash(user);
+  const fundingIds: string[] = [];
+  // The statement's own cash is booked before the buys, so a short book is not topped up with paper cash.
+  const funding = await bookFlexCash(user, rows.filter((row) => row.kind !== "dividend"), seen, fundingIds);
+  let cash = funding.cash;
+  duplicates += funding.duplicates;
+  try {
+    if (csv.split("\n").length > 1) {
+      const res = await runH10Import(user, csv, { engine: "h10", action: "commit" }, "broker-sync");
+      const body = (await res.json().catch(() => ({}))) as { ok?: boolean; code?: string; data?: { written?: number; duplicates?: number[] }; error?: string };
+      if (body.ok) {
+        trades = body.data?.written ?? 0;
+        duplicates += body.data?.duplicates?.length ?? 0;
+      } else if (res.status !== 409) {
+        throw new Error(body.error || "The trades in the IBKR statement could not be saved.");
       }
-      const fx = row.currency.toUpperCase() === "NZD" ? 1 : row.fxRateToBase;
-      if (fx == null) continue; // no rate: not guessed, left for a file import
-      const nzd = Math.round(row.amount * fx * 100) / 100;
-      const note = `Synced from IBKR Flex. ref=${row.id}`;
-      const input =
-        row.kind === "dividend"
-          ? { type: "dividend", ticker: row.symbol.toUpperCase(), asset_type: "stock", amount: nzd, dividend_gross: row.amount, fx_rate: fx, fx_source: "IBKR FXRateToBase", executed_at: row.date, trade_date: row.date, notes: note, idempotency_key: row.id }
-          : { type: row.kind, amount: nzd, executed_at: row.date, trade_date: row.date, notes: note, idempotency_key: row.id };
-      await applyTransaction(user, input as never);
-      seen.add(row.id);
-      cash += 1;
     }
+  } catch (err) {
+    await unwindFlexCash(user, fundingIds, cashBefore);
+    throw err;
   }
+  // Dividends need the holding the trades just saved.
+  const dividends = await bookFlexCash(user, rows.filter((row) => row.kind === "dividend"), seen, []);
+  cash += dividends.cash;
+  duplicates += dividends.duplicates;
   invalidateBookCache(user._id);
   return { trades, cash, duplicates };
 }

@@ -7,7 +7,9 @@
 import { currentCashNzd, planImportUndo } from "@/lib/import-undo-server";
 import { NextResponse } from "next/server";
 import { checkTickerQuota } from "@/lib/entitlements";
-import { historicalNzdPerUnit } from "@/lib/fx";
+import { historicalNzdPerUnit as liveHistoricalNzdPerUnit } from "@/lib/fx";
+import type { CurrencyCode } from "@/lib/currency";
+import { FUNDING_DISCLOSURE } from "@/lib/broker-import";
 import { assetClassForSymbol } from "@/lib/import-symbols";
 import {
   IMPORT_DUPLICATE_FILE,
@@ -56,6 +58,26 @@ function refOf(notes: string | null | undefined): string {
 
 type ImportUser = Parameters<typeof applyTransaction>[0];
 
+/**
+ * Optional stand-ins for the Totalum client and the trade-date FX lookup.
+ * Omitted, both are the live client. Production callers do not pass this,
+ * so their writes are unchanged aside from the cash top-up below.
+ */
+export interface H10PersistDeps {
+  crud?: {
+    query: typeof totalumSdk.crud.query;
+    getRecordById: typeof totalumSdk.crud.getRecordById;
+    createRecord: typeof totalumSdk.crud.createRecord;
+    editRecordById: typeof totalumSdk.crud.editRecordById;
+    deleteRecordById: typeof totalumSdk.crud.deleteRecordById;
+  };
+  historicalNzdPerUnit?: (currency: CurrencyCode, day: string | null | undefined) => Promise<number | null>;
+}
+
+function roundCents(value: number): number {
+  return Math.round((Number(value) || 0) * 100) / 100;
+}
+
 interface LedgerRow {
   _id?: string;
   type?: string;
@@ -95,15 +117,20 @@ function heldFrom(rows: readonly LedgerRow[]): Record<string, number> {
   return held;
 }
 
-async function loadLedger(userId: string): Promise<LedgerRow[]> {
-  const res = await totalumSdk.crud.query("transaction", { _filter: { user: userId }, _limit: 5000 });
+async function loadLedger(userId: string, crud: H10PersistDeps["crud"]): Promise<LedgerRow[]> {
+  const res = await crud!.query("transaction", { _filter: { user: userId }, _limit: 5000 });
   return ((res?.data as unknown as LedgerRow[]) || []).map((row) => ({
     ...row,
     executed_at: row.executed_at || "",
   }));
 }
 
-async function previewWithRates(text: string, mapping: ColumnMap | undefined, held: Record<string, number>): Promise<ImportPreview> {
+async function previewWithRates(
+  text: string,
+  mapping: ColumnMap | undefined,
+  held: Record<string, number>,
+  historicalNzdPerUnit: NonNullable<H10PersistDeps["historicalNzdPerUnit"]>
+): Promise<ImportPreview> {
   const draft = await previewImport(text, { mapping, held });
   if (!draft.fxNeeds.length) return draft;
   const reviewedRates: Record<string, number | null> = {};
@@ -145,8 +172,8 @@ function publicPreview(preview: ImportPreview) {
   };
 }
 
-async function capRefusal(user: ImportUser, rows: readonly ImportRow[]): Promise<NextResponse | null> {
-  const res = await totalumSdk.crud.query("stock", { _filter: { user: user._id }, _limit: 1000 });
+async function capRefusal(user: ImportUser, rows: readonly ImportRow[], crud: H10PersistDeps["crud"]): Promise<NextResponse | null> {
+  const res = await crud!.query("stock", { _filter: { user: user._id }, _limit: 1000 });
   const held = [...(((res?.data as unknown) as Array<{ ticker?: string; asset_type?: string; shares?: number }>) || [])];
   for (const row of rows) {
     if (row.side !== "buy") continue;
@@ -171,7 +198,15 @@ export const BROKER_SYNC_WRITE_LIMIT = 12;
 export const BROKER_SYNC_WRITE_WINDOW_MS = 60 * 60 * 1000;
 
 /** `source` is set by server code only (never read from the request body). */
-export async function runH10Import(user: ImportUser, text: string, body: unknown, source: "manual" | "broker-sync" = "manual"): Promise<NextResponse> {
+export async function runH10Import(
+  user: ImportUser,
+  text: string,
+  body: unknown,
+  source: "manual" | "broker-sync" = "manual",
+  deps?: H10PersistDeps
+): Promise<NextResponse> {
+  const crud = deps?.crud ?? totalumSdk.crud;
+  const historicalNzdPerUnit = deps?.historicalNzdPerUnit ?? liveHistoricalNzdPerUnit;
   if (textTooLarge(text)) {
     return NextResponse.json({ ok: false, error: IMPORT_TOO_LARGE }, { status: 413 });
   }
@@ -195,9 +230,12 @@ export async function runH10Import(user: ImportUser, text: string, body: unknown
     if (!batchId) {
       return NextResponse.json({ ok: false, error: "That import was not found. Nothing was changed." }, { status: 400 });
     }
-    const stored = await loadLedger(user._id);
+    const stored = await loadLedger(user._id, crud);
     // b87 H-10: plan the whole batch first (cash and holdings); on any refusal nothing is changed.
-    const plan = planImportUndo({ ledger: stored as never, batchId, cashNzd: await currentCashNzd(user._id) });
+    const cashNzd = deps?.crud
+      ? Number(((await crud.getRecordById("user", user._id)) as { data?: { cash_balance?: number } } | undefined)?.data?.cash_balance) || 0
+      : await currentCashNzd(user._id);
+    const plan = planImportUndo({ ledger: stored as never, batchId, cashNzd });
     if (plan.ok === false) {
       return NextResponse.json({ ok: false, error: plan.error, data: { undone: 0, batchId } }, { status: plan.ids.length ? 400 : 404 });
     }
@@ -218,8 +256,8 @@ export async function runH10Import(user: ImportUser, text: string, body: unknown
   }
 
   const mapping = mappingOf(input.mapping);
-  const stored = action === "commit" ? await loadLedger(user._id) : [];
-  const preview = await previewWithRates(text, mapping, heldFrom(stored));
+  const stored = action === "commit" ? await loadLedger(user._id, crud) : [];
+  const preview = await previewWithRates(text, mapping, heldFrom(stored), historicalNzdPerUnit);
   if (action !== "commit") {
     const opening = typeof user.cash_balance === "number" ? user.cash_balance : 0;
     const refusal = previewCashRefusal(preview.toWrite, opening);
@@ -249,7 +287,7 @@ export async function runH10Import(user: ImportUser, text: string, body: unknown
     return NextResponse.json({ ok: false, error: IMPORT_DUPLICATE_FILE, code: "duplicate_rows", data: { written: 0, duplicates } }, { status: 409 });
   }
   preview.toWrite = fresh;
-  const cap = await capRefusal(user, preview.toWrite);
+  const cap = await capRefusal(user, preview.toWrite, crud);
   if (cap) return cap;
 
   const batchId = batchIdForHash(fileHash);
@@ -272,9 +310,9 @@ export async function runH10Import(user: ImportUser, text: string, body: unknown
   const unwind = async () => {
     for (const done of [...savedRows].reverse()) {
       try {
-        await totalumSdk.crud.deleteRecordById("transaction", done.id);
+        await crud.deleteRecordById("transaction", done.id);
         if (done.restoreHolding) await done.restoreHolding();
-        await totalumSdk.crud.editRecordById("user", user._id, { cash_balance: done.previousCash });
+        await crud.editRecordById("user", user._id, { cash_balance: done.previousCash });
         setCash(done.previousCash);
       } catch (err) {
         console.error("[import] rollback failed:", err);
@@ -282,28 +320,66 @@ export async function runH10Import(user: ImportUser, text: string, body: unknown
     }
     written.length = 0;
   };
+  // A buy that would take paper cash below zero is funded by a paper deposit in this same batch,
+  // credited before that buy. The running figure is the file's own NZ$ effect.
+  // Broker sync must not invent cash: the statement's own cash lines fund the buys.
+  const fundShortfall = source !== "broker-sync";
+  type WriteStep =
+    | { kind: "deposit"; amount: number; date: string; line: number }
+    | { kind: "trade"; row: ImportRow };
+  const steps: WriteStep[] = [];
+  let running = roundCents(typeof user.cash_balance === "number" ? user.cash_balance : 0);
   for (const row of preview.toWrite) {
+    const next = roundCents(running + row.cashEffectNzd);
+    if (fundShortfall && row.cashEffectNzd < -0.001 && next < -0.001) {
+      const topUp = roundCents(-row.cashEffectNzd - running);
+      if (topUp > 0) {
+        steps.push({ kind: "deposit", amount: topUp, date: row.date, line: row.line });
+        running = roundCents(running + topUp);
+      }
+    }
+    steps.push({ kind: "trade", row });
+    running = roundCents(running + row.cashEffectNzd);
+  }
+  for (const step of steps) {
+    const row = step.kind === "trade" ? step.row : null;
     let saved: Awaited<ReturnType<typeof applyTransaction>>;
     try {
-      saved = await applyTransaction(user, {
-        type: row.side,
-        ticker: row.ticker,
-        asset_type: assetClassForSymbol(row.ticker),
-        asset_name: safeImportText(row.assetName),
-        quantity: row.quantity,
-        price: row.price,
-        fees: row.fee,
-        fx_rate: row.fx,
-        fx_source: "broker-file",
-        fill_currency: row.currency,
-        trade_date_fx: row.currency === "NZD" ? undefined : tradeDateFx[`${row.currency}|${row.date}`] ?? undefined,
-        executed_at: row.date,
-        trade_date: row.date,
-        price_source: "broker_import",
-        broker: preview.broker || "file",
-        notes: stampFileHash(stampImportNote(`Imported from a ${label} file.`, batchId, row.brokerRef), fileHash),
-        deferCash: true,
-      });
+      saved = row
+        ? await applyTransaction(user, {
+            type: row.side,
+            ticker: row.ticker,
+            asset_type: assetClassForSymbol(row.ticker),
+            asset_name: safeImportText(row.assetName),
+            quantity: row.quantity,
+            price: row.price,
+            fees: row.fee,
+            fx_rate: row.fx,
+            fx_source: "broker-file",
+            fill_currency: row.currency,
+            trade_date_fx: row.currency === "NZD" ? undefined : tradeDateFx[`${row.currency}|${row.date}`] ?? undefined,
+            executed_at: row.date,
+            trade_date: row.date,
+            price_source: "broker_import",
+            broker: preview.broker || "file",
+            notes: stampFileHash(stampImportNote(`Imported from a ${label} file.`, batchId, row.brokerRef), fileHash),
+            deferCash: true,
+          })
+        : await applyTransaction(user, {
+            type: "deposit",
+            amount: step.kind === "deposit" ? step.amount : 0,
+            executed_at: step.kind === "deposit" ? step.date : "",
+            trade_date: step.kind === "deposit" ? step.date : "",
+            notes: stampFileHash(
+              stampImportNote(
+                `Paper cash of NZ$${(step.kind === "deposit" ? step.amount : 0).toFixed(2)} is recorded because this buy would otherwise make paper cash negative. ${FUNDING_DISCLOSURE}`,
+                batchId,
+                ""
+              ),
+              fileHash
+            ),
+            deferCash: true,
+          });
     } catch (err) {
       await unwind();
       invalidateBookCache(user._id);
@@ -316,14 +392,17 @@ export async function runH10Import(user: ImportUser, text: string, body: unknown
     if (!saved.ledgerId || saved.pendingCash == null || saved.previousCash == null) {
       await unwind();
       invalidateBookCache(user._id);
-      return NextResponse.json({ ok: false, error: `Line ${row.line} was not saved.`, data: { written: written.length, batchId } }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, error: `Line ${row?.line ?? (step.kind === "deposit" ? step.line : 0)} was not saved.`, data: { written: written.length, batchId } },
+        { status: 400 }
+      );
     }
     try {
-      await totalumSdk.crud.editRecordById("user", user._id, { cash_balance: saved.pendingCash });
+      await crud.editRecordById("user", user._id, { cash_balance: saved.pendingCash });
     } catch (err) {
-      await totalumSdk.crud.deleteRecordById("transaction", saved.ledgerId);
+      await crud.deleteRecordById("transaction", saved.ledgerId);
       if (saved.restoreHolding) await saved.restoreHolding();
-      await totalumSdk.crud.editRecordById("user", user._id, { cash_balance: saved.previousCash });
+      await crud.editRecordById("user", user._id, { cash_balance: saved.previousCash });
       await unwind();
       invalidateBookCache(user._id);
       const message = err instanceof Error ? err.message : "The cash update failed.";
@@ -334,11 +413,15 @@ export async function runH10Import(user: ImportUser, text: string, body: unknown
     }
     setCash(saved.pendingCash);
     savedRows.push({ id: saved.ledgerId, previousCash: saved.previousCash, restoreHolding: saved.restoreHolding });
-    written.push(row);
+    if (row) written.push(row);
   }
   invalidateBookCache(user._id);
   // Sum in cents so the total matches the rows to NZ$0.01.
   const cash = written.reduce((sum, row) => sum + Math.round(row.cashEffectNzd * 100), 0) / 100;
+  const deposited = roundCents(steps.reduce((sum, step) => sum + (step.kind === "deposit" ? step.amount : 0), 0));
+  const summary = `${written.length} trade${written.length === 1 ? "" : "s"} saved. Cash effect ${formatNzd(cash)}.${
+    deposited > 0 ? ` Paper deposit ${formatNzd(deposited)}.` : ""
+  }`;
   return NextResponse.json({
     ok: true,
     data: {
@@ -346,7 +429,7 @@ export async function runH10Import(user: ImportUser, text: string, body: unknown
       written: written.length,
       batchId,
       duplicates,
-      summary: `${written.length} trade${written.length === 1 ? "" : "s"} saved. Cash effect ${formatNzd(cash)}.`,
+      summary,
     },
   });
 }

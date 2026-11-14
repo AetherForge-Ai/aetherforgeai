@@ -15,6 +15,6 @@ describe("b54 REG-1: signed-out /markets first byte", () => {
     expect(read("src/app/markets/page.tsx")).toMatch(/withDeadline\(ensureCryptoTab\(built\), 400, built\)/);
   });
   it("build string", () => {
-    expect(read("public/build-version.txt").trim()).toBe("v3-b98-2026-11-10");
+    expect(read("public/build-version.txt").trim()).toBe("v3-b99-2026-11-15");
   });
 });

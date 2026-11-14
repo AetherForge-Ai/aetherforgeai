@@ -105,15 +105,15 @@ describe("H-1-TAPE tape prefix", () => {
     const fetched = src.indexOf('api.get<TickerFeed>("/api/ticker"');
     const wroteNzx = src.indexOf("setNzx(rows.nzx)");
     const wroteAsx = src.indexOf("setAsx(rows.asx)");
-    const prefix = src.indexOf("tapeMarketsPrefix({ nzx, asx })");
+    const prefix = src.indexOf("tapeMarketsPrefix({ nzx, asx }, now)");
     expect(seeded).toBeGreaterThan(0);
     expect(fetched).toBeGreaterThan(seeded);
     expect(wroteNzx).toBeGreaterThan(fetched);
     expect(wroteAsx).toBeGreaterThan(fetched);
     // Render reads the state the /api/ticker effect writes, after that effect, not the initial placeholder.
     expect(prefix).toBeGreaterThan(wroteNzx);
-    expect(src.indexOf('tapeEquityPrefix(nzx, "NZX")')).toBeGreaterThan(wroteNzx);
-    expect(src.indexOf('tapeEquityPrefix(asx, "ASX")')).toBeGreaterThan(wroteAsx);
+    expect(src.indexOf('tapeEquityPrefix(nzx, "NZX", now)')).toBeGreaterThan(wroteNzx);
+    expect(src.indexOf('tapeEquityPrefix(asx, "ASX", now)')).toBeGreaterThan(wroteAsx);
     expect(src).toContain("status={marketsStatus}");
     expect(src).toContain("status={nzxStatus}");
     expect(src).toContain("status={asxStatus}");
