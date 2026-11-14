@@ -196,13 +196,13 @@ export function PersonalGuideChat({
                 "max-w-[92%] rounded-2xl px-3 py-1.5 text-[13px] leading-snug",
                 m.role === "user"
                   ? "bg-amber-400 text-amber-950"
-                  : "border border-amber-400/20 bg-[#0c3a28] text-emerald-50"
+                  : "border border-amber-400/20 bg-[#0c3a28] text-gain"
               )}
             >
               {m.role === "assistant" ? (
                 <Markdown
                   content={m.content}
-                  className="text-[13px] leading-snug text-emerald-50 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_a]:text-amber-300 [&_p]:my-1 [&_p]:text-[13px] [&_p]:leading-snug [&_p]:text-emerald-50 [&_ul]:my-1.5 [&_ol]:my-1.5 [&_li]:text-[13px] [&_li]:leading-snug [&_li]:text-emerald-50 [&_strong]:text-amber-50"
+                  className="text-[13px] leading-snug text-gain [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_a]:text-amber-300 [&_p]:my-1 [&_p]:text-[13px] [&_p]:leading-snug [&_p]:text-gain [&_ul]:my-1.5 [&_ol]:my-1.5 [&_li]:text-[13px] [&_li]:leading-snug [&_li]:text-gain [&_strong]:text-amber-50"
                 />
               ) : (
                 <p className="whitespace-pre-wrap">{m.content}</p>
@@ -213,7 +213,7 @@ export function PersonalGuideChat({
 
         {showCards && messages.length === 0 && !sending ? (
           <div className="grid gap-1.5">
-            <p className="px-0.5 text-[13px] leading-snug text-emerald-50/90">{WELCOME}</p>
+            <p className="px-0.5 text-[13px] leading-snug text-gain">{WELCOME}</p>
             {ENTRY_CARDS.map((card) => {
               const className = cn(
                 "w-full rounded-lg border px-2.5 py-1.5 text-left text-[13px] font-medium leading-snug transition",
@@ -243,7 +243,7 @@ export function PersonalGuideChat({
         ) : null}
 
         {sending && (
-          <div className="flex items-center gap-2 text-xs text-emerald-100/70">
+          <div className="flex items-center gap-2 text-xs text-gain">
             <Loader2 className="size-3.5 animate-spin text-amber-300" />
             Thinking…
           </div>
@@ -262,7 +262,7 @@ export function PersonalGuideChat({
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Ask a short question"
-            className="h-9 flex-1 rounded-xl border border-amber-400/25 bg-[#0a2f22] px-3 text-sm text-emerald-50 placeholder:text-emerald-100/40 focus:border-amber-400/50 focus:outline-none"
+            className="h-9 flex-1 rounded-xl border border-amber-400/25 bg-[#0a2f22] px-3 text-sm text-gain placeholder:text-gain focus:border-amber-400/50 focus:outline-none"
             maxLength={1500}
           />
           <button
@@ -279,7 +279,7 @@ export function PersonalGuideChat({
           </button>
         </form>
         <div className="mt-1 flex items-center justify-between gap-2 px-0.5">
-          <p className="text-[10px] text-emerald-100/50">Educational only · not advice</p>
+          <p className="text-[10px] text-gain">Educational only · not advice</p>
           {messages.length > 0 ? (
             <Link
               href={PERSONAL_GUIDE_SIGNUP_URL}

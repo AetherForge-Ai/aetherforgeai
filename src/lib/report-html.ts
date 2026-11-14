@@ -50,7 +50,10 @@ const BLUE = "#2563eb";
 const INK = "#0f172a";
 const MUTE = "#64748b";
 const LINE = "#e2e8f0";
-const GREEN = "#059669";
+/** Light text-green token. Email and PDF cannot read --text-green. */
+const TEXT_GREEN = "#047857";
+/** Sparkline stroke and area fill only. Not a text colour. */
+const CHART_GREEN = "#059669";
 const RED = "#dc2626";
 
 function esc(s: unknown): string {
@@ -85,7 +88,7 @@ function pct(v: number): string {
 }
 
 function pctColor(v: number): string {
-  return v > 0 ? GREEN : v < 0 ? RED : MUTE;
+  return v > 0 ? TEXT_GREEN : v < 0 ? RED : MUTE;
 }
 
 /** Inline SVG sparkline of the 12-month momentum series. */
@@ -101,7 +104,7 @@ function sparkline(series: MomentumPoint[], positive: boolean): string {
   const y = (v: number) => H - P - ((v - min) / span) * (H - P * 2);
   const line = series.map((p, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(p.value).toFixed(1)}`).join(" ");
   const area = `${line} L${x(series.length - 1).toFixed(1)},${H - P} L${x(0).toFixed(1)},${H - P} Z`;
-  const stroke = positive ? GREEN : RED;
+  const stroke = positive ? CHART_GREEN : RED;
   return `<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" preserveAspectRatio="none" style="display:block">
     <path d="${area}" fill="${stroke}" opacity="0.10" />
     <path d="${line}" fill="none" stroke="${stroke}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />
@@ -110,9 +113,9 @@ function sparkline(series: MomentumPoint[], positive: boolean): string {
 
 function signalBadge(signal: TickerAnalysis["signal"]): string {
   const map: Record<TickerAnalysis["signal"], string> = {
-    "Strong Buy": GREEN,
-    Buy: "#0d9488",
-    Accumulate: "#0d9488",
+    "Strong Buy": TEXT_GREEN,
+    Buy: TEXT_GREEN,
+    Accumulate: TEXT_GREEN,
     Hold: "#0284c7",
     Watch: "#d97706",
     Reduce: RED,
@@ -223,8 +226,8 @@ function alertsBlock(alerts: ReportAlert[]): string {
 /* ---------------------- Technical-intelligence blocks ------------------- */
 
 const SIG_COLOR: Record<SecurityIntel["signal"], string> = {
-  "Strong Buy": GREEN,
-  Buy: "#0d9488",
+  "Strong Buy": TEXT_GREEN,
+  Buy: TEXT_GREEN,
   Hold: "#0284c7",
   Reduce: "#d97706",
   Sell: RED,
@@ -240,7 +243,7 @@ function metricsStrip(m: PortfolioMetrics): string {
     <table width="100%" style="border-collapse:collapse"><tr>
       ${cell("Ann. volatility", `${m.volatility.toFixed(1)}%`)}
       ${cell("Sharpe ratio", m.sharpe.toFixed(2))}
-      ${cell("Health score", `${m.healthScore}/100 · ${m.healthLabel}`, m.healthScore >= 55 ? GREEN : m.healthScore >= 38 ? INK : RED)}
+      ${cell("Health score", `${m.healthScore}/100 · ${m.healthLabel}`, m.healthScore >= 55 ? TEXT_GREEN : m.healthScore >= 38 ? INK : RED)}
       ${cell("7-day alpha", pct(m.alphaPotentialPct), pctColor(m.alphaPotentialPct))}
     </tr></table>`;
 }
@@ -269,8 +272,8 @@ function technicalsTable(techs: SecurityIntel[], bot?: string): string {
           : `${td("—")}${td(esc(`— ${NOT_ENOUGH_DAILY_HISTORY}`))}`;
         return `<tr>${name}${blanks}${reason}</tr>`;
       }
-      const macdColor = t.macdSignal === "Bullish" ? GREEN : t.macdSignal === "Bearish" ? RED : MUTE;
-      const rsiColor = t.rsi >= 70 ? RED : t.rsi <= 30 ? GREEN : INK;
+      const macdColor = t.macdSignal === "Bullish" ? TEXT_GREEN : t.macdSignal === "Bearish" ? RED : MUTE;
+      const rsiColor = t.rsi >= 70 ? RED : t.rsi <= 30 ? TEXT_GREEN : INK;
       const indicators = [
         td(quotedPrice(t.price, t.ticker, t.currency), ";font-family:monospace"),
         td(t.rsi.toFixed(2), `;color:${rsiColor}`),
@@ -380,7 +383,7 @@ function regionalNewsBlock(groups: RegionalNewsGroup[]): string {
     .map((g) => {
       const items = g.items
         .map((n) => {
-          const c = n.impact === "Bullish" ? GREEN : n.impact === "Bearish" ? RED : MUTE;
+          const c = n.impact === "Bullish" ? TEXT_GREEN : n.impact === "Bearish" ? RED : MUTE;
           return `<li style="margin:4px 0;font-size:12px">${esc(n.headline)}
             <span style="color:${MUTE};font-size:11px">· ${esc(n.source)} · ${esc(n.time)}</span>
             <span style="color:${c};float:right;font-size:11px;font-weight:600">${esc(n.impact)}</span></li>`;
@@ -400,8 +403,8 @@ const ACTION_COLOR: Record<DirectRecommendation["action"], string> = {
   SELL: RED,
   TRIM: "#d97706",
   HOLD: "#0284c7",
-  BUY: "#0d9488",
-  ACCUMULATE: GREEN,
+  BUY: TEXT_GREEN,
+  ACCUMULATE: TEXT_GREEN,
 };
 
 /** Direct, plain-English buy/sell/hold instructions on specific securities. */
@@ -428,7 +431,7 @@ function directRecommendationsBlock(recs: DirectRecommendation[]): string {
   return `<h2 style="font-size:16px;color:${INK};margin:26px 0 8px">Illustrative moves — informational only</h2>
     ${banner}
     ${held.length ? `<h3 style="font-size:13px;margin:6px 0;color:${INK}">On your holdings</h3><ul style="padding-left:2px;margin:0;list-style:none">${held.map(row).join("")}</ul>` : ""}
-    ${fresh.length ? `<h3 style="font-size:13px;margin:14px 0 6px;color:${GREEN}">New high-conviction opportunities (not yet held)</h3><ul style="padding-left:2px;margin:0;list-style:none">${fresh.map(row).join("")}</ul>` : ""}`;
+    ${fresh.length ? `<h3 style="font-size:13px;margin:14px 0 6px;color:${TEXT_GREEN}">New high-conviction opportunities (not yet held)</h3><ul style="padding-left:2px;margin:0;list-style:none">${fresh.map(row).join("")}</ul>` : ""}`;
 }
 
 /** Three forward pathways with steps + the single recommended route. */
@@ -459,10 +462,10 @@ function pathwayPlanBlock(plan: PathwayPlan, bot?: string): string {
 /* ----------------------- 7-Day Intelligence Briefing -------------------- */
 
 function convColor(level: string): string {
-  return level === "High" ? GREEN : level === "Moderate" ? BLUE : level === "Speculative" ? RED : MUTE;
+  return level === "High" ? TEXT_GREEN : level === "Moderate" ? BLUE : level === "Speculative" ? RED : MUTE;
 }
 function biasColor(bias: string): string {
-  return bias === "Constructive" ? GREEN : bias === "Defensive" ? RED : MUTE;
+  return bias === "Constructive" ? TEXT_GREEN : bias === "Defensive" ? RED : MUTE;
 }
 function sgn(x: number): string {
   const text = (Number.isFinite(x) ? x : 0).toFixed(2);
@@ -483,7 +486,7 @@ function outlookRow(r: BriefingOutlookRow): string {
     </td>
     ${cell("Bear", bear.lowPct, bear.highPct, bear.probability, RED)}
     ${cell("Base", base.lowPct, base.highPct, base.probability, INK)}
-    ${cell("Bull", bull.lowPct, bull.highPct, bull.probability, GREEN)}
+    ${cell("Bull", bull.lowPct, bull.highPct, bull.probability, TEXT_GREEN)}
   </tr>`;
 }
 
@@ -520,7 +523,7 @@ function briefingBlock(b: IntelligenceBriefing): string {
         <span style="display:inline-block;padding:4px 11px;border-radius:999px;background:${biasColor(b.overall.bias)}1a;color:${biasColor(b.overall.bias)};font-size:12px;font-weight:700">${esc(b.overall.bias)} bias</span>
         ${b.bot === "crypto" ? "" : `<span style="display:inline-block;padding:4px 11px;border-radius:999px;background:${convColor(b.overall.level)}1a;color:${convColor(b.overall.level)};font-size:12px;font-weight:700">${esc(b.overall.level)} conviction</span>
         <span style="display:inline-block;padding:4px 11px;border-radius:999px;background:#f1f5f9;color:${INK};font-size:12px;font-weight:700">Net ${b.overall.score}/100</span>`}
-        <span style="display:inline-block;padding:4px 11px;border-radius:999px;background:${b.sentiment.label === "Bullish" ? GREEN : b.sentiment.label === "Bearish" ? RED : MUTE}1a;color:${b.sentiment.label === "Bullish" ? GREEN : b.sentiment.label === "Bearish" ? RED : MUTE};font-size:12px;font-weight:700">Sentiment ${esc(b.sentiment.label)} ${b.sentiment.score}/100</span>
+        <span style="display:inline-block;padding:4px 11px;border-radius:999px;background:${b.sentiment.label === "Bullish" ? TEXT_GREEN : b.sentiment.label === "Bearish" ? RED : MUTE}1a;color:${b.sentiment.label === "Bullish" ? TEXT_GREEN : b.sentiment.label === "Bearish" ? RED : MUTE};font-size:12px;font-weight:700">Sentiment ${esc(b.sentiment.label)} ${b.sentiment.score}/100</span>
       </div>
       <div style="font-size:12px;color:${MUTE};margin:-4px 0 14px">${esc(b.overall.reason)}</div>
 
@@ -577,7 +580,7 @@ export function renderReportHtml(source: ApexReport, opts: RenderReportOptions):
     ? report.topGainers
         .map(
           (g) =>
-            `<li style="margin:4px 0"><strong>${esc(g.ticker)}</strong> · ${esc(g.name)} <span style="color:${g.withheld ? MUTE : GREEN};float:right">${g.withheld ? "data under review" : pct(g.changePct)}</span></li>`
+            `<li style="margin:4px 0"><strong>${esc(g.ticker)}</strong> · ${esc(g.name)} <span style="color:${g.withheld ? MUTE : TEXT_GREEN};float:right">${g.withheld ? "data under review" : pct(g.changePct)}</span></li>`
         )
         .join("")
     : `<li style="color:${MUTE}">${esc(report.sessionTapeNote || "Consolidating tape — no standout gainers this session.")}</li>`;
@@ -601,7 +604,7 @@ export function renderReportHtml(source: ApexReport, opts: RenderReportOptions):
 
   const news = report.newsSynthesis
     .map((n) => {
-      const c = n.impact === "Bullish" ? GREEN : n.impact === "Bearish" ? RED : MUTE;
+      const c = n.impact === "Bullish" ? TEXT_GREEN : n.impact === "Bearish" ? RED : MUTE;
       return `<li style="margin:4px 0">${esc(n.headline)} <span style="color:${MUTE};font-size:11px">· ${esc(n.source)}</span> <span style="color:${c};float:right;font-size:11px">${esc(n.impact)}</span></li>`;
     })
     .join("");
