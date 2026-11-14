@@ -10,7 +10,7 @@ import { sessionCash } from "@/lib/transactions";
 const read = (p: string) => readFileSync(p, "utf8");
 
 describe("goal b26", () => {
-  it("pins the build", () => expect(read("public/build-version.txt").trim()).toBe("v3-b98-2026-11-10"));
+  it("pins the build", () => expect(read("public/build-version.txt").trim()).toBe("v3-b99-2026-11-15"));
 
   it("G-10: buy returns the holding; the session's fresh cash replaces a second user read", () => {
     expect(read("src/app/api/transactions/route.ts")).toContain("holding: result.holding ?? null");

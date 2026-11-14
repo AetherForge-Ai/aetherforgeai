@@ -747,3 +747,4 @@ Must-fix batch 7 (TT b6 retest: CR-2 CR-5 H-5 H-13 M-3 M-6): marker `pull-check:
 - pull-check:v3-b96-2026-11-02 — CLS-2 metals badge fixed one-line box + 302px narrow-phone ticker slot; G-24 20-sample synthetic PDF/screenshot import set (95% rows, nothing saved before review).
 - pull-check:v3-b97-2026-11-05 — DEX-1 shown count equals deduped rows; G-24 on-device PDF/screenshot reader (pdf.js + tesseract.js, no AI); TT b97 grade committed.
 - pull-check:v3-b98-2026-11-10 — H-1 shut-session close label + shared watchlist quote (PR648), H-10 per-broker fixtures incl. Hatch (PR649), four historical docs restored (PR645), 5 MB import boundary tests (PR650), BS-01 IBKR sync acceptance tests (PR651), DEX-1 network|pool dedupe key for count and table (PR652).
+- pull-check:v3-b99-2026-11-15 — release marker.
