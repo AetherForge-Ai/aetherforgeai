@@ -192,7 +192,7 @@ export function PortfolioCoach() {
                 <span className="block font-display text-xs font-bold tracking-wide text-amber-300">
                   Assistant Guide
                 </span>
-                <span className="block text-[10px] text-emerald-100/65">
+                <span className="block text-[10px] text-gain">
                   Keeps your portfolio on track
                 </span>
               </span>
