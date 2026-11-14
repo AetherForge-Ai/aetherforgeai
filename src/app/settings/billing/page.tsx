@@ -6,6 +6,7 @@ import { BillingPortalButton } from "@/components/settings/BillingPortalButton";
 import { SettingsSectionNav } from "@/components/settings/SettingsSectionNav";
 import { Button } from "@/components/ui/button";
 import { loadAccountPlan } from "@/lib/account-plan";
+import { billingPortalReady, hasLiveSubscription, paidPlanNextStep } from "@/lib/billing-guard";
 import { publicPageMetadata } from "@/lib/reviewed-book";
 import { getCurrentUser, isStripeConfigured } from "@/lib/session";
 import { resolveDisplayName } from "@/lib/user-display";
@@ -21,7 +22,9 @@ export default async function BillingSettingsPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login?redirect=/settings/billing");
   const snapshot = await loadAccountPlan(user);
-  const portal = isStripeConfigured() && !!user.stripe_customer_id;
+  const portal = billingPortalReady({ stripeConfigured: isStripeConfigured(), stripeCustomerId: user.stripe_customer_id });
+  const paid = hasLiveSubscription({ plan: user.subscription_plan, status: user.subscription_status });
+  const nextStep = paidPlanNextStep(portal);
 
   return (
     <RedirectSignedOut redirectTo="/settings/billing">
@@ -87,6 +90,17 @@ export default async function BillingSettingsPage() {
               )}
               {portal ? <BillingPortalButton /> : null}
             </div>
+            {paid && !portal ? (
+              <p data-billing-next="support" className="mt-4 text-sm leading-relaxed text-muted-foreground">
+                {user.stripe_customer_id
+                  ? "Billing is not available from this page right now. To change or cancel it,"
+                  : nextStep.settingsLead}{" "}
+                <Link href={nextStep.href} className="font-medium text-primary hover:underline">
+                  {nextStep.action}
+                </Link>
+                .
+              </p>
+            ) : null}
           </section>
         </div>
       </AppShell>

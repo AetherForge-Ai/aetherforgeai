@@ -11,7 +11,7 @@ export const metadata = { title: "Goals · AetherForge AI", robots: { index: fal
 export default async function Page() {
   const user = await getCurrentUser();
   return (
-    <main className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6">
+    <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6">
       <h1 className="font-display text-2xl font-bold">Goals</h1>
       <p className="mt-2 text-sm text-muted-foreground">
         Set a dated NZ$ target, a starting amount and a monthly amount. The projection uses the same maths as a spreadsheet FV() and is illustrative, not a forecast or advice.
@@ -25,6 +25,6 @@ export default async function Page() {
       ) : (
         <GoalsWorkflow />
       )}
-    </main>
+    </div>
   );
 }

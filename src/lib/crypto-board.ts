@@ -80,6 +80,12 @@ const L1_CHAIN: Record<string, string> = {
   "pi-network": "Pi Network",
 };
 
+/** True for a CoinGecko id in the native-chain list. A ticker such as "btc" is not a slug. */
+export function isNativeCoinSlug(slug: string | null | undefined): boolean {
+  const raw = (slug || "").trim().toLowerCase();
+  return !!raw && Object.prototype.hasOwnProperty.call(L1_CHAIN, raw);
+}
+
 /** Ticker or leftover id when the CoinGecko id is not in the native-chain list. */
 const TICKER_CHAIN: Record<string, string> = {
   btc: "Bitcoin",

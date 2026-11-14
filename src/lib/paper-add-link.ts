@@ -1,4 +1,5 @@
 import { resolvableCoinId } from "@/lib/crypto-market";
+import { publicCoinSlug } from "@/lib/crypto-slug";
 import { unavailableCryptoHref } from "@/lib/market-detail-routes";
 
 /** Where a paper-book add returns after sign-up. DEX rows keep the DEX badge. */
@@ -15,7 +16,8 @@ export type PaperAddTarget = {
  */
 export function paperAddReturnPath(target: PaperAddTarget): string {
   const dex = target.market === "DEX";
-  const coin = resolvableCoinId(target.coinId ?? null);
+  const resolved = resolvableCoinId(target.coinId ?? null);
+  const coin = resolved ? publicCoinSlug(resolved) : null;
   if (coin) {
     const params = new URLSearchParams();
     params.set("buy", "1");

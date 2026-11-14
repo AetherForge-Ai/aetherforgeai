@@ -8,7 +8,19 @@ import { loadPublicTickerBounded } from "@/lib/public-ticker";
 import { FEED_FORCE_LABEL, FEED_FRESHNESS_WINDOWS } from "@/lib/feed-freshness-hook";
 // b28 G-05: registers the durable attempt store this page reads.
 import "@/lib/crypto-snapshot";
-import { dexStatusRow, formatStatusTime, latestIso, shapeStatusFeed, statusSavedLabel, type StatusFeedRow } from "@/lib/status-feeds";
+import {
+  cryptoQuotedAtServedByTicker,
+  dexStatusRow,
+  formatStatusTime,
+  latestIso,
+  shapeStatusFeed,
+  statusLastOkLine,
+  statusSavedLabel,
+  venueLastOkAt,
+  withNoSavedTime,
+  type EquityQuoteStamp,
+  type StatusFeedRow,
+} from "@/lib/status-feeds";
 import { readStatusLastOk, saveStatusLastOk } from "@/lib/status-last-ok.server";
 
 /** b31 M-2/REG-1: a probe waits at most this long; on a timeout the last OK time is shown. */
@@ -33,9 +45,9 @@ function withRatesDated(row: StatusFeedRow, ratesDated: string | null): StatusFe
 export const SHARE_PRICE_SAVED_LABEL = "Share prices last saved";
 
 /** b90 M-2: the newest saved NZX/ASX share price (the saved board prints), in NZ time. */
-async function sharePriceSavedRow(): Promise<StatusFeedRow> {
+async function sharePriceSavedRow(servedAt?: string | null): Promise<StatusFeedRow> {
   const { latestSavedEquityAt } = await import("@/lib/stock-board.server");
-  const at = latestSavedEquityAt();
+  const at = latestIso([servedAt, latestSavedEquityAt()]);
   return at
     ? { label: SHARE_PRICE_SAVED_LABEL, tone: "ok", text: `${formatStatusTime(at)} · newest saved NZX or ASX price` }
     : { label: SHARE_PRICE_SAVED_LABEL, tone: "amber", text: "— no saved share price yet" };
@@ -171,8 +183,8 @@ export async function loadStatusFeeds(now = Date.now()): Promise<StatusFeedRow[]
       ]));
   edgeTimePut("equity", equityFresh);
   const equityAt = equityFresh ?? (await lastOkFor("equity"));
-  // b37 M-2: crypto "Last OK" comes from the shared snapshot, the same source as the page's
-  // x-af-snapshot-at stamp, so the two times can't disagree. The tape is used only when there's no snapshot.
+  // b37 M-2: start from the shared snapshot time (the same read as x-af-snapshot-at).
+  // M-2-STATUS: a newer coin quotedAt, the time /api/ticker serves, replaces that stamp.
   // b51 M-2 (TT b50: crypto "unavailable" on 1 of 140 loads, a 5.1 s cold IAD load): the fallbacks used to
   // run one after another (up to ~5 s). They now start together and the first in priority order wins:
   // snapshot → tape → colo snapshot copy → colo last-OK time → last successful shared refresh attempt
@@ -186,10 +198,20 @@ export async function loadStatusFeeds(now = Date.now()): Promise<StatusFeedRow[]
     const att = (await attemptP)?.last;
     cryptoAt = att?.ok && att.at ? remember("crypto", att.at) : null;
   }
+  let againSnap: { at?: string | null; coins?: Parameters<typeof cryptoQuotedAtServedByTicker>[0] } | null = null;
   if (!cryptoAt) {
     const again = await within(readCryptoSnapshot(2_000), 2_200);
+    againSnap = again;
     cryptoAt = again?.at ? remember("crypto", again.at) : null;
   }
+  // M-2-STATUS: Last OK is the quotedAt /api/ticker serves (coin.quotedAt, else the snapshot time),
+  // not an older snapshot stamp that makes a 7:00 quote look 15 minutes late.
+  const servedCrypto = latestIso([
+    cryptoQuotedAtServedByTicker(snap?.coins, snap?.at ?? null),
+    cryptoQuotedAtServedByTicker(againSnap?.coins, againSnap?.at ?? null),
+    tapeTimedOut ? null : latestIso((tape?.rows.crypto ?? []).map((row) => row.quotedAt)),
+  ]);
+  if (servedCrypto) cryptoAt = remember("crypto", servedCrypto);
   edgeTimePut("crypto", cryptoAt);
   // b46 M-2 (TT b45: crypto "check timed out" 4/140): the crypto time comes from the snapshot, so a slow
   // tape probe does not make the crypto row a timed-out check when a snapshot time was read.
@@ -197,39 +219,88 @@ export async function loadStatusFeeds(now = Date.now()): Promise<StatusFeedRow[]
   // b90 M-2 (health 29 Oct P3: "Last OK" was 18 h old): Last OK is when the rates were last fetched; the provider's rate date is shown beside it.
   const fxAt = fxTimedOut ? await lastOkFor("fx") : remember("fx", fx?.sourced ? fx.fetchedAt ?? fx.asOf : null);
   const fxRatesDated = !fxTimedOut && fx?.sourced && fx.asOf ? fx.asOf : null;
-  const metalsAt = metalsTimedOut ? await lastOkFor("metals") : remember("metals", metals?.live ? metals.quotedAt : null);
+  const metalsAt = metalsTimedOut ? await lastOkFor("metals") : remember("metals", metals?.live ? metals.quotedAt || metals.asOf : null);
+  const shareQuotes = await shareQuoteStamps(tape, tapeLate);
+  const { savedEquityQuotes } = await import("@/lib/stock-board.server");
+  const savedShares = savedEquityQuotes();
+  const nzxAt = venueLastOkAt(shareQuotes, savedShares, "NZX");
+  const asxAt = venueLastOkAt(shareQuotes, savedShares, "ASX");
   const killed = cryptoFeedKilled();
   return [
+    statusLastOkLine("NZX shares", nzxAt, now, "saved").row,
+    statusLastOkLine("ASX shares", asxAt, now, "saved").row,
     await equityRow(withLastOk(shapeStatusFeed({ label: FEED_FORCE_LABEL.equity, at: equityAt, now, ...FEED_FRESHNESS_WINDOWS.equity }), tapeTimedOut), now, tapeLate),
-    await sharePriceSavedRow(),
-    withLastOk(shapeStatusFeed({
+    await sharePriceSavedRow(latestIso([nzxAt, asxAt])),
+    withNoSavedTime(withLastOk(shapeStatusFeed({
       label: FEED_FORCE_LABEL.crypto,
       at: cryptoAt,
       now,
       ...FEED_FRESHNESS_WINDOWS.crypto,
       failed: killed,
       failedText: "— switched off by the operator",
-    }), cryptoTimedOut),
+    }), cryptoTimedOut)),
     (await within(cryptoAttemptRow(attemptP))) ?? localCryptoAttemptRow(),
-    await (async () => {
+    withNoSavedTime(await (async () => {
       const dex = await dexP;
       const at = remember("dex", dex?.at ?? null) ?? (await lastOkFor("dex"));
       edgeTimePut("dex", at);
       return dexStatusRow(at, dex?.failure ?? null, now, dex?.sourceNote ?? null);
-    })(),
-    withRatesDated(withLastOk(shapeStatusFeed({
+    })()),
+    withNoSavedTime(withRatesDated(withLastOk(shapeStatusFeed({
       label: FEED_FORCE_LABEL.fx,
       at: fxAt,
       now,
       ...FEED_FRESHNESS_WINDOWS.fx,
-    }), fxTimedOut), fxRatesDated),
-    withLastOk(shapeStatusFeed({
+    }), fxTimedOut), fxRatesDated)),
+    withNoSavedTime(withLastOk(shapeStatusFeed({
       label: FEED_FORCE_LABEL.metals,
       at: metalsAt,
       now,
       ...FEED_FRESHNESS_WINDOWS.metals,
-    }), metalsTimedOut),
+    }), metalsTimedOut)),
   ];
+}
+
+function equityStamps(
+  rows: Array<{ symbol?: string; quotedAt?: string | null; price?: number | null; change?: number | null }> | null | undefined,
+): EquityQuoteStamp[] {
+  return (rows ?? []).map((row) => ({
+    symbol: row.symbol,
+    quotedAt: row.quotedAt ?? null,
+    price: row.price ?? null,
+    changePct: row.change ?? null,
+  }));
+}
+
+/** Quote times from the same equity rows /api/ticker serves: this request's tape, then its last-good copy. */
+async function shareQuoteStamps(
+  tape: { rows: { nzx: Array<{ symbol: string; quotedAt?: string | null; price: number; change: number | null }>; asx: Array<{ symbol: string; quotedAt?: string | null; price: number; change: number | null }> } } | null,
+  tapeLate: Promise<{ rows: { nzx: Array<{ symbol: string; quotedAt?: string | null; price: number; change: number | null }>; asx: Array<{ symbol: string; quotedAt?: string | null; price: number; change: number | null }> } } | null>,
+): Promise<EquityQuoteStamp[]> {
+  const { tickerEquityQuotes } = await import("@/lib/public-ticker");
+  const { edgeJsonGet } = await import("@/lib/ticker-serve");
+  const [memory, colo] = await Promise.all([
+    within(tickerEquityQuotes(), 800),
+    within(
+      edgeJsonGet<{
+        nzx?: Array<{ symbol?: string; quotedAt?: string | null; price?: number; change?: number | null }>;
+        asx?: Array<{ symbol?: string; quotedAt?: string | null; price?: number; change?: number | null }>;
+      }>("equity", 500),
+      700,
+    ),
+  ]);
+  let quotes: EquityQuoteStamp[] = [
+    ...equityStamps(tape?.rows.nzx),
+    ...equityStamps(tape?.rows.asx),
+    ...(memory ?? []),
+    ...equityStamps(colo?.nzx),
+    ...equityStamps(colo?.asx),
+  ];
+  if (!venueLastOkAt(quotes, [], "NZX") || !venueLastOkAt(quotes, [], "ASX")) {
+    const late = await tapeLate.catch(() => null);
+    if (late) quotes = [...quotes, ...equityStamps(late.rows.nzx), ...equityStamps(late.rows.asx)];
+  }
+  return quotes;
 }
 
 /** Goal b14: the last CoinGecko attempt this server made, so a silent fallback shows. */

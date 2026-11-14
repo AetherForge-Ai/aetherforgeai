@@ -9,6 +9,7 @@ describe("portfolio route aliases", () => {
     expect(Object.fromEntries(PORTFOLIO_ROUTE_ALIASES.map((row) => [row.source, row.destination]))).toEqual({
       "/transactions": "/dashboard?tab=transactions",
       "/ledger": "/dashboard?tab=transactions",
+      "/portfolio": "/dashboard",
       "/alerts": "/dashboard/alerts",
       "/notifications": "/dashboard/alerts",
     });
