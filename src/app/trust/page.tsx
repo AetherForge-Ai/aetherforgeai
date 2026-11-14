@@ -50,7 +50,7 @@ export default function TrustPage() {
       <div className="pointer-events-none absolute inset-0 bg-aurora" />
       <div className="relative">
         <SiteHeader />
-        <main className="mx-auto max-w-2xl px-4 py-12 sm:px-6">
+        <div className="mx-auto max-w-2xl px-4 py-12 sm:px-6">
           <JsonLd
             data={breadcrumbJsonLd([
               { name: "Home", path: "/" },
@@ -208,7 +208,7 @@ export default function TrustPage() {
             <h2 className="font-display text-lg font-bold">Not financial advice</h2>
             <DisclaimerNotice variant="full" />
           </section>
-        </main>
+        </div>
       </div>
     </div>
   );

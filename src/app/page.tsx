@@ -124,7 +124,7 @@ export default function LandingPage() {
       <Suspense fallback={<TickerFallback />}>
         <HomeTickerBand />
       </Suspense>
-      <main className="flex-1">
+      <div className="flex-1">
         <div className="chrome-dark relative min-h-screen bg-background bg-grid">
           <div className="pointer-events-none absolute inset-0 bg-aurora" />
           <div className="relative">
@@ -327,7 +327,7 @@ export default function LandingPage() {
             </section>
           </div>
         </div>
-      </main>
+      </div>
     </div>
   );
 }

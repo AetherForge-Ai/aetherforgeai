@@ -10,6 +10,7 @@ import { publicSourceAllowed } from "@/lib/swyftx-display";
 import { loadPublicCryptoPrint, noteListedPrices, recallPublicTab, rememberPublicTab } from "@/lib/crypto-price-feed";
 import { loadTop400Markets } from "@/lib/crypto-source";
 import { fmtCompactNum, resolveSevenDayChange } from "@/lib/crypto-market";
+import { publicCoinSlug } from "@/lib/crypto-slug";
 import { formatDisplayDateTime, formatSignedPercent, formatUnitPrice } from "@/lib/currency";
 import { PUBLIC_SEED_ROWS, type PublicMarketIndex, type PublicPriceRow, type PublicPriceTab } from "@/lib/public-market-types";
 import { boardCoverage, pageListings } from "@/lib/stock-catalog";
@@ -127,10 +128,10 @@ function cryptoRowsFromCoins(coins: CryptoTabCoin[], quotedAt: string): PublicPr
     name: coin.name,
     price: formatUnitPrice(coin.price, "USD"),
     change: formatSignedPercent(coin.change24h),
-    href: `/markets/crypto/${encodeURIComponent(coin.id)}`,
+    href: `/markets/crypto/${encodeURIComponent(publicCoinSlug(coin.id))}`,
     usd: coin.price,
     changePct: coin.change24h,
-    quoteId: coin.id,
+    quoteId: publicCoinSlug(coin.id),
     source: shownSource(coin.source, "coingecko"),
     // b38 H-1: each row's own time; over 15 min it is marked delayed.
     asOf: cryptoRowDelayed(coin.quotedAt || quotedAt) ? `${asOfLabel(coin.quotedAt || quotedAt)} · delayed` : asOfLabel(coin.quotedAt || quotedAt),

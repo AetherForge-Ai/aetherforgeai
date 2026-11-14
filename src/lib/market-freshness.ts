@@ -286,6 +286,33 @@ export function exchangeFreshnessLabel(
   return equityFreshnessLabel(equityVenue(exchange), now, quotedAt);
 }
 
+type TapeQuoteStamp = { quotedAt?: string | number | Date | null };
+
+/**
+ * Header-tape equity prefix. An open session keeps the existing delay words.
+ * A shut session uses closeLabelFor on the newest row quotedAt (same path as
+ * the boards and /api/tickers/quote). A missing stamp stays "Close unavailable".
+ */
+export function tapeEquityPrefix(
+  rows: ReadonlyArray<TapeQuoteStamp>,
+  venue: "NZX" | "ASX",
+  now = new Date(),
+): string {
+  if (equitySessionOpen(venue, now)) return exchangeFreshnessLabel(venue, now).label;
+  return exchangeFreshnessLabel(venue, now, latestQuoteTime(rows.map((row) => row.quotedAt))).label;
+}
+
+/** Compact MARKETS prefix: newest NZX or ASX quotedAt, then tapeEquityPrefix. */
+export function tapeMarketsPrefix(
+  rows: { nzx?: ReadonlyArray<TapeQuoteStamp>; asx?: ReadonlyArray<TapeQuoteStamp> },
+  now = new Date(),
+): string {
+  const nzxAt = latestQuoteTime((rows.nzx ?? []).map((row) => row.quotedAt));
+  const asxAt = latestQuoteTime((rows.asx ?? []).map((row) => row.quotedAt));
+  const venue: "NZX" | "ASX" = asxAt && (!nzxAt || asxAt.getTime() > nzxAt.getTime()) ? "ASX" : "NZX";
+  return tapeEquityPrefix(venue === "ASX" ? (rows.asx ?? []) : (rows.nzx ?? []), venue, now);
+}
+
 /** API `live` is true only while that equity session is open and a quote arrived. */
 export function equityApiLive(exchange: Exchange, quoted: boolean, now = new Date()): boolean {
   return quoted && equitySessionOpen(exchange, now);

@@ -76,7 +76,7 @@ export function MondayBriefPanel() {
   };
 
   return (
-    <main className="mx-auto max-w-3xl space-y-5" aria-labelledby="brief-title">
+    <div className="mx-auto max-w-3xl space-y-5" aria-labelledby="brief-title">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 id="brief-title" className="font-display text-2xl font-bold">Monday Briefing</h1>
@@ -106,6 +106,6 @@ export function MondayBriefPanel() {
           </ul>
         </article>
       ) : null}
-    </main>
+    </div>
   );
 }
