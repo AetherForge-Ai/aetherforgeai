@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 
 /**
  * DIAG-FLAGS-1: on/off only. `runtime` is this handler's process.env.
- * `edge` is the middleware bundle's build-time snapshot, carried in x-af-edge-flags.
+ * `edge` is the middleware snapshot from x-af-edge-flags. A missing header is null, not off.
  * No flag value, no allow-list, no count.
  */
 export async function GET(request: NextRequest) {

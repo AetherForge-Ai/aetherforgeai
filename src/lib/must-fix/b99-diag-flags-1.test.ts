@@ -17,7 +17,7 @@ import {
 } from "@/lib/diag-flags";
 import { sharedRouteGate, signedOutSharedMissing } from "@/lib/route-gate";
 import { decideSharedPage } from "@/lib/shared-access";
-import { middleware } from "@/middleware";
+import { config, middleware } from "@/middleware";
 
 const read = (p: string) => readFileSync(p, "utf8");
 const SECRET_IDS = "zz-hook-user-9f3a,zz-hook-user-1c2d";
@@ -42,7 +42,64 @@ function headerBag(res: Response): string {
   return [...res.headers.entries()].map(([key, value]) => `${key}:${value}`).join("\n");
 }
 
+const MATCHER = "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)";
+
 describe("DIAG-FLAGS-1 /api/health", () => {
+  it("the middleware matcher runs on /api/health", () => {
+    expect(config.matcher).toEqual([MATCHER]);
+    const re = new RegExp(`^${MATCHER}$`);
+    expect(re.test("/api/health")).toBe(true);
+    expect(re.test("/api/health/")).toBe(true);
+    expect(re.test("/_next/static/chunks/a.js")).toBe(false);
+    expect(re.test("/favicon.ico")).toBe(false);
+    expect(re.test("/logo.png")).toBe(false);
+  });
+
+  it("a missing x-af-edge-flags header is unknown, not off", async () => {
+    stubFlags({ PORTFOLIO_SHARING: "on", GOAL_TEST_HOOKS: "1", AI_SHOW_WORKING: "1" });
+    for (const headers of [undefined, { [EDGE_FLAGS_HEADER]: "   " }]) {
+      const res = await healthGet(new NextRequest("https://aetherforgeai.co.nz/api/health", headers ? { headers } : undefined));
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      for (const name of DIAG_FLAG_NAMES) {
+        expect(body.flags[name].edge, name).toBeNull();
+      }
+      expect(body.flags.PORTFOLIO_SHARING.runtime).toBe(true);
+      expect(body.flags.GOAL_TEST_HOOKS.runtime).toBe(true);
+      expect(body.flags.HEADMASTER_GOALS.runtime).toBe(false);
+      expect(JSON.stringify(body)).not.toMatch(/"edge":false/);
+    }
+  });
+
+  it("middleware overwrites a client-supplied x-af-edge-flags", async () => {
+    stubFlags();
+    const spoof = "GOAL_TEST_HOOKS=1,PORTFOLIO_SHARING=1,HEADMASTER_GOALS=1,NEW_PRICE_STRUCTURE=1,AI_SHOW_WORKING=1";
+    const res = await middleware(
+      new NextRequest("https://aetherforgeai.co.nz/api/health", {
+        headers: { [EDGE_FLAGS_HEADER]: `${spoof},NOTE=${SECRET_OTHER}` },
+      }),
+    );
+    const expected = encodeEdgeFlags(edgeFlagState());
+    expect(expected).toBe(
+      "GOAL_TEST_HOOKS=0,PORTFOLIO_SHARING=0,HEADMASTER_GOALS=0,NEW_PRICE_STRUCTURE=0,AI_SHOW_WORKING=0",
+    );
+    expect(expected).not.toBe(spoof);
+    expect(res.headers.get(EDGE_FLAGS_HEADER)).toBe(expected);
+    expect(res.headers.get("x-middleware-request-x-af-edge-flags")).toBe(expected);
+    expect(res.headers.get(EDGE_FLAGS_HEADER)).not.toContain(SECRET_OTHER);
+    expect(res.headers.get(EDGE_FLAGS_HEADER)).not.toContain("=1");
+
+    const route = await healthGet(
+      new NextRequest("https://aetherforgeai.co.nz/api/health", {
+        headers: { [EDGE_FLAGS_HEADER]: res.headers.get("x-middleware-request-x-af-edge-flags") ?? "" },
+      }),
+    );
+    const body = await route.json();
+    for (const name of DIAG_FLAG_NAMES) {
+      expect(body.flags[name].edge, name).toBe(false);
+    }
+  });
+
   it("returns 200 JSON with runtime and edge booleans and Cache-Control: no-store", async () => {
     stubFlags({
       PORTFOLIO_SHARING: "on",

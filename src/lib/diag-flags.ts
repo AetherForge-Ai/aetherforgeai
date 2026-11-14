@@ -18,7 +18,8 @@ export const DIAG_FLAG_NAMES = [
 
 export type DiagFlagName = (typeof DIAG_FLAG_NAMES)[number];
 
-export type FlagPair = { runtime: boolean; edge: boolean };
+/** `edge: null` means the middleware header was absent. That is unknown, not off. */
+export type FlagPair = { runtime: boolean; edge: boolean | null };
 
 /** Response and request header. 0/1 pairs, middleware sets it on /api/health only. */
 export const EDGE_FLAGS_HEADER = "x-af-edge-flags";
@@ -77,13 +78,22 @@ export function decodeEdgeFlags(header: string | null | undefined): Record<DiagF
   return flags;
 }
 
+/** No header, or only whitespace. A missing snapshot must not be reported as off. */
+export function edgeHeaderMissing(header: string | null | undefined): boolean {
+  return header == null || header.trim() === "";
+}
+
 export function healthFlags(
   edgeHeader: string | null | undefined,
   env: Record<string, string | undefined> = process.env,
 ): Record<DiagFlagName, FlagPair> {
   const runtime = runtimeFlagState(env);
-  const edge = decodeEdgeFlags(edgeHeader);
   const flags = {} as Record<DiagFlagName, FlagPair>;
+  if (edgeHeaderMissing(edgeHeader)) {
+    for (const name of DIAG_FLAG_NAMES) flags[name] = { runtime: runtime[name], edge: null };
+    return flags;
+  }
+  const edge = decodeEdgeFlags(edgeHeader);
   for (const name of DIAG_FLAG_NAMES) flags[name] = { runtime: runtime[name], edge: edge[name] };
   return flags;
 }
