@@ -17,7 +17,7 @@ export default function Fixture500Client() {
   }, [t0]);
   const say = () => toast.message("Example data: nothing is saved.");
   return (
-    <main className="mx-auto max-w-6xl space-y-4 p-6" data-fixture-500>
+    <div className="mx-auto max-w-6xl space-y-4 p-6" data-fixture-500>
       <div role="note" className="rounded-md border border-amber-400 bg-amber-50 p-3 text-sm font-semibold text-amber-900 dark:bg-amber-950 dark:text-amber-100">
         {FIXTURE_500_LABEL}
       </div>
@@ -26,6 +26,6 @@ export default function Fixture500Client() {
         built in <span data-build-ms>{buildMs ?? "…"}</span> ms
       </p>
       <TransactionsTab snapshot={snapshot} loading={false} onRecord={say} onEdit={say} onDeleteDividend={() => { say(); return false; }} />
-    </main>
+    </div>
   );
 }

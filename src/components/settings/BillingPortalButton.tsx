@@ -5,6 +5,7 @@ import { Loader2, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import { paidPlanNextStep } from "@/lib/billing-guard";
 
 /** Opens the existing Stripe customer portal. It does not start a new checkout. */
 export function BillingPortalButton() {
@@ -25,7 +26,7 @@ export function BillingPortalButton() {
   return (
     <Button variant="outline" onClick={openPortal} disabled={busy}>
       {busy ? <Loader2 className="mr-2 size-4 animate-spin" /> : <ExternalLink className="mr-2 size-4" />}
-      Manage billing
+      {paidPlanNextStep(true).action}
     </Button>
   );
 }

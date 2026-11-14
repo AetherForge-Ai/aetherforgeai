@@ -17,7 +17,7 @@ export default function HelpPage() {
       <div className="pointer-events-none absolute inset-0 bg-aurora" />
       <div className="relative">
         <SiteHeader />
-        <main className="mx-auto max-w-3xl px-4 py-14 sm:px-6">
+        <div className="mx-auto max-w-3xl px-4 py-14 sm:px-6">
           {/* b38 G-15: the same entries rendered below (search starts empty, so all are visible). */}
           <JsonLd data={helpFaqJsonLd(articles)} />
           <JsonLd
@@ -44,7 +44,7 @@ export default function HelpPage() {
           <div className="mt-8">
             <HelpSearch articles={articles} />
           </div>
-        </main>
+        </div>
       </div>
     </div>
   );

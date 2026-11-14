@@ -10,6 +10,7 @@ import {
   resolvableCoinId,
   COIN_DETAIL_UNAVAILABLE,
 } from "@/lib/crypto-market";
+import { publicCoinSlug } from "@/lib/crypto-slug";
 import type { Exchange } from "@/lib/market-intel";
 import type { StockBoard } from "@/lib/stock-markets";
 
@@ -83,7 +84,8 @@ export function parseMarketsTab(value: string | null | undefined): MarketsTab | 
 export function cryptoDetailHref(id: string, opts?: { buy?: boolean }): string {
   const coin = resolvableCoinId(id);
   if (!coin) return unavailableCryptoHref();
-  return `/markets/crypto/${encodeURIComponent(coin)}${opts?.buy ? "?buy=1" : ""}`;
+  const slug = publicCoinSlug(coin);
+  return `/markets/crypto/${encodeURIComponent(slug)}${opts?.buy ? "?buy=1" : ""}`;
 }
 
 export function unavailableCryptoHref(opts?: { symbol?: string; name?: string }): string {

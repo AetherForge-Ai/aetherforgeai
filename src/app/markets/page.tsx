@@ -60,10 +60,10 @@ const SESSION_PENDING = "session-pending" as const;
 function MarketsTimeout() {
   return (
     <AppShell tone="dark" guest user={{ name: "Guest", email: "Sign in to activate your account" }}>
-      <main className="mx-auto max-w-3xl p-6">
+      <div className="mx-auto max-w-3xl p-6">
         <h1 className="text-xl font-semibold">Markets</h1>
         <p className="mt-2 text-sm opacity-80">Prices are taking longer than usual to load. Refresh the page in a few seconds.</p>
-      </main>
+      </div>
     </AppShell>
   );
 }

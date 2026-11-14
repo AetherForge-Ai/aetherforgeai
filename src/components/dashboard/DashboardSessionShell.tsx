@@ -5,6 +5,7 @@ import { DashboardSessionSkeleton, SessionSlowNotice } from "@/components/dashbo
 import { GuestDashboardGate } from "@/components/dashboard/GuestDashboardGate";
 import {
   PortfolioDashboard,
+  dashboardPageTitle,
   type DashboardView,
 } from "@/components/dashboard/PortfolioDashboard";
 import { confirmDashboardSessionStrict, invalidateLiveSessionProbe } from "@/lib/auth-refresh";
@@ -86,12 +87,24 @@ export function DashboardSessionShell({
     };
   }, [view, guestDocument, attempt]);
 
-  if (phase === "slow" && !guestDocument) return <SessionSlowNotice onRetry={() => setAttempt((n) => n + 1)} />;
+  // CRAWL-A F10: a member document's first HTML is this shell (the book mounts
+  // only after the session read). One sr-only H1 lives in that HTML. The ready
+  // branch replaces this whole tree with PortfolioDashboard, which has the visible H1.
+  const serverHeading = !guestDocument ? <h1 className="sr-only">{dashboardPageTitle(view)}</h1> : null;
+  if (phase === "slow" && !guestDocument) {
+    return (
+      <>
+        {serverHeading}
+        <SessionSlowNotice onRetry={() => setAttempt((n) => n + 1)} />
+      </>
+    );
+  }
   if (guestDocument || phase === "guest" || !session || phase !== "ready") {
     if (guestDocument || phase === "guest") return <GuestDashboardGate />;
     // Goal b14 H-4: the server-read allowance is in the first HTML, before any client fetch.
     return (
       <>
+        {serverHeading}
         {initialQuota ? <ServerQuotaStrip quota={initialQuota} /> : null}
         <DashboardSessionSkeleton />
       </>

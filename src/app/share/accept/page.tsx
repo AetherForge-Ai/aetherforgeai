@@ -12,12 +12,12 @@ export default async function AcceptSharePage() {
   const user = await getCurrentUser().catch(() => null);
   if (!featureOnFor("PORTFOLIO_SHARING", user as never)) notFound();
   return (
-    <main className="mx-auto max-w-xl px-4 py-10">
+    <div className="mx-auto max-w-xl px-4 py-10">
       <h1 className="text-2xl font-bold">Shared book invite</h1>
       <p className="mt-2 text-sm text-muted-foreground">Someone has shared their AetherForge paper book with you, read-only.</p>
       <div className="mt-4">
         <AcceptShare />
       </div>
-    </main>
+    </div>
   );
 }

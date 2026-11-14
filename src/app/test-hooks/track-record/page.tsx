@@ -38,14 +38,14 @@ export default async function Page() {
   }
   if (!view) {
     return (
-      <main className="mx-auto max-w-3xl space-y-4 p-6" data-track-record>
+      <div className="mx-auto max-w-3xl space-y-4 p-6" data-track-record>
         <h1 className="text-xl font-semibold">Track record scorecard (test view, not published)</h1>
         {out.kind === "missing" ? (
           <p data-track-missing>No scorecard is stored yet, and a live build did not finish: {liveError || "unknown error"}. Reload in a minute.</p>
         ) : (
           <p data-track-error role="alert">{out.kind === "error" ? out.error : ""} A live build did not finish: {liveError || "unknown error"}.</p>
         )}
-      </main>
+      </div>
     );
   }
   // b36 G-20 (GOAL-LOCK #55): who stored this card, and the last 3 scheduled runs. GitHub Actions
@@ -61,7 +61,7 @@ export default async function Page() {
         ? "Not enough later prices are stored yet to score a hit or a miss. The counts above are the calls collected so far. Pending calls stay pending. Misses stay in the total."
         : "";
   return (
-    <main className="mx-auto max-w-3xl space-y-4 p-6" data-track-record data-track-source={source}>
+    <div className="mx-auto max-w-3xl space-y-4 p-6" data-track-record data-track-source={source}>
       <h1 className="text-xl font-semibold">Track record scorecard (test view, not published)</h1>
       <p
         className="text-sm"
@@ -111,6 +111,6 @@ export default async function Page() {
         <summary>How to verify the hash</summary>
         <p>Algorithm: SHA-256, lowercase hex. Input: the scorecard body as canonical JSON (object keys sorted A–Z at every level, no spaces), with fields <code>week</code>, <code>calls</code>, <code>hits</code>, <code>misses</code>, <code>pending</code>, <code>unscored</code>. Each entry in <code>calls</code> has <code>hash</code>, <code>ticker</code>, <code>signal</code>, <code>result</code> (hit, miss, pending or unscored). Each call hash is SHA-256 of canonical JSON of <code>{CALL_HASH_FIELDS.join(", ")}</code>. This page recomputes the scorecard hash from the stored body and shows whether it matches. The full body stays in the store. This test view shows totals only.</p>
       </details>
-    </main>
+    </div>
   );
 }

@@ -7,7 +7,7 @@ import { loadStatusFeeds } from "@/lib/status-feeds.server";
 import { applyFeedForce, readFeedForce } from "@/lib/feed-freshness-hook";
 import { currentUserMayUseTestHooks } from "@/lib/test-hooks.server";
 import { NO_INCIDENTS_LINE, STATUS_INCIDENTS } from "@/lib/docs-guides";
-import { formatStatusTime, statusFeedBody } from "@/lib/status-feeds";
+import { formatStatusTime, statusFeedBody, statusLastOkLine } from "@/lib/status-feeds";
 import { aiProviderHealth, aiProviderStatusLine } from "@/lib/ai-provider-health";
 
 export const dynamic = "force-dynamic";
@@ -31,6 +31,7 @@ export default async function StatusPage() {
   // G-05: the cookie only changes a cell for an allow-listed test account.
   const feeds = applyFeedForce(rawFeeds, readFeedForce(headerList.get("cookie"), allowed));
   const aiLine = aiProviderStatusLine(ai);
+  const aiOk = statusLastOkLine("AI guide", ai.checkedAt, Date.now(), "probe");
   return (
     <PublicGuide
       kicker="AetherForge AI · Status"
@@ -42,7 +43,7 @@ export default async function StatusPage() {
           body: statusFeedBody(feed),
           tone: feed.tone,
         })),
-        { title: "AI guide", body: aiLine.body, tone: aiLine.tone },
+        { title: "AI guide", body: `${aiOk.body}. ${aiLine.body}`, tone: aiLine.tone ?? aiOk.row.tone },
         STATUS_INCIDENTS.length
           ? {
               title: "Incident history",
