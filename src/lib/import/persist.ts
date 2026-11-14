@@ -21,7 +21,7 @@ import {
 } from "@/lib/import-commit";
 import { batchIdForHash, contentHash } from "@/lib/import/hash";
 import { IMPORT_TOO_LARGE, textTooLarge } from "@/lib/import/limits";
-import { previewCashRefusal } from "@/lib/import/cash-guard";
+import { importCashWarning } from "@/lib/import/cash-guard";
 import { previewImport } from "@/lib/import/plan";
 import { suggestedColumnMap, mappingReady } from "@/lib/import/formats";
 import type { ColumnMap, ImportPreview, ImportRow } from "@/lib/import/types";
@@ -76,6 +76,12 @@ export interface H10PersistDeps {
 
 function roundCents(value: number): number {
   return Math.round((Number(value) || 0) * 100) / 100;
+}
+
+/** A detected broker export, or a Flex sync. A generic column-map file is not one. */
+function recognisedBrokerFile(broker: string | null | undefined, source: "manual" | "broker-sync"): boolean {
+  if (source === "broker-sync") return true;
+  return Boolean(broker && broker !== "generic");
 }
 
 interface LedgerRow {
@@ -258,11 +264,11 @@ export async function runH10Import(
   const mapping = mappingOf(input.mapping);
   const stored = action === "commit" ? await loadLedger(user._id, crud) : [];
   const preview = await previewWithRates(text, mapping, heldFrom(stored), historicalNzdPerUnit);
+  const recognised = recognisedBrokerFile(preview.broker, source);
   if (action !== "commit") {
     const opening = typeof user.cash_balance === "number" ? user.cash_balance : 0;
-    const refusal = previewCashRefusal(preview.toWrite, opening);
-    if (refusal && !preview.error) preview.error = refusal;
-    return NextResponse.json({ ok: true, error: preview.error, data: publicPreview(preview) });
+    const cashWarning = recognised ? importCashWarning(opening, preview.cashNzd) : null;
+    return NextResponse.json({ ok: true, error: preview.error, data: { ...publicPreview(preview), cashWarning } });
   }
   if (preview.needsMapping || preview.unreadable || !preview.toWrite.length) {
     return NextResponse.json({ ok: false, error: preview.error || "Nothing was written.", data: { ...publicPreview(preview), written: 0 } }, { status: 400 });
@@ -320,10 +326,9 @@ export async function runH10Import(
     }
     written.length = 0;
   };
-  // A buy that would take paper cash below zero is funded by a paper deposit in this same batch,
-  // credited before that buy. The running figure is the file's own NZ$ effect.
-  // Broker sync must not invent cash: the statement's own cash lines fund the buys.
-  const fundShortfall = source !== "broker-sync";
+  // A recognised broker file is the cash record, including a negative balance.
+  // A generic column-map file still gets a paper deposit so cash does not go below zero.
+  const fundShortfall = !recognised;
   type WriteStep =
     | { kind: "deposit"; amount: number; date: string; line: number }
     | { kind: "trade"; row: ImportRow };
@@ -346,25 +351,29 @@ export async function runH10Import(
     let saved: Awaited<ReturnType<typeof applyTransaction>>;
     try {
       saved = row
-        ? await applyTransaction(user, {
-            type: row.side,
-            ticker: row.ticker,
-            asset_type: assetClassForSymbol(row.ticker),
-            asset_name: safeImportText(row.assetName),
-            quantity: row.quantity,
-            price: row.price,
-            fees: row.fee,
-            fx_rate: row.fx,
-            fx_source: "broker-file",
-            fill_currency: row.currency,
-            trade_date_fx: row.currency === "NZD" ? undefined : tradeDateFx[`${row.currency}|${row.date}`] ?? undefined,
-            executed_at: row.date,
-            trade_date: row.date,
-            price_source: "broker_import",
-            broker: preview.broker || "file",
-            notes: stampFileHash(stampImportNote(`Imported from a ${label} file.`, batchId, row.brokerRef), fileHash),
-            deferCash: true,
-          })
+        ? await applyTransaction(
+            user,
+            {
+              type: row.side,
+              ticker: row.ticker,
+              asset_type: assetClassForSymbol(row.ticker),
+              asset_name: safeImportText(row.assetName),
+              quantity: row.quantity,
+              price: row.price,
+              fees: row.fee,
+              fx_rate: row.fx,
+              fx_source: "broker-file",
+              fill_currency: row.currency,
+              trade_date_fx: row.currency === "NZD" ? undefined : tradeDateFx[`${row.currency}|${row.date}`] ?? undefined,
+              executed_at: row.date,
+              trade_date: row.date,
+              price_source: "broker_import",
+              broker: preview.broker || "file",
+              notes: stampFileHash(stampImportNote(`Imported from a ${label} file.`, batchId, row.brokerRef), fileHash),
+              deferCash: true,
+            },
+            recognised ? { allowBookedCashBelowZero: true } : undefined
+          )
         : await applyTransaction(user, {
             type: "deposit",
             amount: step.kind === "deposit" ? step.amount : 0,

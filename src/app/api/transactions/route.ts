@@ -8,7 +8,7 @@ import { editedTradeRow, originalTradeInput } from "@/lib/ledger-row-edit";
 import { firstOversell, OVERSELL_BLOCK, type ReversalTxn } from "@/lib/ledger-reversal";
 import { getStableSessionUser, getTradeSessionUser } from "@/lib/session";
 import { applyTransaction, ledgerAfterBooking, loadLedger } from "@/lib/transactions";
-import { tradeSchema } from "@/lib/trade-schema";
+import { stripBookedCashOverride, tradeSchema } from "@/lib/trade-schema";
 import { hasForeignOwner, requestClaimsOtherUser } from "@/lib/account-guard";
 import { accountMismatchResponse, privateJson } from "@/lib/account-response";
 import { writeMarkHeaders } from "@/lib/write-integrity";
@@ -87,6 +87,7 @@ export async function POST(req: Request) {
     }
 
     const body = (await req.json().catch(() => ({}))) as unknown;
+    stripBookedCashOverride(body);
     const parsed = tradeSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json({ ok: false, error: parsed.error.flatten() }, { status: 400 });
@@ -443,6 +444,7 @@ export async function PATCH(req: Request) {
     if (!user) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
     if (user.identityConflict || requestClaimsOtherUser(req, user._id)) return accountMismatchResponse(user._id);
     const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+    stripBookedCashOverride(body);
     const id = typeof body.id === "string" ? body.id.trim() : "";
     if (!id) return NextResponse.json({ ok: false, error: "A row id is required." }, { status: 400 });
     if (body.confirm !== true) return NextResponse.json({ ok: false, error: TRADE_CONFIRM_REQUIRED }, { status: 400 });

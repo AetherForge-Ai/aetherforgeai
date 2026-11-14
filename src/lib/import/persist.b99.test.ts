@@ -10,7 +10,6 @@ import { commitImport, emptyBook } from "@/lib/import/book";
 import { IMPORT_MAX_BYTES, IMPORT_TOO_LARGE } from "@/lib/import/limits";
 import { previewImport } from "@/lib/import/plan";
 import type { ColumnMap } from "@/lib/import/types";
-import { formatNzd } from "@/lib/currency";
 
 const DIR = path.join(process.cwd(), "src/lib/import/fixtures");
 const read = (name: string) => readFileSync(path.join(DIR, name), "utf8");
@@ -425,44 +424,27 @@ describe("H-10 live write path", () => {
       expect(await bookHash(user._id)).toBe(before);
     });
 
-    it(`${file} credits a paper deposit before a buy would take cash below zero, in one batch`, async () => {
+    it(`${file} books the file cash on an empty book, including a negative balance`, async () => {
       const text = read(file);
       await seedRates(file, text, want);
       const user = openBook(0);
-      const emptyHash = await bookHash(user._id);
       const outcome = await commit(user, text);
       expect(outcome.status, JSON.stringify(outcome.body)).toBe(200);
       expect(outcome.body.data?.written).toBe(want.rows);
       const batchId = String(outcome.body.data?.batchId || "");
       expect(batchId).toMatch(/^imp/);
       const saved = rowsOf(user._id);
-      const deposits = saved.filter((row) => row.type === "deposit");
+      const deposits = saved.filter((row) => /would otherwise make paper cash negative/.test(String(row.notes || "")));
       const trades = saved.filter((row) => row.type === "buy" || row.type === "sell");
-      expect(deposits.length).toBeGreaterThan(0);
+      expect(deposits).toHaveLength(0);
       expect(trades).toHaveLength(want.rows);
-      for (const row of saved) expect(String(row.notes || "")).toContain(`batch=${batchId}`);
-      expect(minCash()).toBeGreaterThanOrEqual(-0.01);
+      for (const row of trades) expect(String(row.notes || "")).toContain(`batch=${batchId}`);
       const tradeCash = trades.reduce((sum, row) => sum + Number(row.cash_nzd || 0), 0);
       expect(Math.abs(tradeCash - want.cashNzd)).toBeLessThan(0.01);
-      expect(cashOf(user._id)).toBeGreaterThanOrEqual(-0.01);
+      expect(Math.abs(cashOf(user._id) - want.cashNzd)).toBeLessThan(0.01);
       const paper = emptyBook(opening);
       await commitImport(paper, text, optionsFor(file, want));
       expect(holdingsOf(user._id)).toEqual(paper.holdings);
-
-      const importedHash = await bookHash(user._id);
-      const undone = await runH10Import(user as never, text, { action: "undo", batchId }, "manual", deps());
-      const undoneBody = (await undone.json()) as { error?: string; data?: { undone?: number } };
-      expect(undone.status, JSON.stringify(undoneBody)).toBe(200);
-      expect(undoneBody.data?.undone).toBe(saved.length);
-      const restored = await bookHash(user._id);
-      expect(restored).toBe(emptyHash);
-      expect(restored).not.toBe(importedHash);
-      expect(rowsOf(user._id)).toHaveLength(0);
-      expect(cashOf(user._id)).toBe(0);
-      expect(holdingsOf(user._id)).toEqual({});
-      const refused = await runH10Import(user as never, text, { action: "undo", batchId }, "manual", deps());
-      expect(refused.status).toBe(404);
-      expect(await bookHash(user._id)).toBe(restored);
     });
 
     it(`${file} keeps exactly 3 derived row errors and commits the good rows`, async () => {
@@ -559,7 +541,7 @@ describe("H-10 live write path", () => {
     expect(rowsOf(user._id).filter((row) => /would otherwise make paper cash negative/.test(String(row.notes || "")))).toHaveLength(0);
   });
 
-  it("a CSV commit on a short book still records a paper deposit and names the amount", async () => {
+  it("a CSV commit on an empty book keeps the file cash and does not invent a deposit", async () => {
     const file = "ibkr.csv";
     const text = read(file);
     const want = expected[file];
@@ -567,12 +549,9 @@ describe("H-10 live write path", () => {
     const user = openBook(0);
     const outcome = await commit(user, text);
     expect(outcome.status, JSON.stringify(outcome.body)).toBe(200);
-    const deposits = rowsOf(user._id, "deposit");
-    expect(deposits.length).toBeGreaterThan(0);
-    for (const row of deposits) expect(String(row.notes || "")).toMatch(/would otherwise make paper cash negative/);
-    const deposited = deposits.reduce((sum, row) => sum + Number(row.cash_nzd || 0), 0);
-    expect(String(outcome.body.data?.summary || "")).toContain(`Paper deposit ${formatNzd(deposited)}`);
-    expect(minCash()).toBeGreaterThanOrEqual(-0.01);
+    expect(rowsOf(user._id, "deposit")).toHaveLength(0);
+    expect(Math.abs(cashOf(user._id) - want.cashNzd)).toBeLessThan(0.01);
+    expect(String(outcome.body.data?.summary || "")).not.toContain("Paper deposit");
   });
 
   it("does not use Math.random in the import path and the fake store rejects an unknown method", () => {

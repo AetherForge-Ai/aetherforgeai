@@ -160,8 +160,8 @@ describe("H-1-TAPE-SSR tape prefix in server HTML", () => {
       const serverHtml = renderToString(element);
       const clientHtml = renderToString(element);
       expect(clientHtml).toBe(serverHtml);
-      expect(prefix(serverHtml)).toBe("Close unavailable");
-      expect(serverHtml).toContain("Close unavailable");
+      expect(serverHtml).not.toContain("Close unavailable");
+      expect(serverHtml).toContain("data-tape-pending");
       const pending = renderToStaticMarkup(createElement(TapePending));
       expect(pending).not.toContain("Close unavailable");
       const warned = errors.flat().map(String).join("\n");
@@ -179,7 +179,7 @@ describe("H-1-TAPE-SSR tape prefix in server HTML", () => {
     expect(shell).not.toContain("<MarketTicker");
     expect(shell).not.toContain("Close unavailable");
     const server = read("src/components/ServerTape.tsx");
-    expect(server).toContain("loadServerTape()");
+    expect(server).toContain("loadRequestTape()");
     expect(server).toContain("await connection()");
     expect(server).toContain("initial={tape}");
     expect(server).toContain("serverNow=");
@@ -193,7 +193,7 @@ describe("H-1-TAPE-SSR tape prefix in server HTML", () => {
     const lazy = read("src/components/LazyMarketTicker.tsx");
     expect(page).toContain("LazyMarketTicker");
     expect(page).toContain("await connection()");
-    expect(page).toContain("loadServerTape()");
+    expect(page).toContain("loadRequestTape()");
     expect(page).not.toContain("<ServerTape");
     expect(layout).not.toContain("tape-ssr");
     expect(layout).not.toContain("ServerTape");
