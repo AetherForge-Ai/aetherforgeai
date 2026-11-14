@@ -648,7 +648,7 @@ export function PortfolioCoachChat({
             <p className="font-display text-sm font-bold tracking-wide text-amber-300">
               Assistant Guide
             </p>
-            <p className="truncate text-[11px] text-emerald-100/70">
+            <p className="truncate text-[11px] text-gain">
               Keeps your portfolio on track
             </p>
             <AssistantQueryCounter className="block truncate text-[11px] text-amber-200/80" />
@@ -730,7 +730,7 @@ export function PortfolioCoachChat({
                     <span className="block text-[13px] font-semibold leading-snug text-amber-50">
                       {card.title}
                     </span>
-                    <span className="mt-0.5 block text-[11px] leading-snug text-emerald-100/65">
+                    <span className="mt-0.5 block text-[11px] leading-snug text-gain">
                       {card.subtitle}
                     </span>
                   </span>
@@ -801,23 +801,23 @@ export function PortfolioCoachChat({
               <button
                 type="button"
                 onClick={() => setAttachOpen(false)}
-                className="rounded p-0.5 text-emerald-100/60 hover:text-amber-100"
+                className="rounded p-0.5 text-gain hover:text-amber-100"
                 aria-label="Close attach panel"
               >
                 <ChevronDown className="size-4" />
               </button>
             </div>
-            <p className="mb-2 text-[10px] leading-relaxed text-emerald-100/55">
+            <p className="mb-2 text-[10px] leading-relaxed text-gain">
               Select up to three recent reports. Their summaries are sent with
               your next message.
             </p>
             {reportsLoading ? (
-              <div className="flex items-center gap-2 py-3 text-xs text-emerald-100/70">
+              <div className="flex items-center gap-2 py-3 text-xs text-gain">
                 <Loader2 className="size-3.5 animate-spin text-amber-300" />
                 Loading reports…
               </div>
             ) : reports.length === 0 ? (
-              <p className="py-2 text-[11px] text-emerald-100/65">
+              <p className="py-2 text-[11px] text-gain">
                 No Stox or Koins reports yet. Run one from the{" "}
                 <Link
                   href={REPORT_CENTER_HREF}
@@ -858,7 +858,7 @@ export function PortfolioCoachChat({
                             {botLabel(r.bot)} · {r.title}
                           </span>
                           {r.generatedAt && (
-                            <span className="block truncate text-[10px] text-emerald-100/50">
+                            <span className="block truncate text-[10px] text-gain">
                               {new Date(r.generatedAt).toLocaleString()}
                             </span>
                           )}
@@ -918,7 +918,7 @@ export function PortfolioCoachChat({
           </button>
         </form>
         <div className="mt-1.5 flex items-center justify-between gap-2 px-0.5">
-          <p className="text-[10px] text-emerald-100/50">
+          <p className="text-[10px] text-gain">
             Educational only · not advice
           </p>
           <Link
