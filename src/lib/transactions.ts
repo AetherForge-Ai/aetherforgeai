@@ -145,6 +145,11 @@ export interface TransactionInput {
    * so the cash write can follow the row and roll back by id.
    */
   deferCash?: boolean;
+  /**
+   * Broker-file confirm only. The file is the cash record, so a negative balance is saved.
+   * Manual entry does not set this.
+   */
+  allowBookedCashBelowZero?: boolean;
 }
 
 export interface ConfirmStepMs {
@@ -474,7 +479,7 @@ export async function movementRejectionForUser(
     held,
     firstBuyDate,
     hasAsset: previewHasAsset,
-    cashKnown: true,
+    cashKnown: !input.allowBookedCashBelowZero,
     cashAfterNzd: preview.cashAfterNzd,
     cashChangeNzd: preview.cashChangeNzd,
     needsCash:
@@ -729,7 +734,7 @@ async function applyTransactionUnlocked(
     }
     const credits = input.type === "deposit" || input.type === "dividend" || openingCash;
     const delta = credits ? amount - fee : -(amount + fee);
-    if ((input.type === "withdraw" || input.type === "tax") && exceedsAvailableCash(-delta, currentCash)) {
+    if ((input.type === "withdraw" || input.type === "tax") && !input.allowBookedCashBelowZero && exceedsAvailableCash(-delta, currentCash)) {
       throw new Error(
         input.type === "tax"
           ? "Insufficient cash balance for this tax line"
@@ -1098,7 +1103,7 @@ async function applyTransactionUnlocked(
     });
     if (!moved.ok) throw new Error(moved.error || `${ticker} live price unavailable`);
     const costNZD = round(-moved.cashDeltaNZD);
-    if (exceedsAvailableCash(costNZD, currentCash)) {
+    if (!input.allowBookedCashBelowZero && exceedsAvailableCash(costNZD, currentCash)) {
       throw new Error(
         `Insufficient cash — this buy needs NZ$${costNZD.toFixed(2)} and you have NZ$${currentCash.toFixed(2)} available.`
       );
@@ -1331,7 +1336,7 @@ async function applyTransactionUnlocked(
   });
   if (!sold.ok) throw new Error(sold.error || `${ticker} live price unavailable`);
   const proceedsNZD = sold.cashDeltaNZD;
-  if (proceedsNZD < -1e-6 && sold.cashNZD < -1e-6) {
+  if (!input.allowBookedCashBelowZero && proceedsNZD < -1e-6 && sold.cashNZD < -1e-6) {
     throw new Error("This would take cash below zero.");
   }
   // FIFO-style split: price P&L at sell FX; FX P&L vs lot FX (legacy avg uses buy FX ≈ current if unknown).

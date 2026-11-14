@@ -12,8 +12,9 @@ describe("import preview cash refusal", () => {
     expect(previewCashRefusal(preview.toWrite, 0)).toBe(PREVIEW_CASH_BELOW_ZERO);
     expect(previewCashRefusal(preview.toWrite, 100_000)).toBeNull();
     const page = readFileSync("src/app/import/import-client.tsx", "utf8");
-    expect(page).toContain("import-cash-refusal");
-    expect(page).toContain("!cashRefusal");
+    expect(page).toContain("import-cash-warning");
+    expect(page).toContain("preview.cashWarning");
+    expect(page).not.toContain("!cashRefusal");
   });
 
   it("allows a sell that adds cash and blocks only a later reduction below zero", () => {
