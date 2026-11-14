@@ -20,7 +20,8 @@ describe("M-7b CryptoSearch option contrast", () => {
   });
   it("maps gains, losses and flat values, and CryptoSearch no longer uses rose-600", () => {
     expect(cryptoSearchPctClass(-0.81)).toContain("text-rose-700");
-    expect(cryptoSearchPctClass(1.2)).toContain("text-emerald-700");
+    expect(cryptoSearchPctClass(1.2)).toContain("text-gain");
+    expect(cryptoSearchPctClass(1.2)).not.toMatch(/text-(?:emerald|green|lime|teal)-\d/);
     expect(cryptoSearchPctClass(0)).toContain("text-slate-600");
     const src = readFileSync("src/components/dashboard/CryptoSearch.tsx", "utf8");
     expect(src).toContain("cryptoSearchPctClass(c.change24h)");

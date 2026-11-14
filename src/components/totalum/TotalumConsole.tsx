@@ -332,7 +332,7 @@ function ScenariosTab({ s }: { s: TotalumSynthesis }) {
               ].map((row) => (
                 <div key={row.label}>
                   <div className="flex items-center justify-between text-xs">
-                    <span className="font-medium" style={{ color: row.color }}>{row.label}</span>
+                    <span className={cn("font-medium", row.label === "Bull" && "text-gain")} style={row.label === "Bull" ? undefined : { color: row.color }}>{row.label}</span>
                     <span className="tabular-nums">
                       {nzd(row.v)} <span className={gainClass(row.pnl)}>({pct(row.p)})</span>
                     </span>

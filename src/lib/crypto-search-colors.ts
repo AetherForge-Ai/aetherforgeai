@@ -3,10 +3,11 @@
  * The shared pctColor uses rose-600 (#e11d48), which is 4.46:1 on the highlighted
  * row (accent #ecfdf5), under the 4.5:1 AA minimum. These pairs pass 4.5:1 on the
  * popover and the highlighted row, in light and dark tokens.
- * The hex values mirror Tailwind and globals.css, and the contrast test checks them.
+ * Gain text uses the text-gain token. The hexes are that token: #047857 on light
+ * surfaces and the dark pair #34d399. The contrast test checks both.
  */
 export const CRYPTO_SEARCH_TEXT = {
-  gain: { className: "text-emerald-700 dark:text-emerald-300", light: "#047857", dark: "#6ee7b7" },
+  gain: { className: "text-gain", light: "#047857", dark: "#34d399" },
   loss: { className: "text-rose-700 dark:text-rose-300", light: "#be123c", dark: "#fda4af" },
   flat: { className: "text-slate-600 dark:text-slate-300", light: "#475569", dark: "#cbd5e1" },
 } as const;
