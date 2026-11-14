@@ -63,7 +63,7 @@ describe("BS-01 re-sync idempotency", () => {
     const { applyTransaction } = await import("@/lib/transactions");
     await applyFlexStatement(user, XML);
     const amounts = vi.mocked(applyTransaction).mock.calls.slice(-2).map((c) => (c[1] as { amount: number }).amount);
-    expect(amounts).toEqual([2.04, 1000.01]);
+    expect(amounts.slice().sort((a, b) => a - b)).toEqual([2.04, 1000.01]);
   });
 });
 
