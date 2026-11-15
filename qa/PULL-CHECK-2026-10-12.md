@@ -751,3 +751,4 @@ Must-fix batch 7 (TT b6 retest: CR-2 CR-5 H-5 H-13 M-3 M-6): marker `pull-check:
 - pull-check:v3-b100-2026-11-15 — HOOKS-PROD-OFF (PR683), H-1-TAPE-SSR-2 (PR681), H-10-CASH-FLOOR (PR682).
 - pull-check:v3-b101-2026-11-15 — H-10-FX-GATE (PR688, applyReviewedFxGate in persist.ts), AI-CHAT-SIGNALS-1 (PR689, PLATFORM_EXCHANGES in chat-signals.ts).
 - pull-check:v3-b102-2026-11-15 — H-10-UNDO-CASH-FLOOR (PR693, cashGoesFurtherBelowZero in ledger-reversal.ts), H-1-TAPE-SSR-3 (PR686).
+- pull-check:v3-b103-2026-11-15 — AI-CHAT-SIGNALS-2 (PR692), H-10-UNDO-SERVER-BATCH (PR697), DAILY-PRICES-1 (PR694).

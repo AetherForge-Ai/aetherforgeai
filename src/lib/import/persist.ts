@@ -4,6 +4,7 @@
  * the batch id are stamps in the notes field (file= and batch=). No new table.
  */
 
+import { listImportBatches } from "@/lib/import-batches";
 import { currentCashNzd, planImportUndo } from "@/lib/import-undo-server";
 import { NextResponse } from "next/server";
 import { checkTickerQuota } from "@/lib/entitlements";
@@ -270,7 +271,11 @@ export async function runH10Import(
     return NextResponse.json({ ok: false, error: IMPORT_TOO_LARGE }, { status: 413 });
   }
   const input = (body && typeof body === "object" ? body : {}) as { action?: unknown; mapping?: unknown; batchId?: unknown };
-  const action = input.action === "commit" || input.action === "undo" ? input.action : "preview";
+  const action = input.action === "commit" || input.action === "undo" || input.action === "batches" ? input.action : "preview";
+  if (action === "batches") {
+    const stored = await loadLedger(user._id, crud);
+    return NextResponse.json({ ok: true, data: { batches: listImportBatches(stored) } });
+  }
   if (action !== "preview") {
     const limit =
       source === "broker-sync"
