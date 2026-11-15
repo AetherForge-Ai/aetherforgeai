@@ -5,8 +5,15 @@ import { assistantQueryLimit, aucklandMonthKey } from "@/lib/entitlements";
 import { totalumSdk } from "@/lib/totalum";
 import { assistantUsedThisMonth } from "@/lib/assistant-quota.server";
 import { buildPortfolioContext, ANALYST_SYSTEM_PROMPT } from "@/lib/ai-context";
-import { createGrokChatCompletion, type GrokMessage } from "@/lib/grok";
+import { createGrokChatCompletion, isGrokConfigured, type GrokMessage } from "@/lib/grok";
 import { ASSISTANT_SHARE_PICK_REPLY, isSharePickRequest, withAssistantDisclaimer, withGuideDisclaimer } from "@/lib/guide-safety";
+import {
+  ensureSignalAsOf,
+  isRecommendationSignalQuestion,
+  prepareRecommendationAnswer,
+  recommendationSignalMessages,
+} from "@/lib/chat-signals";
+import { loadChatSignalFeed } from "@/lib/chat-signals.server";
 import { assistantCompletionMessages } from "@/lib/ai-request-payload";
 import type { Stock } from "@/lib/portfolio";
 import { AI_OFF_REPLY, applyAiPrivacy } from "@/lib/ai-privacy";
@@ -65,6 +72,30 @@ export async function GET(req?: Request) {
   }
 }
 
+async function finishAssistantReply(
+  reply: string,
+  userId: string,
+  queryLimit: number | null,
+  usedBefore: number | null
+) {
+  const saved = await totalumSdk.crud.createRecord("chat_message", {
+    role: "assistant",
+    content: reply,
+    user: userId,
+  });
+  const usedAfter = usedBefore != null ? usedBefore + 1 : null;
+  return NextResponse.json({
+    ok: true,
+    data: {
+      reply,
+      message: saved?.data ?? { role: "assistant", content: reply },
+      remaining: queryLimit == null || usedAfter == null ? null : Math.max(0, queryLimit - usedAfter),
+      used: usedAfter,
+      limit: queryLimit,
+    },
+  });
+}
+
 // POST /api/chat — send a message and get an AI reply
 export async function POST(req: Request) {
   try {
@@ -100,6 +131,40 @@ export async function POST(req: Request) {
       user: user._id,
     });
 
+    const usedBefore = queryLimit != null ? used0 : null;
+    // Recommendation questions read the bots' saved picks (same labels as the report cards).
+    // Empty, stale, failed or off-plan feeds answer here, with no model call.
+    if (isRecommendationSignalQuestion(userMessage)) {
+      const feed = await loadChatSignalFeed({ _id: user._id, bot_access: user.bot_access });
+      const prepared = prepareRecommendationAnswer(userMessage, feed);
+      let body = prepared.text;
+      if (prepared.mode === "answer") {
+        const messages = recommendationSignalMessages({
+          systemPrompt: ANALYST_SYSTEM_PROMPT,
+          history: [{ role: "user", content: userMessage }],
+          toolText: prepared.toolText,
+        });
+        const aiMode = await readAiPrivacyMode(user._id);
+        const sendMessages = applyAiPrivacy(messages, aiMode);
+        if (sendMessages != null && isGrokConfigured()) {
+          try {
+            body = await createGrokChatCompletion({
+              messages: sendMessages,
+              maxTokens: 1000,
+              temperature: 0.2,
+            });
+          } catch (aiErr) {
+            console.error("[api/chat] signal completion failed, using the feed:", aiErr);
+            body = prepared.text;
+          }
+        }
+      } else {
+        console.info(`[api/chat] recommendation signals unavailable (${feed.status}) for user ${user._id}`);
+      }
+      const reply = withAssistantDisclaimer(ensureSignalAsOf(body, feed.asOf));
+      return finishAssistantReply(reply, user._id, queryLimit, usedBefore);
+    }
+
     // Load portfolio context
     const stocksRes = await totalumSdk.crud.query("stock", {
       _filter: { user: user._id },
@@ -132,7 +197,6 @@ export async function POST(req: Request) {
 
     // b27 CR-2: share-pick questions get a fixed refusal; no model call, so it holds even when the
     // provider is down or a prompt tries to talk the model round.
-    const usedBefore = queryLimit != null ? used0 : null;
     const refused = isSharePickRequest(userMessage);
     if (refused) console.info(`[api/chat] share-pick refusal for user ${user._id}`);
     else console.log(`[api/chat] Generating Grok reply for user ${user._id}`);
