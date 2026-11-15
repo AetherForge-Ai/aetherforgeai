@@ -1,4 +1,4 @@
-// pull-check:v3-b101-2026-11-15
+// pull-check:v3-b102-2026-11-15
 import { describe, expect, it } from "vitest";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { checkReleaseGate } from "@/lib/release-gate";
@@ -8,8 +8,8 @@ const read = (p: string) => readFileSync(p, "utf8");
 
 describe("b98", () => {
   it("pins the build id", () => {
-    expect(read("public/build-version.txt").trim()).toBe("v3-b101-2026-11-15");
-    expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-b101-2026-11-15");
+    expect(read("public/build-version.txt").trim()).toBe("v3-b102-2026-11-15");
+    expect(read("qa/PULL-CHECK-2026-10-12.md")).toContain("pull-check:v3-b102-2026-11-15");
   });
 
   it("has no READY marker and no preview-b98 grade", () => {
@@ -20,7 +20,7 @@ describe("b98", () => {
   });
 
   it("dry run: marking this build READY is blocked until a preview-b98 grade exists", () => {
-    const r = checkReleaseGate({ read: (p) => (p === "goal-loop/READY_TO_PUBLISH" ? "v3-b101-2026-11-15\n" : existsSync(p) ? read(p) : null), list: (d) => readdirSync(d) });
-    expect(r).toEqual({ ok: false, reason: "No TT preview grade file goal-loop/preview-b101.md or preview-b101-*.md for v3-b101-2026-11-15." });
+    const r = checkReleaseGate({ read: (p) => (p === "goal-loop/READY_TO_PUBLISH" ? "v3-b102-2026-11-15\n" : existsSync(p) ? read(p) : null), list: (d) => readdirSync(d) });
+    expect(r).toEqual({ ok: false, reason: "No TT preview grade file goal-loop/preview-b102.md or preview-b102-*.md for v3-b102-2026-11-15." });
   });
 });
