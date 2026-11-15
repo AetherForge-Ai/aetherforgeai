@@ -4,6 +4,7 @@
  */
 
 import { signalRowFromPick, type StoredSignalReport } from "@/lib/chat-signals";
+import { isTwelveRateLimitError } from "@/lib/daily-price-twelve";
 import { resolveExchange } from "@/lib/market-intel";
 import { captureBatchKey, captureBudgetFromEnv, captureWorkOrder, creditWaitMs, waitForCredits, type CaptureBudget } from "@/lib/daily-price-capture";
 import { dailyPriceDirectory, type DirectoryName } from "@/lib/daily-price-directory";
@@ -257,6 +258,7 @@ export async function captureDailyCloses(args: {
   let gaps = 0;
   let credits = 0;
   let deferred = 0;
+  let rateLimited = false;
   const skipped: CaptureSkip[] = [];
   const datesByMarket = new Map<DailyMarket, string[]>();
   for (const feed of args.feeds) {
@@ -313,7 +315,13 @@ export async function captureDailyCloses(args: {
             barsBySymbol.set(name.symbol.toUpperCase(), bars);
           }
         }
-      } catch {
+      } catch (err) {
+        if (isTwelveRateLimitError(err)) {
+          deferred += work.length + queue.length;
+          rateLimited = true;
+          stop = true;
+          break;
+        }
         barsBySymbol = new Map(work.map((name) => [name.symbol.toUpperCase(), null]));
       }
       for (const name of work) {
@@ -345,7 +353,7 @@ export async function captureDailyCloses(args: {
     }
     if (stop) break;
   }
-  const reason = deferred ? "resume" : credits === 0 && inserted === 0 && gaps === 0 ? "complete" : "captured";
+  const reason = rateLimited ? "rate-limited" : deferred ? "resume" : credits === 0 && inserted === 0 && gaps === 0 ? "complete" : "captured";
   return { ran: true, reason, inserted, existing, gaps, skipped, deferred, credits };
 }
 

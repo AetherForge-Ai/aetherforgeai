@@ -86,6 +86,36 @@ export interface TwelveSymbolRequest {
   provider: string;
 }
 
+export class TwelveRateLimit extends Error {
+  readonly rateLimit = true;
+  constructor(message = "rate-limited") {
+    super(message);
+    this.name = "TwelveRateLimit";
+  }
+}
+
+function nodeIsRateLimit(node: unknown): boolean {
+  if (!node || typeof node !== "object") return false;
+  const record = node as { code?: unknown; message?: unknown };
+  if (Number(record.code) === 429) return true;
+  return typeof record.message === "string" && /api\s*credits|credit limit|too many requests/i.test(record.message);
+}
+
+/** HTTP 429, a body code of 429, or a message about API credits. */
+export function isTwelveRateLimit(body: unknown, status?: number): boolean {
+  if (status === 429) return true;
+  if (nodeIsRateLimit(body)) return true;
+  if (!body || typeof body !== "object") return false;
+  for (const value of Object.values(body as Record<string, unknown>)) {
+    if (nodeIsRateLimit(value)) return true;
+  }
+  return false;
+}
+
+export function isTwelveRateLimitError(err: unknown): boolean {
+  return err instanceof TwelveRateLimit || isTwelveRateLimit(err);
+}
+
 /**
  * One time_series body for one symbol (`values`) or several (`{ FPH: { values } }`).
  * A symbol the payload does not contain is null: a gap, not a guessed close.
@@ -160,6 +190,7 @@ export async function loadTwelveDailyBars(args: {
     return null;
   }
   if (body == null) return null;
+  if (isTwelveRateLimit(body)) throw new TwelveRateLimit();
   const parsed = parseTwelveBatch(body, [{ internal: args.symbol.toUpperCase(), provider: mapped.symbol }], args.dates);
   return parsed.get(args.symbol.toUpperCase()) ?? null;
 }
@@ -200,5 +231,6 @@ export async function loadTwelveDailyBatch(args: {
     return empty;
   }
   if (body == null) return empty;
+  if (isTwelveRateLimit(body)) throw new TwelveRateLimit();
   return parseTwelveBatch(body, requests, args.dates);
 }

@@ -30,7 +30,7 @@ import {
 } from "@/lib/daily-price-schedule";
 import { DEFAULT_CAPTURE_BUDGET, DEFAULT_DAILY_CREDIT_CEILING } from "@/lib/daily-price-capture";
 import { DAILY_PRICE_FEEDS, DATA_LICENCE_REVIEW, historyStoreAllowed } from "@/lib/daily-price-sources";
-import { barsFromTwelveValues, canReadTwelveData, loadTwelveDailyBars, loadTwelveDailyBatch, parseTwelveBatch, redactSecret } from "@/lib/daily-price-twelve";
+import { barsFromTwelveValues, canReadTwelveData, isTwelveRateLimit, loadTwelveDailyBars, loadTwelveDailyBatch, parseTwelveBatch, redactSecret, TwelveRateLimit } from "@/lib/daily-price-twelve";
 import { DAILY_PRICE_CLOSE } from "@/lib/schema/daily-price-history.schema";
 import { DOW_JONES_TICKERS, entriesForExchange } from "@/lib/market-intel";
 // @ts-expect-error plain script
@@ -126,6 +126,7 @@ describe("DAILY-PRICES-1 schedule is 06:07 through 07:07 Pacific/Auckland", () =
     expect(read("wrangler.jsonc")).not.toContain("crons");
     expect(read("src/app/api/cron/daily-prices/route.ts")).toContain("presentedHeaderCronSecret");
     expect(read("src/app/api/cron/daily-prices/route.ts")).toContain("fetchTwelveDailyBatch");
+    expect(read("src/app/api/cron/daily-prices/route.ts")).toContain("redactSecret(message, marketDataApiKey())");
     expect(read("src/app/api/cron/daily-prices/route.ts")).not.toMatch(/acquireDailyPriceRunLock|daily_price_capture_lock/);
     expect(read("src/app/api/cron/daily-prices/route.ts")).not.toMatch(/finance\.yahoo/);
     expect(read("src/lib/daily-price-twelve.ts")).not.toMatch(/finance\.yahoo/);
@@ -474,6 +475,41 @@ describe("DAILY-PRICES-1 comparison and gaps", () => {
     expect(absorbHistoryPage(split, session.slice(0, 2), 2, 2).continue).toBe(true);
     absorbHistoryPage(split, [session[2], older], 2, 2);
     expect(split.kept.map((row) => row.symbol)).toEqual(["A", "B", "C"]);
+  });
+
+  it("stops the queue when Twelve Data returns a credit limit", async () => {
+    expect(isTwelveRateLimit(null, 429)).toBe(true);
+    expect(isTwelveRateLimit({ code: 429, message: "You have run out of API credits for the current minute.", status: "error" })).toBe(true);
+    expect(isTwelveRateLimit({ code: 400, message: "symbol not found", status: "error" })).toBe(false);
+    await expect(loadTwelveDailyBatch({
+      names: [{ symbol: "FPH.NZ", market: "NZX" }],
+      dates: ["2026-01-14"],
+      env: { MARKET_DATA_API_KEY: "secret-key-value" },
+      fetchImpl: async () => ({ code: 429, message: "You have run out of API credits", status: "error" }),
+    })).rejects.toBeInstanceOf(TwelveRateLimit);
+    const names = [
+      { market: "NZX" as const, symbol: "^NZ50", name: "S&P/NZX 50", role: "index" as const },
+      { market: "NZX" as const, symbol: "FPH.NZ", name: "Fisher & Paykel Healthcare", role: "constituent" as const },
+      { market: "NZX" as const, symbol: "AIR.NZ", name: "Air New Zealand", role: "constituent" as const },
+    ];
+    let calls = 0;
+    const report = await captureDailyCloses({
+      now: utcForAuckland(2026, 1, 15, 6, 7)!,
+      store: memoryDailyPriceStore(),
+      feeds: DAILY_PRICE_FEEDS,
+      names,
+      sessions: 1,
+      budget: { creditsPerMinute: 8, maxCreditsPerRun: 32, batchSize: 1, budgetMs: 240_000, dailyCreditCeiling: 500 },
+      readBatch: async () => {
+        calls += 1;
+        throw new TwelveRateLimit("limit secret-key-value");
+      },
+    });
+    expect(calls).toBe(1);
+    expect(report.reason).toBe("rate-limited");
+    expect(report.deferred).toBe(names.length);
+    expect(report.inserted).toBe(0);
+    expect(redactSecret("limit secret-key-value", "secret-key-value")).not.toContain("secret-key-value");
   });
 
   it("a second look before insert does not write", async () => {

@@ -6,7 +6,7 @@ import { BACKFILL_SESSIONS, captureDailyCloses, HISTORY_UNAVAILABLE } from "@/li
 import { dailyPriceHistoryEnabled, listStoredCloseKeys, totalumDailyPriceStore } from "@/lib/daily-price-history.server";
 import { completedSessionDates } from "@/lib/daily-price-schedule";
 import { DAILY_PRICE_FEEDS } from "@/lib/daily-price-sources";
-import { canReadTwelveData } from "@/lib/daily-price-twelve";
+import { canReadTwelveData, marketDataApiKey, redactSecret } from "@/lib/daily-price-twelve";
 import { fetchTwelveDailyBatch } from "@/lib/daily-price-twelve.server";
 import { EXCHANGES } from "@/lib/market-intel";
 
@@ -74,7 +74,8 @@ async function handle(req: Request) {
     );
     return NextResponse.json({ ok: true, ...report, creditsToday: stored.creditsToday });
   } catch (err) {
-    console.error("[daily-prices] capture failed:", err instanceof Error ? err.message.slice(0, 120) : "failed");
+    const message = err instanceof Error ? err.message : "failed";
+    console.error("[daily-prices] capture failed:", redactSecret(message, marketDataApiKey()));
     return NextResponse.json({ ok: false, ran: false, reason: "failed" }, { status: 500 });
   }
 }

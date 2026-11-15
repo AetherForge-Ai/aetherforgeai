@@ -1,6 +1,6 @@
 import "server-only";
 
-import { loadTwelveDailyBars, loadTwelveDailyBatch, type TwelveBatchFetchRequest, type TwelveFetchRequest } from "@/lib/daily-price-twelve";
+import { isTwelveRateLimit, loadTwelveDailyBars, loadTwelveDailyBatch, TwelveRateLimit, type TwelveBatchFetchRequest, type TwelveFetchRequest } from "@/lib/daily-price-twelve";
 import type { FeedBar } from "@/lib/daily-price-history";
 import type { DirectoryName } from "@/lib/daily-price-directory";
 import type { DailyMarket } from "@/lib/daily-price-sources";
@@ -20,11 +20,13 @@ export async function fetchTwelveDailyBars(
         headers: { Accept: "application/json" },
         signal: AbortSignal.timeout(8_000),
       });
+      const body = await res.json().catch(() => null);
+      if (res.status === 429 || isTwelveRateLimit(body, res.status)) throw new TwelveRateLimit();
       if (!res.ok) {
         console.error(`[daily-prices] Twelve Data HTTP ${res.status} for ${symbol}`);
         return null;
       }
-      return res.json();
+      return body;
     },
   });
 }
@@ -42,11 +44,13 @@ export async function fetchTwelveDailyBatch(
         headers: { Accept: "application/json" },
         signal: AbortSignal.timeout(8_000),
       });
+      const body = await res.json().catch(() => null);
+      if (res.status === 429 || isTwelveRateLimit(body, res.status)) throw new TwelveRateLimit();
       if (!res.ok) {
         console.error(`[daily-prices] Twelve Data HTTP ${res.status} for ${req.symbols.length} symbols`);
         return null;
       }
-      return res.json();
+      return body;
     },
   });
 }
