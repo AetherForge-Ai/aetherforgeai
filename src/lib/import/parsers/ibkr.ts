@@ -2,13 +2,17 @@
  * Interactive Brokers.
  * Flex Query trade columns (ClientAccountID, TradeDate, Symbol, Quantity,
  * TradePrice, IBCommission, Buy/Sell, CurrencyPrimary, FXRateToBase, Proceeds)
- * are the fields IBKR's Flex query trade section exports. FXRateToBase is
- * NZD per 1 unit when the account base is NZD. A USD rate below 1 is the
- * other direction.
- * The activity-statement CSV (Reports → Activity → CSV) is the sectioned
- * file documented at ibkrguides.com "Trades - Default Activity Statement"
- * and in the Pitly sample: Trades,Header,…,T. Price,Comm/Fee. That file has
- * no FX column, so a reviewed trade-date rate is required.
+ * are the fields IBKR's Flex query trade section exports.
+ * FXRateToBase, and the activity column "FX Rate to Base" when a statement
+ * includes it, is IBKR's conversion rate from the asset currency into the
+ * account base currency (ibkrguides.com, Trades - Flex Statement). On an NZD
+ * base account that is NZD per 1 AUD or 1 USD, the same direction the book
+ * stores. A USD print below 1 is the other pair (USD per 1 NZD) and is turned
+ * around. An AUD print is not turned around: NZD per AUD can sit below 1.
+ * The default activity-statement CSV (Reports → Activity → CSV, ibkrguides.com
+ * "Trades - Default Activity Statement", and the Pitly sample) is the sectioned
+ * file Trades,Header,…,T. Price,Comm/Fee. That file has no FX column, so a
+ * reviewed trade-date rate is required.
  */
 
 import { cell, headerIndex, normHeader } from "@/lib/import/csv";
@@ -106,6 +110,8 @@ function parseActivity(grid: string[][], rates?: Record<string, number | null>):
   const qtyAt = headers.findIndex((h) => normHeader(h) === "quantity");
   const priceAt = headers.findIndex((h) => normHeader(h) === "t. price");
   const feeAt = headers.findIndex((h) => normHeader(h) === "comm/fee");
+  // Same asset-to-base rate as Flex FXRateToBase, when the statement includes the column.
+  const fxAt = headerIndex(headers, ["fx rate to base", "fxratetobase"]);
 
   grid.forEach((row, index) => {
     if (normHeader(row[0] || "") !== "trades" || normHeader(row[1] || "") !== "data") return;
@@ -143,7 +149,7 @@ function parseActivity(grid: string[][], rates?: Record<string, number | null>):
           price: cell(row, priceAt),
           fee: cell(row, feeAt),
           currency,
-          fx: null,
+          fx: fxAt >= 0 ? cell(row, fxAt) : null,
         },
         rates
       )
