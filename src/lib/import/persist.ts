@@ -301,7 +301,7 @@ export async function runH10Import(
     const outcome = await undoImportInOrder(
       plan.ids,
       async (id) => {
-        await planOrApplyLedgerReversal(id, true);
+        await planOrApplyLedgerReversal(id, true, null, { plannedBatch: true });
       }
     );
     invalidateBookCache(user._id);
