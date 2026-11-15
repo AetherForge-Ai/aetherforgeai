@@ -11,6 +11,12 @@ on:
   schedule:
     - cron: "7 16 * * *"   # broker sync, daily 16:07 UTC (05:07 NZDT / 04:07 NZST)
     - cron: "23 */6 * * *" # track record, every 6 hours at :23 UTC
+    # Daily prices, every 5 minutes from 06:07 through 07:07 Pacific/Auckland.
+    # NZDT is UTC+13 and NZST is UTC+12, so each Auckland minute is listed in both offsets.
+    # The route ignores a fire whose Auckland clock is outside that window.
+    - cron: "7,12,17,22,27,32,37,42,47,52,57 17 * * *"
+    - cron: "2,7,12,17,22,27,32,37,42,47,52,57 18 * * *"
+    - cron: "2,7 19 * * *"
   workflow_dispatch:
     inputs:
       job:
@@ -18,7 +24,7 @@ on:
         required: true
         default: "both"
         type: choice
-        options: [both, broker-sync, track-record]
+        options: [both, broker-sync, track-record, daily-prices]
 
 permissions:
   contents: read
@@ -32,7 +38,7 @@ env:
 
 jobs:
   broker-sync:
-    if: github.event.schedule == '7 16 * * *' || (github.event_name == 'workflow_dispatch' && github.event.inputs.job != 'track-record')
+    if: github.event.schedule == '7 16 * * *' || (github.event_name == 'workflow_dispatch' && (github.event.inputs.job == 'both' || github.event.inputs.job == 'broker-sync'))
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -50,7 +56,7 @@ jobs:
           head -c 500 /tmp/out.json; echo
 
   track-record:
-    if: github.event.schedule == '23 */6 * * *' || (github.event_name == 'workflow_dispatch' && github.event.inputs.job != 'broker-sync')
+    if: github.event.schedule == '23 */6 * * *' || (github.event_name == 'workflow_dispatch' && (github.event.inputs.job == 'both' || github.event.inputs.job == 'track-record'))
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -65,4 +71,28 @@ jobs:
             -H "x-cron-secret: ${CRON_SECRET}" \
             -o /tmp/out.json -w "HTTP %{http_code}\n" \
             "${BASE_URL}/api/cron/track-record"
+          head -c 500 /tmp/out.json; echo
+
+  daily-prices:
+    if: github.event.schedule == '7,12,17,22,27,32,37,42,47,52,57 17 * * *' || github.event.schedule == '2,7,12,17,22,27,32,37,42,47,52,57 18 * * *' || github.event.schedule == '2,7 19 * * *' || (github.event_name == 'workflow_dispatch' && github.event.inputs.job == 'daily-prices')
+    concurrency:
+      group: daily-prices
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Call /api/cron/daily-prices
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CRON_SECRET}" ]; then echo "CRON_SECRET is not set in repo secrets."; exit 1; fi
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then BODY='{"force":true}'; else BODY='{}'; fi
+          curl --fail --silent --show-error --retry 3 --retry-delay 20 --retry-all-errors \
+            --connect-timeout 20 --max-time 300 -X POST \
+            -H "content-type: application/json" \
+            -H "x-cron-secret: ${CRON_SECRET}" \
+            -d "${BODY}" \
+            -o /tmp/out.json -w "HTTP %{http_code}\n" \
+            "${BASE_URL}/api/cron/daily-prices"
           head -c 500 /tmp/out.json; echo
