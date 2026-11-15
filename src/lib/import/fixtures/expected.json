@@ -1,7 +1,7 @@
 {
   "sharesies.csv": { "broker": "sharesies", "rows": 3, "cashNzd": -380.8, "skipped": 1 },
   "hatch.csv": { "broker": "hatch", "rows": 2, "cashNzd": -158.4 },
-  "ibkr.csv": { "broker": "ibkr", "rows": 3, "cashNzd": -588.9 },
+  "ibkr.csv": { "broker": "ibkr", "rows": 3, "cashNzd": -634.29 },
   "stake.csv": { "broker": "stake", "rows": 2, "cashNzd": -238 },
   "asb.csv": { "broker": "asb", "rows": 2, "cashNzd": -202 },
   "jarden.csv": { "broker": "jarden", "rows": 2, "cashNzd": -458 },

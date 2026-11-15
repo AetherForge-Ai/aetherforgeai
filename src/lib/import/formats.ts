@@ -34,7 +34,7 @@ export const FORMAT_SOURCES: { broker: BrokerId; source: string }[] = [
   {
     broker: "ibkr",
     source:
-      "IBKR Flex Query trade fields (ClientAccountID, TradeDate, Symbol, Quantity, TradePrice, IBCommission, Buy/Sell, CurrencyPrimary, FXRateToBase, Proceeds) and the activity-statement Trades section (Trades, Header, DataDiscriminator, T. Price, Comm/Fee) from ibkrguides.com “Trades - Default Activity Statement”.",
+      "IBKR Flex Query trade fields (ClientAccountID, TradeDate, Symbol, Quantity, TradePrice, IBCommission, Buy/Sell, CurrencyPrimary, FXRateToBase, Proceeds) and the activity-statement Trades section (Trades, Header, DataDiscriminator, T. Price, Comm/Fee) from ibkrguides.com “Trades - Default Activity Statement”. FXRateToBase and “FX Rate to Base” are the conversion rate from the asset currency to the base currency.",
   },
   {
     broker: "stake",

@@ -38,6 +38,8 @@ interface PreviewData {
   toWrite: PreviewRow[];
   cashNzd: number;
   cashWarning?: string | null;
+  /** True when a row's exchange rate is more than 5% from the trade-date market rate. */
+  fxBlocked?: boolean;
   error?: string | null;
   written?: number;
   batchId?: string;
@@ -140,7 +142,7 @@ export function ImportClient() {
     await send("preview", body);
   }
 
-  const canSave = Boolean(preview && preview.toWrite.length > 0 && !preview.needsMapping && !saved);
+  const canSave = Boolean(preview && preview.toWrite.length > 0 && !preview.needsMapping && !preview.fxBlocked && !saved);
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-10">
