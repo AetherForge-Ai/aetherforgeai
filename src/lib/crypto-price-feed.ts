@@ -274,6 +274,12 @@ export function staleCryptoPrint(key: string): ChainPrint | null {
   return publish(book.markStale(key));
 }
 
+/** Last price that passed the sanity check. Does not mark it stale. */
+export function lastGoodCryptoPrice(symbol: string): number | null {
+  const print = book.peek(symbol);
+  return print && print.price > 0 && Number.isFinite(print.price) ? print.price : null;
+}
+
 /**
  * Symbols CoinGecko did not price. The chain continues at Swyftx (only when the
  * display flag is on), then Kraken, Coinbase, and mapped Yahoo.

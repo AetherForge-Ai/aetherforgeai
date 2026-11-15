@@ -23,6 +23,7 @@ import { CRYPTO_SNAPSHOT_TTL_MS, normalizeCryptoSymbols, stampCryptoQuoteLive } 
 import { acceptCryptoPrint, fillMissingPublicQuotes } from "@/lib/crypto-price-feed";
 import { publicSourceAllowed } from "@/lib/swyftx-display";
 import { canonicalCryptoId } from "@/lib/crypto-ids";
+import { canonicalGeckoForTicker } from "@/lib/crypto-listed-match";
 import { bullionDisplayName, isBullionHolding } from "@/lib/metal-valuation";
 import { cryptoFreshnessLabel, latestQuoteTime } from "@/lib/market-freshness";
 
@@ -309,7 +310,7 @@ async function fillMissingCryptoQuoteTimes(
   if (!missing.length) return;
   const idMap = new Map<string, string>();
   missing.forEach((t) => {
-    const id = ids?.[t] || coingeckoId(t);
+    const id = canonicalGeckoForTicker(t) || ids?.[t] || coingeckoId(t);
     const existing = idMap.get(id);
     if (existing && existing !== t) return;
     idMap.set(id, t);
@@ -403,7 +404,8 @@ async function loadCryptoQuotes(
     // idMap: coingecko id -> internal ticker
     const idMap = new Map<string, string>();
     unique.forEach((t) => {
-      const id = opts?.ids?.[t] || coingeckoId(t);
+      // A pinned ticker never takes a caller-supplied id. That id can be another token with the same ticker.
+      const id = canonicalGeckoForTicker(t) || opts?.ids?.[t] || coingeckoId(t);
       const existing = idMap.get(id);
       if (existing && existing !== t) return;
       idMap.set(id, t);
