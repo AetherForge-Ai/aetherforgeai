@@ -1,0 +1,13 @@
+{
+  "asOf": "2026-11-13T04:00:08Z",
+  "rows": {
+    "nzx": [
+      { "symbol": "FPH.NZ", "name": "Fisher & Paykel Health", "price": 36.2, "change": 0.4, "currency": "NZD", "provider": "Yahoo Finance", "asOf": "2026-11-13T04:00:08Z", "quotedAt": "2026-11-13T04:00:08Z" },
+      { "symbol": "AIR.NZ", "name": "Air New Zealand", "price": 0.55, "change": -0.2, "currency": "NZD", "provider": "Yahoo Finance", "asOf": "2026-11-13T04:00:08Z", "quotedAt": "2026-11-13T04:00:08Z" }
+    ],
+    "asx": [
+      { "symbol": "BHP.AX", "name": "BHP Group", "price": 42.1, "change": 0.3, "currency": "AUD", "provider": "Yahoo Finance", "asOf": "2026-11-13T04:00:08Z", "quotedAt": "2026-11-13T04:00:08Z" }
+    ],
+    "crypto": []
+  }
+}

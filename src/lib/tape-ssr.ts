@@ -1,4 +1,6 @@
+import buildSnapshot from "@/data/tape-build-snapshot.json";
 import { parseQuoteTime } from "@/lib/market-freshness";
+import { keepAlive } from "@/lib/keep-alive.server";
 import { loadPublicTickerBounded } from "@/lib/public-ticker";
 import { edgeJsonGet } from "@/lib/ticker-serve";
 import type { TapeRow, TickerTapeFeed } from "@/lib/ticker-feed";
@@ -13,6 +15,13 @@ import type { TapeRow, TickerTapeFeed } from "@/lib/ticker-feed";
 const BODY_MS = 200;
 const EQUITY_MS = 200;
 const QUOTE_MS = 200;
+/**
+ * H-1-TAPE-SSR-3: the SSR path does not wait out the 1800 ms public-ticker cap.
+ * A cold worker ships the stored or build snapshot immediately and lets the
+ * live read finish in the background. This budget applies only when both of
+ * those copies are missing.
+ */
+export const SSR_LIVE_WAIT_MS = 250;
 
 /** A tape row with no real print is omitted. Zero is not a price. */
 function positivePrice(value: unknown): number | null {
@@ -101,17 +110,48 @@ export function quotedTape(feed: TickerTapeFeed | null): TickerTapeFeed | null {
   return { ...feed, rows: { nzx, asx, crypto } };
 }
 
+/** Prices shipped with the build. Used when the colo copy and the live read are both missing. */
+export function bundledTape(): TickerTapeFeed | null {
+  return quotedTape(buildSnapshot as TickerTapeFeed);
+}
+
 /**
- * Same order as the home band: the bounded live public ticker, then the stored
- * snapshot. Both reads are capped, and they run together so the wait is the
- * longer of the two, not the sum.
+ * First HTML uses a tape that is already in hand. The stored colo copy wins,
+ * then the build snapshot. The live lookup refreshes in the background and is
+ * awaited only when neither copy has a stamped price, and then only for
+ * SSR_LIVE_WAIT_MS.
  */
 export async function loadRequestTape(): Promise<TickerTapeFeed | null> {
-  const [live, stored] = await Promise.all([
-    loadPublicTickerBounded().catch(() => null),
-    loadServerTape(),
-  ]);
-  return quotedTape(live) ?? quotedTape(stored);
+  let liveReady: TickerTapeFeed | null | undefined;
+  const live = loadPublicTickerBounded(SSR_LIVE_WAIT_MS)
+    .then((feed) => {
+      liveReady = feed;
+      return feed;
+    })
+    .catch(() => {
+      liveReady = null;
+      return null;
+    });
+  const stored = quotedTape(await loadServerTape());
+  if (stored) {
+    void keepAlive(live.then(() => undefined));
+    return stored;
+  }
+  if (liveReady !== undefined) {
+    const fresh = quotedTape(liveReady);
+    if (fresh) return fresh;
+  }
+  const built = bundledTape();
+  if (built) {
+    void keepAlive(live.then(() => undefined));
+    return built;
+  }
+  return quotedTape(
+    await Promise.race([
+      live,
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), SSR_LIVE_WAIT_MS)),
+    ]),
+  );
 }
 
 /**

@@ -161,7 +161,8 @@ describe("H-1-TAPE-SSR tape prefix in server HTML", () => {
       const clientHtml = renderToString(element);
       expect(clientHtml).toBe(serverHtml);
       expect(serverHtml).not.toContain("Close unavailable");
-      expect(serverHtml).toContain("data-tape-pending");
+      expect(serverHtml).not.toContain("Loading prices…");
+      expect(serverHtml).toContain("Close ");
       const pending = renderToStaticMarkup(createElement(TapePending));
       expect(pending).not.toContain("Close unavailable");
       const warned = errors.flat().map(String).join("\n");
