@@ -26,6 +26,7 @@ const loadPublicTickerBounded = vi.hoisted(() => vi.fn(async () => null));
 
 vi.mock("@/lib/ticker-serve", () => ({
   edgeJsonGet: (...args: unknown[]) => edgeJsonGet(...args),
+  edgeJsonPut: vi.fn(async () => undefined),
 }));
 
 vi.mock("@/lib/public-ticker", () => ({
@@ -37,6 +38,7 @@ vi.mock("@/lib/metals", () => ({
   getMetalsSpot: vi.fn(async () => null),
 }));
 
+import buildSnapshot from "@/data/tape-build-snapshot.json";
 import { MarketTicker } from "@/components/MarketTicker";
 import { ServerTape, TapePending } from "@/components/ServerTape";
 import { HomeTickerBand } from "@/app/page";
@@ -160,8 +162,10 @@ describe("H-1-TAPE-SSR tape prefix in server HTML", () => {
       const serverHtml = renderToString(element);
       const clientHtml = renderToString(element);
       expect(clientHtml).toBe(serverHtml);
+      const row = buildSnapshot.rows.nzx.find((item) => item.price > 0 && item.quotedAt);
       expect(serverHtml).not.toContain("Close unavailable");
-      expect(serverHtml).toContain("data-tape-pending");
+      expect(serverHtml).not.toContain("Loading prices…");
+      expect(serverHtml).toContain(closeLabelFor("NZX", row?.quotedAt, SATURDAY));
       const pending = renderToStaticMarkup(createElement(TapePending));
       expect(pending).not.toContain("Close unavailable");
       const warned = errors.flat().map(String).join("\n");

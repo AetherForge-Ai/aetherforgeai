@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { MARKETS_SSR_DEADLINE_MS, withDeadline } from "@/lib/ticker-serve";
 import { MarketsAccountPending } from "@/components/markets/MarketsAccountPending";
 import type { Metadata } from "next";
@@ -59,16 +60,26 @@ const SESSION_PENDING = "session-pending" as const;
 
 function MarketsTimeout() {
   return (
-    <AppShell tone="dark" guest user={{ name: "Guest", email: "Sign in to activate your account" }}>
-      <div className="mx-auto max-w-3xl p-6">
-        <h1 className="text-xl font-semibold">Markets</h1>
-        <p className="mt-2 text-sm opacity-80">Prices are taking longer than usual to load. Refresh the page in a few seconds.</p>
-      </div>
-    </AppShell>
+    <div className="mx-auto max-w-3xl p-6">
+      <h1 className="text-xl font-semibold">Markets</h1>
+      <p className="mt-2 text-sm opacity-80">Prices are taking longer than usual to load. Refresh the page in a few seconds.</p>
+    </div>
   );
 }
 
-export default async function MarketsPage({
+function MarketsIndexPending() {
+  return (
+    <div className="mx-auto max-w-3xl p-6" aria-busy="true">
+      <h1 className="text-xl font-semibold">Markets</h1>
+    </div>
+  );
+}
+
+/**
+ * The shell (and its tape) is the first byte. The index, session and crypto fill keep their
+ * deadlines inside this child, so a cold build does not hold the document open.
+ */
+async function MarketsReady({
   searchParams,
 }: {
   searchParams: Promise<{ tab?: string }>;
@@ -88,25 +99,24 @@ export default async function MarketsPage({
   if (!index) return <MarketsTimeout />;
 
   if (!user) {
-    return (
-      <AppShell tone="dark" guest user={{ name: "Guest", email: "Sign in to activate your account" }}>
-        <MarketsPageContent preview initialTab={tab} index={index} dexCredit={dexPoweredByLine()} />
-      </AppShell>
-    );
+    return <MarketsPageContent preview initialTab={tab} index={index} dexCredit={dexPoweredByLine()} />;
   }
 
   return (
-    <AppShell
-      tone="dark"
-      user={{
-        name: user.name,
-        email: user.email,
-        image: user.image,
-        subscription_status: user.subscription_status,
-        subscription_plan: user.subscription_plan,
-      }}
-    >
-      <MarketsPageContent userId={user.id} initialTab={tab} index={index} dexCredit={dexPoweredByLine()} />
+    <MarketsPageContent userId={user.id} initialTab={tab} index={index} dexCredit={dexPoweredByLine()} />
+  );
+}
+
+export default function MarketsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>;
+}) {
+  return (
+    <AppShell tone="dark" guest user={{ name: "Guest", email: "Sign in to activate your account" }}>
+      <Suspense fallback={<MarketsIndexPending />}>
+        <MarketsReady searchParams={searchParams} />
+      </Suspense>
     </AppShell>
   );
 }

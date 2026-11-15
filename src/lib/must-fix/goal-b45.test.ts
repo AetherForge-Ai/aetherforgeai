@@ -74,6 +74,6 @@ describe("b45 G-14: Playwright Tab-cycle harness exists", () => {
 
 describe("b45 version", () => {
   it("build marker", () => {
-    expect(read("public/build-version.txt")).toContain("v3-b101-2026-11-15");
+    expect(read("public/build-version.txt")).toContain("v3-b102-2026-11-15");
   });
 });
