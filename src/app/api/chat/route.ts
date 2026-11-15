@@ -8,8 +8,11 @@ import { buildPortfolioContext, ANALYST_SYSTEM_PROMPT } from "@/lib/ai-context";
 import { createGrokChatCompletion, isGrokConfigured, type GrokMessage } from "@/lib/grok";
 import { ASSISTANT_SHARE_PICK_REPLY, isSharePickRequest, withAssistantDisclaimer, withGuideDisclaimer } from "@/lib/guide-safety";
 import {
+  acceptSignalModelReply,
+  ensurePlatformLine,
   ensureSignalAsOf,
   isRecommendationSignalQuestion,
+  parseSignalQuery,
   prepareRecommendationAnswer,
   recommendationSignalMessages,
 } from "@/lib/chat-signals";
@@ -148,16 +151,18 @@ export async function POST(req: Request) {
         const sendMessages = applyAiPrivacy(messages, aiMode);
         if (sendMessages != null && isGrokConfigured()) {
           try {
-            body = await createGrokChatCompletion({
+            const modelText = await createGrokChatCompletion({
               messages: sendMessages,
               maxTokens: 1000,
               temperature: 0.2,
             });
+            body = acceptSignalModelReply(modelText, prepared.text, prepared.rows);
           } catch (aiErr) {
             console.error("[api/chat] signal completion failed, using the feed:", aiErr);
             body = prepared.text;
           }
         }
+        body = ensurePlatformLine(body, parseSignalQuery(userMessage).platform);
       } else {
         console.info(`[api/chat] recommendation signals unavailable (${feed.status}) for user ${user._id}`);
       }

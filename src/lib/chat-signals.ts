@@ -9,9 +9,8 @@
  * - Rank uses confidenceWeightedMove (the same strength the projection list uses)
  *   and the existing score as a tie-break.
  *
- * Platform availability (Sharesies, Hatch, Stake, IBKR) is not stored on bot
- * picks. Rows carry platforms only when a caller already has them. Otherwise
- * the feed says exchange only.
+ * Platform questions use PLATFORM_EXCHANGES to keep rows on the exchanges that
+ * platform broadly offers. A row is never marked as listed on that platform.
  */
 import { assistantCompletionMessages, type AiChatTurn } from "@/lib/ai-request-payload";
 import { directionLabel } from "@/lib/buy-label";
@@ -32,6 +31,7 @@ export const RECOMMENDATION_SIGNAL_RULES = [
   "Recommendation signals are the tool result below. They are the bots' existing picks, already labelled and ranked.",
   "A Buy label means the bot's prediction is above the current price. A Sell label means it is below. A pick with no prediction is omitted.",
   "Never invent a ticker, name, label, price, currency, exchange or platform that is not in the tool result.",
+  "Do not claim that a specific ticker is listed on a platform.",
   "If the tool result is empty, stale, failed, or not on this plan, say plainly that current recommendation signals aren't available.",
   "Always state the as-of time from the tool result.",
   "Use only the label written on each row. Do not rename Sell to Strong Sell, or Buy to Strong Buy.",
@@ -41,6 +41,79 @@ export const RECOMMENDATION_SIGNAL_RULES = [
 
 export const EXCHANGE_ONLY_NOTE =
   "Platform availability is not in this feed. Use the exchange only. Do not say a ticker is offered on Sharesies, Hatch, Stake, IBKR or any other platform.";
+
+/**
+ * Exchanges a platform broadly offers, used only to narrow a question.
+ * Not a per-ticker listing. None of these include CRYPTO: the crypto names on
+ * src/app/how-it-works/page.tsx are Easy Crypto and the other CRYPTO_PLATFORMS,
+ * not these four.
+ *
+ * Sharesies — NZX, ASX and US: how-it-works STOCK_PLATFORMS, "acquire NZX, ASX and US shares".
+ * Hatch — US: same page, "US-listed shares and ETFs".
+ * Stake — US and ASX: the Stake workbook has ASX and US tabs
+ * (src/lib/broker-sync/broker-sync.test.ts).
+ * IBKR — NZX, ASX and US: how-it-works describes Interactive Brokers as global
+ * shares (150+ markets). This map names only the equity exchanges on the signal feed.
+ */
+export const PLATFORM_EXCHANGES: Record<string, readonly SignalExchange[]> = {
+  Sharesies: ["NZX", "ASX", "US"],
+  Hatch: ["US"],
+  Stake: ["US", "ASX"],
+  IBKR: ["NZX", "ASX", "US"],
+};
+
+export function platformAvailabilityLine(platform: string): string {
+  return `Check that the ticker is available on ${platform} before trading. AetherForge doesn't confirm individual listings.`;
+}
+
+export function ensurePlatformLine(text: string, platform: string | null): string {
+  if (!platform) return text;
+  const line = platformAvailabilityLine(platform);
+  if (text.includes(line)) return text;
+  return `${text.trim()}\n\n${line}`;
+}
+
+/** Exchange names, currencies and label words. They are not tickers. */
+const NOT_A_TICKER = new Set([
+  "NZX", "ASX", "US", "USD", "NZD", "AUD", "NZ", "AI", "BUY", "SELL", "HOLD", "IBKR", "ETF", "CRYPTO", "STRONG", "NZDT", "NZST",
+]);
+
+function knownTickerTokens(rows: readonly { ticker: string }[]): Set<string> {
+  const known = new Set<string>();
+  for (const row of rows) {
+    const ticker = row.ticker.toUpperCase();
+    known.add(ticker);
+    const base = ticker.split(".")[0];
+    if (base) known.add(base);
+  }
+  return known;
+}
+
+/**
+ * True when every ALL-CAPS ticker-like token in the model text is one of the
+ * matched rows (full ticker or its code before the dot). A suffixed code
+ * (FPH.NZ) or a 2–5 letter code outside that set fails the check.
+ */
+export function signalReplyStaysOnRows(text: string, rows: readonly { ticker: string }[]): boolean {
+  const known = knownTickerTokens(rows);
+  const suffixed = String(text || "").match(/\b[A-Z]{1,6}\.(?:NZ|AX)\b/g) || [];
+  for (const token of suffixed) {
+    if (!known.has(token)) return false;
+  }
+  const bare = String(text || "").match(/\b[A-Z]{2,5}\b/g) || [];
+  for (const token of bare) {
+    if (NOT_A_TICKER.has(token)) continue;
+    if (!known.has(token)) return false;
+  }
+  return true;
+}
+
+/** Keep the model text only when it stays on the matched rows. Otherwise the feed text. */
+export function acceptSignalModelReply(modelText: string, fallback: string, rows: readonly { ticker: string }[]): string {
+  const text = String(modelText || "").trim();
+  if (!text || !signalReplyStaysOnRows(text, rows)) return fallback;
+  return text;
+}
 
 export interface ChatSignalRow {
   ticker: string;
@@ -281,12 +354,19 @@ export function buildSignalFeed(records: StoredSignalReport[], now = new Date())
 
 export function filterSignalRows(
   rows: ChatSignalRow[],
-  query: { platform?: string | null; exchange?: SignalExchange | null; labels?: ChatSignalLabel[] | null }
+  query: {
+    platform?: string | null;
+    exchange?: SignalExchange | null;
+    exchanges?: readonly SignalExchange[] | null;
+    labels?: ChatSignalLabel[] | null;
+  }
 ): ChatSignalRow[] {
   const platform = query.platform?.trim().toLowerCase() || "";
   const labels = query.labels;
+  const exchanges = query.exchanges;
   return rows.filter((row) => {
     if (platform && !row.platforms.some((name) => name.toLowerCase() === platform)) return false;
+    if (exchanges && !exchanges.includes(row.exchange)) return false;
     if (query.exchange && row.exchange !== query.exchange) return false;
     if (labels && !labels.includes(row.label)) return false;
     return true;
@@ -329,13 +409,13 @@ export interface PreparedSignalAnswer {
   rows: ChatSignalRow[];
 }
 
-function toolPayload(feed: SignalFeed, rows: ChatSignalRow[]): string {
+function toolPayload(feed: SignalFeed, rows: ChatSignalRow[], platformNote?: string): string {
   return JSON.stringify({
     tool: RECOMMENDATION_TOOL,
     asOf: feed.asOf,
     asOfLabel: feed.asOf ? formatAucklandDateTime(feed.asOf) : null,
     platformCoverage: feed.platformCoverage,
-    platformNote: feed.platformCoverage === "listed" ? "Name a platform only when it is listed on that row." : EXCHANGE_ONLY_NOTE,
+    platformNote: platformNote ?? (feed.platformCoverage === "listed" ? "Name a platform only when it is listed on that row." : EXCHANGE_ONLY_NOTE),
     cryptoProjections: CRYPTO_PROJECTIONS_PAUSED ? CRYPTO_PROJECTIONS_PAUSE_MESSAGE : null,
     rows: rows.map((row) => ({
       ticker: row.ticker,
@@ -352,7 +432,7 @@ function toolPayload(feed: SignalFeed, rows: ChatSignalRow[]): string {
   });
 }
 
-function deterministicLines(rows: ChatSignalRow[], side: SignalQuery["side"], asOf: string | null): string {
+function deterministicLines(rows: ChatSignalRow[], side: SignalQuery["side"], asOf: string | null, platform: string | null): string {
   const heading =
     side === "sell"
       ? "Sell-side signals, strongest first:"
@@ -361,11 +441,13 @@ function deterministicLines(rows: ChatSignalRow[], side: SignalQuery["side"], as
         : side === "buy"
           ? "Buy-side signals, strongest first:"
           : "Current signals, strongest first:";
-  const lines = rows.map((row) => {
-    const platforms = row.platforms.length ? row.platforms.join(", ") : "not listed (exchange only)";
-    return `- ${row.ticker} (${row.name}) — ${row.label} — ${formatMoney(row.price, row.currency)} now, predicted ${formatMoney(row.predictedPrice, row.currency)} — ${row.exchange}. Platforms: ${platforms}.`;
-  });
-  return [asOfSentence(asOf), "", heading, ...lines].join("\n");
+  const lines = rows.map(
+    (row) =>
+      `- ${row.ticker} (${row.name}) — ${row.label} — ${formatMoney(row.price, row.currency)} now, predicted ${formatMoney(row.predictedPrice, row.currency)} — ${row.exchange}.`
+  );
+  const body = [asOfSentence(asOf), "", heading, ...lines];
+  if (platform) body.push("", platformAvailabilityLine(platform));
+  return body.join("\n");
 }
 
 /**
@@ -390,16 +472,22 @@ export function prepareRecommendationAnswer(message: string, feed: SignalFeed): 
     const text = unavailableSignalText(feed, detail);
     return { mode: "unavailable", text, toolText: toolPayload({ ...feed, rows: [] }, []), rows: [] };
   }
-  if (query.platform && feed.platformCoverage !== "listed") {
-    const text = unavailableSignalText(
-      feed,
-      `${query.platform} is not in this feed. ${EXCHANGE_ONLY_NOTE}`
-    );
-    return { mode: "unavailable", text, toolText: toolPayload({ ...feed, rows: [] }, []), rows: [] };
+  let exchanges: readonly SignalExchange[] | null = null;
+  if (query.platform) {
+    const mapped = PLATFORM_EXCHANGES[query.platform];
+    if (!mapped) {
+      const text = unavailableSignalText(feed, `${query.platform} is not in this feed. ${EXCHANGE_ONLY_NOTE}`);
+      return { mode: "unavailable", text, toolText: toolPayload({ ...feed, rows: [] }, []), rows: [] };
+    }
+    exchanges = query.exchange ? (mapped.includes(query.exchange) ? [query.exchange] : []) : mapped;
   }
   const labels = labelsForQuery(query);
   const matched = rankSignalRows(
-    filterSignalRows(feed.rows, { platform: query.platform, exchange: query.exchange, labels }),
+    filterSignalRows(feed.rows, {
+      exchange: exchanges ? null : query.exchange,
+      exchanges,
+      labels,
+    }),
     query.side
   ).slice(0, SIGNAL_ROW_LIMIT);
   if (!matched.length) {
@@ -407,10 +495,13 @@ export function prepareRecommendationAnswer(message: string, feed: SignalFeed): 
     return { mode: "unavailable", text, toolText: toolPayload({ ...feed, rows: [] }, []), rows: [] };
   }
   const scoped: SignalFeed = { ...feed, rows: matched, asOf: newestIso(matched.map((row) => row.asOf)) ?? feed.asOf };
+  const note = query.platform
+    ? `${platformAvailabilityLine(query.platform)} Do not claim that a specific ticker is listed on ${query.platform}.`
+    : undefined;
   return {
     mode: "answer",
-    text: deterministicLines(matched, query.side, scoped.asOf),
-    toolText: toolPayload(scoped, matched),
+    text: deterministicLines(matched, query.side, scoped.asOf, query.platform),
+    toolText: toolPayload(scoped, matched, note),
     rows: matched,
   };
 }
