@@ -12,17 +12,23 @@ import type { DailyMarket } from "@/lib/daily-price-sources";
 
 export interface CaptureBudget {
   creditsPerMinute: number;
+  /** Credits one run may spend. 8 per minute for 4 minutes fits the 240s budget. */
   maxCreditsPerRun: number;
   batchSize: number;
   /** Stop starting new Twelve Data calls after this many milliseconds. */
   budgetMs: number;
+  /** This job's share of the 800-credit Twelve Data day. The quote calls keep the rest. */
+  dailyCreditCeiling: number;
 }
+
+export const DEFAULT_DAILY_CREDIT_CEILING = 500;
 
 export const DEFAULT_CAPTURE_BUDGET: CaptureBudget = {
   creditsPerMinute: 8,
-  maxCreditsPerRun: 24,
+  maxCreditsPerRun: 32,
   batchSize: 8,
   budgetMs: 240_000,
+  dailyCreditCeiling: DEFAULT_DAILY_CREDIT_CEILING,
 };
 
 function boundedInt(raw: string | undefined, fallback: number, min: number, max: number): number {
@@ -40,9 +46,10 @@ export function captureBudgetFromEnv(env: Record<string, string | undefined> = p
   );
   return {
     creditsPerMinute,
-    maxCreditsPerRun: boundedInt(env.DAILY_PRICE_MAX_CREDITS_PER_RUN, DEFAULT_CAPTURE_BUDGET.maxCreditsPerRun, 1, 500),
+    maxCreditsPerRun: boundedInt(env.DAILY_PRICE_MAX_CREDITS_PER_RUN, DEFAULT_CAPTURE_BUDGET.maxCreditsPerRun, 1, 64),
     batchSize,
     budgetMs: boundedInt(env.DAILY_PRICE_RUN_BUDGET_MS, DEFAULT_CAPTURE_BUDGET.budgetMs, 1_000, 240_000),
+    dailyCreditCeiling: boundedInt(env.DAILY_PRICE_DAILY_CREDIT_CEILING, DEFAULT_CAPTURE_BUDGET.dailyCreditCeiling, 1, 800),
   };
 }
 
@@ -59,14 +66,18 @@ export function captureWorkOrder(names: readonly DirectoryName[]): DirectoryName
   });
 }
 
+export function captureBatchKey(name: DirectoryName): string {
+  const mapped = twelveDailySymbol(name.symbol, name.market);
+  return `${name.market}|${mapped.country || ""}`;
+}
+
 export function batchCaptureNames(names: readonly DirectoryName[], batchSize: number): DirectoryName[][] {
   const size = Math.max(1, batchSize);
   const groups: DirectoryName[][] = [];
   let current: DirectoryName[] = [];
   let key = "";
   for (const name of names) {
-    const mapped = twelveDailySymbol(name.symbol, name.market);
-    const next = `${name.market}|${mapped.country || ""}`;
+    const next = captureBatchKey(name);
     if (current.length && (next !== key || current.length >= size)) {
       groups.push(current);
       current = [];

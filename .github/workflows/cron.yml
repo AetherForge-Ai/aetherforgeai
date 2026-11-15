@@ -11,8 +11,12 @@ on:
   schedule:
     - cron: "7 16 * * *"   # broker sync, daily 16:07 UTC (05:07 NZDT / 04:07 NZST)
     - cron: "23 */6 * * *" # track record, every 6 hours at :23 UTC
-    - cron: "7 17 * * *"   # daily prices, 06:07 Pacific/Auckland during NZDT (UTC+13)
-    - cron: "7 18 * * *"   # daily prices, 06:07 Pacific/Auckland during NZST (UTC+12)
+    # Daily prices, every 5 minutes from 06:07 through 07:07 Pacific/Auckland.
+    # NZDT is UTC+13 and NZST is UTC+12, so each Auckland minute is listed in both offsets.
+    # The route ignores a fire whose Auckland clock is outside that window.
+    - cron: "7,12,17,22,27,32,37,42,47,52,57 17 * * *"
+    - cron: "2,7,12,17,22,27,32,37,42,47,52,57 18 * * *"
+    - cron: "2,7 19 * * *"
   workflow_dispatch:
     inputs:
       job:
@@ -70,7 +74,10 @@ jobs:
           head -c 500 /tmp/out.json; echo
 
   daily-prices:
-    if: github.event.schedule == '7 17 * * *' || github.event.schedule == '7 18 * * *' || (github.event_name == 'workflow_dispatch' && github.event.inputs.job == 'daily-prices')
+    if: github.event.schedule == '7,12,17,22,27,32,37,42,47,52,57 17 * * *' || github.event.schedule == '2,7,12,17,22,27,32,37,42,47,52,57 18 * * *' || github.event.schedule == '2,7 19 * * *' || (github.event_name == 'workflow_dispatch' && github.event.inputs.job == 'daily-prices')
+    concurrency:
+      group: daily-prices
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:

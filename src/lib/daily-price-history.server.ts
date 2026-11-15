@@ -1,5 +1,6 @@
 import "server-only";
 
+import { aucklandWall } from "@/lib/daily-price-schedule";
 import { TWELVE_DATA_SOURCE } from "@/lib/daily-price-twelve";
 import { DAILY_PRICE_CLOSE } from "@/lib/schema/daily-price-history.schema";
 import { flagOn } from "@/lib/schema/types";
@@ -93,11 +94,23 @@ export async function readDailyPriceHistory(
   }
 }
 
-/** Every stored idem_key for the dates a capture might write. Used to skip Twelve Data calls. */
-export async function listStoredCloseKeys(dates: ReadonlySet<string>): Promise<Set<string> | null> {
-  if (!dates.size) return new Set();
+export interface StoredCloseScan {
+  keys: Set<string>;
+  /** Distinct symbols with a row captured on today's Auckland date. One symbol is one credit. */
+  creditsToday: number;
+  /** One stamp per symbol captured in the last minute, so the next run keeps the per-minute pace. */
+  recentStamps: number[];
+}
+
+/** Stored idem keys for the dates a capture might write, plus today's credit count. No extra table. */
+export async function listStoredCloseKeys(dates: ReadonlySet<string>, now = new Date()): Promise<StoredCloseScan | null> {
+  if (!dates.size) return { keys: new Set(), creditsToday: 0, recentStamps: [] };
   try {
     const keys = new Set<string>();
+    const today = aucklandWall(now).iso;
+    const symbolsToday = new Set<string>();
+    const recent = new Map<string, number>();
+    const recentAfter = now.getTime() - 60_000;
     let offset = 0;
     let previousMarker = "";
     for (let page = 0; page < 40; page++) {
@@ -107,13 +120,23 @@ export async function listStoredCloseKeys(dates: ReadonlySet<string>): Promise<S
       previousMarker = marker;
       for (const item of raw) {
         const row = asRow(item);
-        if (!row || row.source !== TWELVE_DATA_SOURCE || !dates.has(row.date)) continue;
+        if (!row || row.source !== TWELVE_DATA_SOURCE) continue;
+        const capturedMs = Date.parse(row.captured_at);
+        if (Number.isFinite(capturedMs) && aucklandWall(new Date(capturedMs)).iso === today) {
+          const symbolKey = `${row.market}|${row.symbol}`;
+          symbolsToday.add(symbolKey);
+          if (capturedMs >= recentAfter) {
+            const prior = recent.get(symbolKey) ?? 0;
+            if (capturedMs > prior) recent.set(symbolKey, capturedMs);
+          }
+        }
+        if (!dates.has(row.date)) continue;
         keys.add(`${row.date}|${row.market}|${row.symbol}`);
       }
       if (raw.length < HISTORY_PAGE_SIZE) break;
       offset += raw.length;
     }
-    return keys;
+    return { keys, creditsToday: symbolsToday.size, recentStamps: [...recent.values()] };
   } catch (err) {
     console.error("[daily-prices] stored-key read failed:", err instanceof Error ? err.message.slice(0, 120) : "failed");
     return null;

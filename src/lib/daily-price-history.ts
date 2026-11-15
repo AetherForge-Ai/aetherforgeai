@@ -5,7 +5,7 @@
 
 import { signalRowFromPick, type StoredSignalReport } from "@/lib/chat-signals";
 import { resolveExchange } from "@/lib/market-intel";
-import { batchCaptureNames, captureBudgetFromEnv, captureWorkOrder, creditWaitMs, waitForCredits, type CaptureBudget } from "@/lib/daily-price-capture";
+import { captureBatchKey, captureBudgetFromEnv, captureWorkOrder, creditWaitMs, waitForCredits, type CaptureBudget } from "@/lib/daily-price-capture";
 import { dailyPriceDirectory, type DirectoryName } from "@/lib/daily-price-directory";
 import {
   completedSessionDates,
@@ -224,6 +224,10 @@ export async function captureDailyCloses(args: {
   names?: readonly DirectoryName[];
   sessions?: number;
   storedKeys?: ReadonlySet<string>;
+  /** Distinct symbols already stored today. One stored symbol is one Twelve Data credit. */
+  creditsAlreadyUsed?: number;
+  /** Credit times from symbols stored in the last minute, so the next run keeps the 8/minute pace. */
+  priorStamps?: readonly number[];
   budget?: CaptureBudget;
   env?: Record<string, string | undefined>;
   nowMs?: () => number;
@@ -246,7 +250,8 @@ export async function captureDailyCloses(args: {
   const sessions = args.sessions ?? 1;
   const stored = new Set(args.storedKeys ?? []);
   const started = nowMs();
-  const stamps: number[] = [];
+  const stamps: number[] = [...(args.priorStamps ?? [])];
+  const already = args.creditsAlreadyUsed ?? 0;
   let inserted = 0;
   let existing = 0;
   let gaps = 0;
@@ -264,36 +269,54 @@ export async function captureDailyCloses(args: {
       datesByMarket.set(name.market, dates);
       return dates.some((date) => !stored.has(idemKey(date, name.market, name.symbol)));
     });
-    const batches = batchCaptureNames(pending, budget.batchSize);
+    const queue = [...pending];
     let stop = false;
-    for (let index = 0; index < batches.length; index++) {
-      const batch = batches[index];
-      const market = batch[0].market;
-      const dates = datesByMarket.get(market) ?? [];
-      const cost = Math.min(batch.length, budget.creditsPerMinute);
-      const at = nowMs();
-      const wait = creditWaitMs(stamps, at, cost, budget.creditsPerMinute);
-      if (credits + batch.length > budget.maxCreditsPerRun || at + wait - started > budget.budgetMs) {
-        deferred += batches.slice(index).reduce((sum, group) => sum + group.length, 0);
+    while (queue.length) {
+      const room = Math.min(budget.maxCreditsPerRun - credits, budget.dailyCreditCeiling - already - credits);
+      if (room <= 0) {
+        deferred += queue.length;
         stop = true;
         break;
       }
-      await waitForCredits({ cost: batch.length, perMinute: budget.creditsPerMinute, stamps, now: nowMs, sleep });
-      credits += batch.length;
+      const at = nowMs();
+      const minuteUsed = stamps.filter((stamp) => at - stamp < 60_000).length;
+      const minuteRoom = budget.creditsPerMinute - minuteUsed;
+      if (minuteRoom <= 0) {
+        const wait = creditWaitMs(stamps, at, 1, budget.creditsPerMinute);
+        if (at + wait - started > budget.budgetMs) {
+          deferred += queue.length;
+          stop = true;
+          break;
+        }
+        await sleep(wait);
+        continue;
+      }
+      const take = Math.min(queue.length, room, minuteRoom, budget.batchSize);
+      const seed = queue[0];
+      const work: DirectoryName[] = [];
+      while (work.length < take && queue.length) {
+        const mapped = captureBatchKey(queue[0]);
+        if (work.length && mapped !== captureBatchKey(work[0])) break;
+        work.push(queue.shift()!);
+      }
+      if (!work.length) work.push(queue.shift()!);
+      await waitForCredits({ cost: work.length, perMinute: budget.creditsPerMinute, stamps, now: nowMs, sleep });
+      credits += work.length;
+      const dates = datesByMarket.get(seed.market) ?? [];
       let barsBySymbol: Map<string, readonly FeedBar[] | null>;
       try {
-        if (args.readBatch) barsBySymbol = await args.readBatch(feed, batch, dates);
+        if (args.readBatch) barsBySymbol = await args.readBatch(feed, work, dates);
         else {
           barsBySymbol = new Map();
-          for (const name of batch) {
+          for (const name of work) {
             const bars = args.readFeed ? await args.readFeed(feed, name.market, name.symbol, dates) : null;
             barsBySymbol.set(name.symbol.toUpperCase(), bars);
           }
         }
       } catch {
-        barsBySymbol = new Map(batch.map((name) => [name.symbol.toUpperCase(), null]));
+        barsBySymbol = new Map(work.map((name) => [name.symbol.toUpperCase(), null]));
       }
-      for (const name of batch) {
+      for (const name of work) {
         const bars = barsBySymbol.get(name.symbol.toUpperCase()) ?? null;
         if (bars == null) {
           gaps += dates.length;
@@ -322,7 +345,8 @@ export async function captureDailyCloses(args: {
     }
     if (stop) break;
   }
-  return { ran: true, reason: deferred ? "resume" : "captured", inserted, existing, gaps, skipped, deferred, credits };
+  const reason = deferred ? "resume" : credits === 0 && inserted === 0 && gaps === 0 ? "complete" : "captured";
+  return { ran: true, reason, inserted, existing, gaps, skipped, deferred, credits };
 }
 
 export interface SessionBoardRow {

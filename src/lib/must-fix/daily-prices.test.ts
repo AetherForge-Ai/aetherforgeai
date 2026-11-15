@@ -19,17 +19,19 @@ import {
   type DailyPriceFeed,
 } from "@/lib/daily-price-history";
 import {
+  CAPTURE_SLOTS,
   DAILY_PRICE_CRON_NZDT,
   DAILY_PRICE_CRON_NZST,
+  DAILY_PRICE_CRON_UTC18,
   isAucklandCaptureWindow,
   lastCompletedSessionDate,
   latestAucklandCapture,
   utcForAuckland,
 } from "@/lib/daily-price-schedule";
+import { DEFAULT_CAPTURE_BUDGET, DEFAULT_DAILY_CREDIT_CEILING } from "@/lib/daily-price-capture";
 import { DAILY_PRICE_FEEDS, DATA_LICENCE_REVIEW, historyStoreAllowed } from "@/lib/daily-price-sources";
 import { barsFromTwelveValues, canReadTwelveData, loadTwelveDailyBars, loadTwelveDailyBatch, parseTwelveBatch, redactSecret } from "@/lib/daily-price-twelve";
-import { acquireCaptureLock, type CaptureLockRow } from "@/lib/daily-price-lock";
-import { DAILY_PRICE_CAPTURE_LOCK, DAILY_PRICE_CLOSE } from "@/lib/schema/daily-price-history.schema";
+import { DAILY_PRICE_CLOSE } from "@/lib/schema/daily-price-history.schema";
 import { DOW_JONES_TICKERS, entriesForExchange } from "@/lib/market-intel";
 // @ts-expect-error plain script
 import { latestAucklandCapture as watchdogCapture } from "../../../scripts/cron-watchdog.mjs";
@@ -86,35 +88,45 @@ describe("DAILY-PRICES-1 append-only history", () => {
   });
 });
 
-describe("DAILY-PRICES-1 schedule is 06:07 Pacific/Auckland", () => {
-  it("NZDT is 17:07 UTC and NZST is 18:07 UTC, including the 2026 changeover days", () => {
-    expect(DAILY_PRICE_CRON_NZDT).toBe("7 17 * * *");
-    expect(DAILY_PRICE_CRON_NZST).toBe("7 18 * * *");
+describe("DAILY-PRICES-1 schedule is 06:07 through 07:07 Pacific/Auckland", () => {
+  it("covers both DST offsets every 5 minutes, including the 2026 changeover days", () => {
+    expect(CAPTURE_SLOTS).toHaveLength(13);
+    expect(CAPTURE_SLOTS[0]).toEqual({ hour: 6, minute: 7 });
+    expect(CAPTURE_SLOTS[CAPTURE_SLOTS.length - 1]).toEqual({ hour: 7, minute: 7 });
+    expect(DAILY_PRICE_CRON_NZDT).toBe("7,12,17,22,27,32,37,42,47,52,57 17 * * *");
+    expect(DAILY_PRICE_CRON_UTC18).toBe("2,7,12,17,22,27,32,37,42,47,52,57 18 * * *");
+    expect(DAILY_PRICE_CRON_NZST).toBe("2,7 19 * * *");
     expect(utcForAuckland(2026, 1, 15, 6, 7)?.toISOString()).toBe("2026-01-14T17:07:00.000Z");
+    expect(utcForAuckland(2026, 1, 15, 7, 7)?.toISOString()).toBe("2026-01-14T18:07:00.000Z");
     expect(utcForAuckland(2026, 7, 15, 6, 7)?.toISOString()).toBe("2026-07-14T18:07:00.000Z");
+    expect(utcForAuckland(2026, 7, 15, 7, 7)?.toISOString()).toBe("2026-07-14T19:07:00.000Z");
     expect(utcForAuckland(2026, 4, 5, 6, 7)?.toISOString()).toBe("2026-04-04T18:07:00.000Z");
     expect(utcForAuckland(2026, 9, 27, 6, 7)?.toISOString()).toBe("2026-09-26T17:07:00.000Z");
     const summer = utcForAuckland(2026, 1, 15, 6, 7)!;
     const winter = utcForAuckland(2026, 7, 15, 6, 7)!;
     expect(isAucklandCaptureWindow(summer)).toBe(true);
     expect(isAucklandCaptureWindow(winter)).toBe(true);
+    expect(isAucklandCaptureWindow(utcForAuckland(2026, 1, 15, 7, 7)!)).toBe(true);
     expect(isAucklandCaptureWindow(new Date(summer.getTime() - 60 * 60 * 1000))).toBe(false);
-    expect(isAucklandCaptureWindow(new Date(summer.getTime() + 60 * 60 * 1000))).toBe(false);
-    expect(latestAucklandCapture(new Date("2026-01-15T06:30:00+13:00"))?.toISOString()).toBe("2026-01-14T17:07:00.000Z");
-    expect(latestAucklandCapture(new Date("2026-07-15T06:30:00+12:00"))?.toISOString()).toBe("2026-07-14T18:07:00.000Z");
+    expect(isAucklandCaptureWindow(utcForAuckland(2026, 1, 15, 7, 8)!)).toBe(false);
+    expect(latestAucklandCapture(new Date("2026-01-15T06:30:00+13:00"))?.toISOString()).toBe("2026-01-14T17:27:00.000Z");
+    expect(latestAucklandCapture(new Date("2026-07-15T06:30:00+12:00"))?.toISOString()).toBe("2026-07-14T18:27:00.000Z");
   });
 
-  it("the workflow schedules both UTC fires and the OpenNext worker config stays without a cron", () => {
+  it("the workflow schedules the morning slots and queues overlapping runs", () => {
     const yml = read(".github/workflows/cron.yml");
     expect(yml).toContain(`- cron: "${DAILY_PRICE_CRON_NZDT}"`);
+    expect(yml).toContain(`- cron: "${DAILY_PRICE_CRON_UTC18}"`);
     expect(yml).toContain(`- cron: "${DAILY_PRICE_CRON_NZST}"`);
+    expect(yml).toContain("group: daily-prices");
+    expect(yml).toContain("cancel-in-progress: false");
     expect(yml).toContain("/api/cron/daily-prices");
     expect(yml).toContain('x-cron-secret: ${CRON_SECRET}');
     expect(yml).not.toMatch(/\?key=/);
     expect(read("wrangler.jsonc")).not.toContain("crons");
     expect(read("src/app/api/cron/daily-prices/route.ts")).toContain("presentedHeaderCronSecret");
     expect(read("src/app/api/cron/daily-prices/route.ts")).toContain("fetchTwelveDailyBatch");
-    expect(read("src/app/api/cron/daily-prices/route.ts")).toContain("acquireDailyPriceRunLock");
+    expect(read("src/app/api/cron/daily-prices/route.ts")).not.toMatch(/acquireDailyPriceRunLock|daily_price_capture_lock/);
     expect(read("src/app/api/cron/daily-prices/route.ts")).not.toMatch(/finance\.yahoo/);
     expect(read("src/lib/daily-price-twelve.ts")).not.toMatch(/finance\.yahoo/);
   });
@@ -340,8 +352,7 @@ describe("DAILY-PRICES-1 comparison and gaps", () => {
     ]);
     expect(DAILY_PRICE_CLOSE.flag).toBe("DAILY_PRICE_HISTORY_TABLE=on");
     expect(DAILY_PRICE_CLOSE.indexes[0]).toEqual({ fields: ["idem_key"], unique: true });
-    expect(DAILY_PRICE_CAPTURE_LOCK.table).toBe("daily_price_capture_lock");
-    expect(DAILY_PRICE_CAPTURE_LOCK.indexes[0]).toEqual({ fields: ["lock_key"], unique: true });
+    expect(read("src/lib/schema/daily-price-history.schema.ts")).not.toContain("DAILY_PRICE_CAPTURE_LOCK");
     expect(read("src/lib/daily-price-history.server.ts")).toContain("dailyPriceHistoryEnabled");
     expect(read("src/lib/daily-price-history.server.ts")).not.toMatch(/migrate|CREATE TABLE|editRecordById|updateRecord|deleteRecord/i);
   });
@@ -362,7 +373,7 @@ describe("DAILY-PRICES-1 comparison and gaps", () => {
       feeds: DAILY_PRICE_FEEDS,
       names,
       sessions: 1,
-      budget: { creditsPerMinute: 1, maxCreditsPerRun: 2, batchSize: 1, budgetMs: 240_000 },
+      budget: { creditsPerMinute: 1, maxCreditsPerRun: 2, batchSize: 1, budgetMs: 240_000, dailyCreditCeiling: 500 },
       nowMs: () => clock,
       sleep: async (ms) => {
         sleeps.push(ms);
@@ -465,7 +476,7 @@ describe("DAILY-PRICES-1 comparison and gaps", () => {
     expect(split.kept.map((row) => row.symbol)).toEqual(["A", "B", "C"]);
   });
 
-  it("a second look before insert does not write, and a second run does not take the lock", async () => {
+  it("a second look before insert does not write", async () => {
     let finds = 0;
     const stored = row({ date: "2026-07-15" });
     const store = {
@@ -482,28 +493,90 @@ describe("DAILY-PRICES-1 comparison and gaps", () => {
     };
     expect(await appendDailyClose(store, stored, [FIXTURE])).toBe("exists");
     expect(finds).toBe(2);
+  });
 
-    const locks: CaptureLockRow[] = [];
-    const list = async () => locks.map((entry) => ({ ...entry }));
-    const insert = async (entry: CaptureLockRow) => {
-      locks.push(entry);
-    };
-    expect(await acquireCaptureLock({ owner: "run-a", now: 1_000, list, insert })).toBe("acquired");
-    expect(await acquireCaptureLock({ owner: "run-b", now: 1_001, list, insert })).toBe("held");
-
-    const raced: CaptureLockRow[] = [{ id: "earlier", owner: "other", acquiredAt: 1, expiresAt: 99_000 }];
-    let reads = 0;
-    const lost = await acquireCaptureLock({
-      owner: "me",
-      now: 50,
-      list: async () => {
-        reads += 1;
-        return reads === 1 ? [] : raced.map((entry) => ({ ...entry }));
-      },
-      insert: async (entry) => {
-        raced.push(entry);
+  it("one morning of 5-minute runs stores the full universe under the daily credit ceiling", async () => {
+    expect(DEFAULT_DAILY_CREDIT_CEILING).toBe(500);
+    expect(DEFAULT_CAPTURE_BUDGET.maxCreditsPerRun).toBe(32);
+    expect(DEFAULT_CAPTURE_BUDGET.creditsPerMinute).toBe(8);
+    expect(DEFAULT_CAPTURE_BUDGET.budgetMs).toBe(240_000);
+    const names = dailyPriceDirectory();
+    expect(names.length).toBeGreaterThan(24);
+    const morning = CAPTURE_SLOTS.map((slot) => utcForAuckland(2026, 1, 15, slot.hour, slot.minute)!);
+    expect(morning).toHaveLength(13);
+    expect(isAucklandCaptureWindow(morning[0])).toBe(true);
+    expect(isAucklandCaptureWindow(morning[morning.length - 1])).toBe(true);
+    const store = memoryDailyPriceStore();
+    const budget = { ...DEFAULT_CAPTURE_BUDGET };
+    let clock = morning[0].getTime();
+    let creditsToday = 0;
+    const calls: string[] = [];
+    for (const slot of morning) {
+      if (slot.getTime() > clock) clock = slot.getTime();
+      const started = clock;
+      const storedKeys = new Set((await store.list()).map((entry) => idemKey(entry.date, entry.market, entry.symbol)));
+      const report = await captureDailyCloses({
+        now: new Date(clock),
+        store,
+        feeds: DAILY_PRICE_FEEDS,
+        names,
+        sessions: 1,
+        storedKeys,
+        creditsAlreadyUsed: creditsToday,
+        budget,
+        nowMs: () => clock,
+        sleep: async (ms) => {
+          clock += ms;
+        },
+        readFeed: async (_feed, _market, symbol, dates) => {
+          calls.push(symbol);
+          return dates.map((date) => ({ date, close: 10, change: null }));
+        },
+      });
+      expect(clock - started).toBeLessThanOrEqual(budget.budgetMs);
+      expect(report.credits).toBeLessThanOrEqual(budget.maxCreditsPerRun);
+      creditsToday += report.credits;
+      expect(creditsToday).toBeLessThanOrEqual(budget.dailyCreditCeiling);
+    }
+    expect(new Set(calls).size).toBe(names.length);
+    expect(creditsToday).toBe(names.length);
+    expect(await store.list()).toHaveLength(names.length);
+    const done = new Set((await store.list()).map((entry) => idemKey(entry.date, entry.market, entry.symbol)));
+    let after = 0;
+    const quiet = await captureDailyCloses({
+      now: morning[morning.length - 1],
+      store,
+      feeds: DAILY_PRICE_FEEDS,
+      names,
+      sessions: 1,
+      storedKeys: done,
+      creditsAlreadyUsed: creditsToday,
+      budget,
+      readFeed: async () => {
+        after += 1;
+        return [];
       },
     });
-    expect(lost).toBe("held");
+    expect(after).toBe(0);
+    expect(quiet.credits).toBe(0);
+    expect(quiet.reason).toBe("complete");
+
+    let blocked = 0;
+    const capped = await captureDailyCloses({
+      now: morning[0],
+      store: memoryDailyPriceStore(),
+      feeds: DAILY_PRICE_FEEDS,
+      names: names.slice(0, 3),
+      sessions: 1,
+      creditsAlreadyUsed: 500,
+      budget,
+      readFeed: async () => {
+        blocked += 1;
+        return [{ date: "2026-01-14", close: 1, change: null }];
+      },
+    });
+    expect(blocked).toBe(0);
+    expect(capped.credits).toBe(0);
+    expect(capped.deferred).toBe(3);
   });
 });

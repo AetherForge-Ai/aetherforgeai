@@ -20,17 +20,24 @@ function aucklandWall(ms) {
   return { hour: Number(read("hour")), minute: Number(read("minute")) };
 }
 
-/** Most recent 06:07 Pacific/Auckland. 17:07 UTC in NZDT, 18:07 UTC in NZST. */
+function isCaptureSlot(wall) {
+  const minutes = wall.hour * 60 + wall.minute;
+  return minutes >= 6 * 60 + 7 && minutes <= 7 * 60 + 7 && (minutes - (6 * 60 + 7)) % 5 === 0;
+}
+
+/** Latest 5-minute slot from 06:07 through 07:07 Pacific/Auckland. */
 export function latestAucklandCapture(now) {
   const t = new Date(now).getTime();
   const anchor = new Date(t);
   let best = null;
   for (let day = -2; day <= 1; day++) {
-    for (const hour of [17, 18]) {
-      const utc = Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth(), anchor.getUTCDate() + day, hour, 7, 0, 0);
-      if (utc > t) continue;
-      const wall = aucklandWall(utc);
-      if (wall.hour === 6 && wall.minute === 7 && (best == null || utc > best)) best = utc;
+    for (const hour of [17, 18, 19]) {
+      for (const minute of [2, 7, 12, 17, 22, 27, 32, 37, 42, 47, 52, 57]) {
+        const utc = Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth(), anchor.getUTCDate() + day, hour, minute, 0, 0);
+        if (utc > t) continue;
+        if (!isCaptureSlot(aucklandWall(utc))) continue;
+        if (best == null || utc > best) best = utc;
+      }
     }
   }
   return best ?? latestDaily(t, 17, 7);
@@ -39,7 +46,7 @@ export function latestAucklandCapture(now) {
 export const JOBS = [
   { job: "broker-sync", slot: (now) => latestDaily(now, 16, 7) }, // cron.yml "7 16 * * *" (05:07 NZDT)
   { job: "track-record", slot: (now) => latestEvery6h(now, 23) }, // cron.yml "23 */6 * * *"
-  { job: "daily-prices", slot: (now) => latestAucklandCapture(now) }, // cron.yml 06:07 Pacific/Auckland
+  { job: "daily-prices", slot: (now) => latestAucklandCapture(now) }, // every 5 min, 06:07–07:07 Auckland
 ];
 
 export function latestDaily(now, h, m) {

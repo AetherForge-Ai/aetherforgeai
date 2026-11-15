@@ -32,26 +32,3 @@ export const DAILY_PRICE_CLOSE: TableSpec = {
     "Then delete the daily_price_close table in Totalum. Existing rows are not required by any other table.",
   ],
 };
-
-/**
- * One row so two captures cannot insert the same closes together.
- * Not a price. The code does not create this table.
- */
-export const DAILY_PRICE_CAPTURE_LOCK: TableSpec = {
-  ticket: "DAILY-PRICES-1",
-  table: "daily_price_capture_lock",
-  purpose: "A short-lived lock for the daily close capture. The holder is the only run allowed to insert.",
-  fields: [
-    { name: "lock_key", type: "string", required: true, note: "Always daily-prices. Unique in code, and a unique index if Totalum supports one (UNKNOWN)." },
-    { name: "owner", type: "string", required: true, note: "Id of the run that inserted this row." },
-    { name: "acquired_at", type: "date", required: true, includeHour: true },
-    { name: "expires_at", type: "date", required: true, includeHour: true, note: "Another run may start after this time. Release moves it forward to now." },
-  ],
-  indexes: [{ fields: ["lock_key"], unique: true }],
-  access: "Server only. No user id. Not a price and not a user-account table.",
-  flag: "DAILY_PRICE_HISTORY_TABLE=on",
-  rollback: [
-    "Set DAILY_PRICE_HISTORY_TABLE off. The capture stores nothing.",
-    "Then delete daily_price_capture_lock in Totalum.",
-  ],
-};

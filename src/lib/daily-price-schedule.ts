@@ -1,11 +1,9 @@
 /**
- * Daily capture at about 06:00 Pacific/Auckland.
+ * Morning capture from 06:07 through 07:07 Pacific/Auckland, every 5 minutes.
  *
- * GitHub and Cloudflare cron strings are UTC and do not follow DST. New Zealand
- * standard time is UTC+12 and daylight time is UTC+13, so 06:07 Auckland is
- * 18:07 UTC the previous calendar day in NZST and 17:07 UTC the previous
- * calendar day in NZDT. Both fires are scheduled. The route runs only when the
- * Auckland hour is 6, which the IANA zone Pacific/Auckland decides.
+ * GitHub cron is UTC and does not follow DST. NZDT is UTC+13 and NZST is UTC+12,
+ * so each Auckland slot is scheduled twice. The route keeps only the fires whose
+ * Pacific/Auckland clock is inside this window.
  */
 
 import type { Exchange } from "@/lib/market-intel";
@@ -14,10 +12,19 @@ export const AUCKLAND_ZONE = "Pacific/Auckland";
 export const CAPTURE_HOUR = 6;
 export const CAPTURE_MINUTE = 7;
 
-/** 06:07 NZDT (UTC+13) → 17:07 UTC the previous calendar day. */
-export const DAILY_PRICE_CRON_NZDT = "7 17 * * *";
-/** 06:07 NZST (UTC+12) → 18:07 UTC the previous calendar day. */
-export const DAILY_PRICE_CRON_NZST = "7 18 * * *";
+/** 06:07, 06:12, … 06:57, 07:02, 07:07. Thirteen fires, about one hour. */
+export const CAPTURE_SLOTS: readonly { hour: number; minute: number }[] = Array.from({ length: 13 }, (_, index) => {
+  const minutes = 6 * 60 + 7 + index * 5;
+  return { hour: Math.floor(minutes / 60), minute: minutes % 60 };
+});
+
+/** NZDT 06:07–06:57. NZST at these UTC times is 05:07–05:57, outside the window. */
+export const DAILY_PRICE_CRON_NZDT = "7,12,17,22,27,32,37,42,47,52,57 17 * * *";
+/** NZDT 07:02–07:57 and NZST 06:02–06:57. The route drops the ones outside 06:07–07:07. */
+export const DAILY_PRICE_CRON_UTC18 = "2,7,12,17,22,27,32,37,42,47,52,57 18 * * *";
+/** NZST 07:02 and 07:07. NZDT at these UTC times is 08:02 and 08:07, outside the window. */
+export const DAILY_PRICE_CRON_NZST = "2,7 19 * * *";
+export const DAILY_PRICE_CRONS = [DAILY_PRICE_CRON_NZDT, DAILY_PRICE_CRON_UTC18, DAILY_PRICE_CRON_NZST] as const;
 
 export interface AucklandWall {
   iso: string;
@@ -46,9 +53,15 @@ export function aucklandWall(now: Date): AucklandWall {
   };
 }
 
-/** True during the 6am hour in Auckland, including the :07 cron and a late run that is still in that hour. */
+/** True from 06:07 through 07:07 inclusive in Auckland. */
 export function isAucklandCaptureWindow(now: Date): boolean {
-  return aucklandWall(now).hour === CAPTURE_HOUR;
+  const wall = aucklandWall(now);
+  const minutes = wall.hour * 60 + wall.minute;
+  return minutes >= 6 * 60 + 7 && minutes <= 7 * 60 + 7;
+}
+
+export function isAucklandCaptureSlot(wall: { hour: number; minute: number }): boolean {
+  return CAPTURE_SLOTS.some((slot) => slot.hour === wall.hour && slot.minute === wall.minute);
 }
 
 /**
@@ -65,17 +78,20 @@ export function utcForAuckland(year: number, month: number, day: number, hour: n
   return null;
 }
 
-/** Most recent 06:07 Pacific/Auckland at or before `now`. */
+/** Most recent scheduled morning slot at or before `now` (every 5 minutes, 06:07–07:07 Auckland). */
 export function latestAucklandCapture(now: Date): Date | null {
   const t = now.getTime();
   let best: number | null = null;
   const anchor = new Date(t);
+  const utcMinutes = [2, 7, 12, 17, 22, 27, 32, 37, 42, 47, 52, 57];
   for (let day = -2; day <= 1; day++) {
-    for (const hour of [17, 18]) {
-      const utc = Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth(), anchor.getUTCDate() + day, hour, CAPTURE_MINUTE, 0, 0);
-      if (utc > t) continue;
-      const wall = aucklandWall(new Date(utc));
-      if (wall.hour === CAPTURE_HOUR && wall.minute === CAPTURE_MINUTE && (best == null || utc > best)) best = utc;
+    for (const hour of [17, 18, 19]) {
+      for (const minute of utcMinutes) {
+        const utc = Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth(), anchor.getUTCDate() + day, hour, minute, 0, 0);
+        if (utc > t) continue;
+        if (!isAucklandCaptureSlot(aucklandWall(new Date(utc)))) continue;
+        if (best == null || utc > best) best = utc;
+      }
     }
   }
   return best == null ? null : new Date(best);
