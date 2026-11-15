@@ -1,6 +1,8 @@
+import buildSnapshot from "@/data/tape-build-snapshot.json";
 import { parseQuoteTime } from "@/lib/market-freshness";
+import { keepAlive } from "@/lib/keep-alive.server";
 import { loadPublicTickerBounded } from "@/lib/public-ticker";
-import { edgeJsonGet } from "@/lib/ticker-serve";
+import { edgeJsonGet, edgeJsonPut } from "@/lib/ticker-serve";
 import type { TapeRow, TickerTapeFeed } from "@/lib/ticker-feed";
 
 /**
@@ -13,6 +15,12 @@ import type { TapeRow, TickerTapeFeed } from "@/lib/ticker-feed";
 const BODY_MS = 200;
 const EQUITY_MS = 200;
 const QUOTE_MS = 200;
+/**
+ * H-1-TAPE-SSR-3: how long the first HTML waits when no stored tape and no
+ * build snapshot are in hand. The background refresh uses the public ticker's
+ * own 1800 ms bound. This number does not shorten that lookup.
+ */
+export const SSR_LIVE_WAIT_MS = 250;
 
 /** A tape row with no real print is omitted. Zero is not a price. */
 function positivePrice(value: unknown): number | null {
@@ -90,28 +98,73 @@ function quoteRow(quote: { symbol: string; quotedAt: string | null; price: numbe
   };
 }
 
+/** A price with no vendor quote time is not shown. The close label is that time. */
+function stampedRows(rows: TapeRow[]): TapeRow[] {
+  return rows.filter((row) => positivePrice(row.price) != null && parseQuoteTime(row.quotedAt) != null);
+}
+
 /** A feed counts only when an equity row has a real price and a quote time. */
 export function quotedTape(feed: TickerTapeFeed | null): TickerTapeFeed | null {
   if (!feed?.rows) return null;
-  const keep = (rows: TapeRow[]) => rows.filter((row) => positivePrice(row.price) != null);
-  const nzx = keep(feed.rows.nzx ?? []);
-  const asx = keep(feed.rows.asx ?? []);
-  const crypto = keep(feed.rows.crypto ?? []);
-  if (![...nzx, ...asx].some((row) => parseQuoteTime(row.quotedAt))) return null;
+  const nzx = stampedRows(feed.rows.nzx ?? []);
+  const asx = stampedRows(feed.rows.asx ?? []);
+  const crypto = stampedRows(feed.rows.crypto ?? []);
+  if (!nzx.length && !asx.length) return null;
   return { ...feed, rows: { nzx, asx, crypto } };
 }
 
 /**
- * Same order as the home band: the bounded live public ticker, then the stored
- * snapshot. Both reads are capped, and they run together so the wait is the
- * longer of the two, not the sum.
+ * A finished background read fills the colo copy the next request reads.
+ * A body the ticker route stored (version > 0) is left alone.
+ */
+async function publishTape(feed: TickerTapeFeed | null): Promise<void> {
+  const quoted = quotedTape(feed);
+  if (!quoted) return;
+  await edgeJsonPut("equity", { nzx: quoted.rows.nzx, asx: quoted.rows.asx });
+  const existing = await edgeJsonGet<{ version?: number }>("body", BODY_MS).catch(() => null);
+  if (existing && typeof existing.version === "number" && existing.version > 0) return;
+  await edgeJsonPut("body", { body: { ok: true, data: quoted }, headers: {}, version: 0 });
+}
+
+/** Prices shipped with the build. Used when the colo copy and the live read are both missing. */
+export function bundledTape(): TickerTapeFeed | null {
+  return quotedTape(buildSnapshot as TickerTapeFeed);
+}
+
+/**
+ * First HTML uses a tape that is already in hand. The stored colo copy wins,
+ * then a live read that has already finished, then the build snapshot. The
+ * live lookup is loadPublicTickerBounded() — the 1800 ms public-ticker bound.
+ * keepAlive is registered before any await, so a read that finishes during the
+ * colo lookup is still held on Workers while publishTape writes.
+ * SSR_LIVE_WAIT_MS caps only the foreground wait, and only when nothing is in hand.
  */
 export async function loadRequestTape(): Promise<TickerTapeFeed | null> {
-  const [live, stored] = await Promise.all([
-    loadPublicTickerBounded().catch(() => null),
-    loadServerTape(),
+  let settled: TickerTapeFeed | null | undefined;
+  const live = loadPublicTickerBounded()
+    .then(async (feed) => {
+      settled = feed;
+      await publishTape(feed).catch(() => undefined);
+      return feed;
+    })
+    .catch(() => {
+      settled = null;
+      return null;
+    });
+  void keepAlive(live);
+  const stored = quotedTape(await loadServerTape());
+  if (stored) return stored;
+  if (settled !== undefined) {
+    const fresh = quotedTape(settled);
+    if (fresh) return fresh;
+  }
+  const built = bundledTape();
+  if (built) return built;
+  const raced = await Promise.race([
+    live,
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), SSR_LIVE_WAIT_MS)),
   ]);
-  return quotedTape(live) ?? quotedTape(stored);
+  return quotedTape(raced);
 }
 
 /**
