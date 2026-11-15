@@ -57,6 +57,17 @@ function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
 }
 
+/**
+ * Cash floor for removing a row or undoing a batch.
+ * Refuse only when the result is below zero and more negative than the cash already booked.
+ * A result that stays the same or becomes less negative is allowed, even if it is still below zero.
+ */
+export function cashGoesFurtherBelowZero(current: number, next: number): boolean {
+  const before = round2(Number(current) || 0);
+  const after = round2(Number(next) || 0);
+  return after < -0.009 && after < before - 0.009;
+}
+
 export function signedCashNzd(row: ReversalTxn): number {
   const cash = Number(row.cash_nzd);
   if (Number.isFinite(cash)) return cash;
