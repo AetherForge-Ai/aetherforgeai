@@ -22,10 +22,15 @@ vi.mock("next/server", async (importOriginal) => {
 const edgeJsonGet = vi.hoisted(() => vi.fn());
 const edgeJsonPut = vi.hoisted(() => vi.fn(async () => undefined));
 const loadPublicTickerBounded = vi.hoisted(() => vi.fn(async () => null as unknown));
+const keepAlive = vi.hoisted(() => vi.fn(async () => "detached" as const));
 
 vi.mock("@/lib/ticker-serve", () => ({
   edgeJsonGet: (...args: unknown[]) => edgeJsonGet(...args),
   edgeJsonPut: (...args: unknown[]) => edgeJsonPut(...args),
+}));
+
+vi.mock("@/lib/keep-alive.server", () => ({
+  keepAlive: (work: Promise<unknown>) => keepAlive(work),
 }));
 
 vi.mock("@/lib/public-ticker", () => ({
@@ -37,7 +42,7 @@ import buildSnapshot from "@/data/tape-build-snapshot.json";
 import { ServerTape } from "@/components/ServerTape";
 import { formatUnitPrice } from "@/lib/currency";
 import { closeLabelFor } from "@/lib/market-freshness";
-import { quotedTape, SSR_LIVE_WAIT_MS } from "@/lib/tape-ssr";
+import { loadRequestTape, quotedTape, SSR_LIVE_WAIT_MS } from "@/lib/tape-ssr";
 import type { TickerTapeFeed } from "@/lib/ticker-feed";
 
 /** Sat 14 Nov 2026, 11:00 NZDT. NZX and ASX are shut; Friday's close is 13 Nov. */
@@ -124,6 +129,7 @@ describe("H-1-TAPE-SSR-3 cold shell tape", () => {
     edgeJsonGet.mockResolvedValue(null);
     edgeJsonPut.mockReset();
     edgeJsonPut.mockResolvedValue(undefined);
+    keepAlive.mockReset();
     loadPublicTickerBounded.mockReset();
     loadPublicTickerBounded.mockResolvedValue(null);
     vi.useFakeTimers({ toFake: ["Date"] });
@@ -230,6 +236,70 @@ describe("H-1-TAPE-SSR-3 cold shell tape", () => {
     expect(second).toContain("Close 13 Nov 2026");
     expect(second).not.toContain("Loading prices…");
     expect(quotedTape({ rows: { nzx: [{ symbol: "FPH.NZ", name: "FPH.NZ", price: 10, change: 0, currency: "NZD", provider: "", asOf: "", quotedAt: null }], asx: [], crypto: [] }, live: { crypto: false, equities: false }, providers: { equities: null, crypto: null }, asOf: null })).toBeNull();
+  });
+
+  it("keeps the live promise alive when it resolves before the colo read returns", async () => {
+    const colo = new Map<string, unknown>();
+    let releaseRead: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      releaseRead = resolve;
+    });
+    let heldBody = false;
+    edgeJsonGet.mockImplementation(async (key: string) => {
+      if (key === "body" && !heldBody) {
+        heldBody = true;
+        await gate;
+      }
+      return null;
+    });
+    edgeJsonPut.mockImplementation(async (key: string, value: unknown) => {
+      colo.set(key, value);
+    });
+    const freshAt = "2026-11-13T04:00:08Z";
+    loadPublicTickerBounded.mockResolvedValue({
+      rows: {
+        nzx: [
+          {
+            symbol: "FPH.NZ",
+            name: "Fisher & Paykel Health",
+            price: 77.77,
+            change: 0.4,
+            currency: "NZD",
+            provider: "Yahoo Finance",
+            asOf: freshAt,
+            quotedAt: freshAt,
+          },
+        ],
+        asx: [
+          {
+            symbol: "BHP.AX",
+            name: "BHP Group",
+            price: 42.5,
+            change: 0.2,
+            currency: "AUD",
+            provider: "Yahoo Finance",
+            asOf: freshAt,
+            quotedAt: freshAt,
+          },
+        ],
+        crypto: [],
+      },
+      live: { crypto: false, equities: false },
+      providers: { equities: "Yahoo Finance", crypto: null },
+      asOf: freshAt,
+    });
+    const pending = loadRequestTape();
+    await vi.waitFor(() => {
+      expect(keepAlive).toHaveBeenCalledTimes(1);
+      const body = colo.get("body") as { body?: { data?: { rows?: { nzx?: Array<{ price: number }> } } } } | undefined;
+      expect(body?.body?.data?.rows?.nzx?.[0]?.price).toBe(77.77);
+    });
+    const held = keepAlive.mock.calls[0][0] as Promise<unknown>;
+    expect(held).toBeInstanceOf(Promise);
+    releaseRead();
+    const tape = await pending;
+    await held;
+    expect(tape?.rows.nzx[0]?.price).toBe(77.77);
   });
 
   it("jsdom stays a devDependency and out of the server graph", () => {

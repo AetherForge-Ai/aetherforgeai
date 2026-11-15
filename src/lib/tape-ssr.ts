@@ -134,8 +134,9 @@ export function bundledTape(): TickerTapeFeed | null {
 /**
  * First HTML uses a tape that is already in hand. The stored colo copy wins,
  * then a live read that has already finished, then the build snapshot. The
- * live lookup is loadPublicTickerBounded() — the 1800 ms public-ticker bound —
- * and keepAlive holds that promise so a cold worker can finish the colo write.
+ * live lookup is loadPublicTickerBounded() — the 1800 ms public-ticker bound.
+ * keepAlive is registered before any await, so a read that finishes during the
+ * colo lookup is still held on Workers while publishTape writes.
  * SSR_LIVE_WAIT_MS caps only the foreground wait, and only when nothing is in hand.
  */
 export async function loadRequestTape(): Promise<TickerTapeFeed | null> {
@@ -150,25 +151,19 @@ export async function loadRequestTape(): Promise<TickerTapeFeed | null> {
       settled = null;
       return null;
     });
+  void keepAlive(live);
   const stored = quotedTape(await loadServerTape());
-  if (stored) {
-    void keepAlive(live);
-    return stored;
-  }
+  if (stored) return stored;
   if (settled !== undefined) {
     const fresh = quotedTape(settled);
     if (fresh) return fresh;
   }
   const built = bundledTape();
-  if (built) {
-    void keepAlive(live);
-    return built;
-  }
+  if (built) return built;
   const raced = await Promise.race([
     live,
     new Promise<null>((resolve) => setTimeout(() => resolve(null), SSR_LIVE_WAIT_MS)),
   ]);
-  void keepAlive(live);
   return quotedTape(raced);
 }
 
