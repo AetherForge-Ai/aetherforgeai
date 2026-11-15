@@ -288,6 +288,7 @@ describe("H-1-TAPE-SSR-3 cold shell tape", () => {
       providers: { equities: "Yahoo Finance", crypto: null },
       asOf: freshAt,
     });
+    // The colo read is still waiting. keepAlive must already hold the live promise.
     const pending = loadRequestTape();
     await vi.waitFor(() => {
       expect(keepAlive).toHaveBeenCalledTimes(1);
