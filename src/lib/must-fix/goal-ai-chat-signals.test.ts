@@ -43,6 +43,7 @@ vi.mock("@/lib/grok", async (orig) => ({
 import { GUIDE_REPLY_DISCLAIMER, withAssistantDisclaimer } from "@/lib/guide-safety";
 import { ANALYST_SYSTEM_PROMPT } from "@/lib/ai-context";
 import {
+  acceptSignalModelReply,
   allowedSignalBots,
   buildSignalFeed,
   filterSignalRows,
@@ -52,6 +53,7 @@ import {
   rankSignalRows,
   recommendationSignalMessages,
   RECOMMENDATION_SIGNAL_RULES,
+  signalReplyClaimsListing,
   signalReplyStaysOnRows,
   signalRowFromPick,
   type ChatSignalRow,
@@ -94,16 +96,15 @@ const post = (message: string) =>
   });
 
 describe("AI-CHAT-SIGNALS-1 filters and labels", () => {
-  it("a Sharesies filter returns only the rows available there", () => {
+  it("filters by exchange, not by a per-ticker platform tag", () => {
     const rows = [
-      row({ ticker: "FPH.NZ", platforms: ["Sharesies", "Stake"] }),
-      row({ ticker: "BHP.AX", name: "BHP", exchange: "ASX", currency: "AUD", platforms: ["Stake"] }),
-      row({ ticker: "AAPL", name: "Apple", exchange: "US", currency: "USD", platforms: ["Hatch", "IBKR"] }),
-      row({ ticker: "AIR.NZ", name: "Air New Zealand", platforms: [] }),
+      row({ ticker: "FPH.NZ", platforms: [] }),
+      row({ ticker: "BHP.AX", name: "BHP", exchange: "ASX", currency: "AUD", platforms: ["Sharesies"] }),
+      row({ ticker: "BTC", name: "Bitcoin", exchange: "CRYPTO", currency: "USD", platforms: ["Sharesies"] }),
     ];
-    const sharesies = filterSignalRows(rows, { platform: "Sharesies" });
-    expect(sharesies.map((r) => r.ticker)).toEqual(["FPH.NZ"]);
-    expect(sharesies.every((r) => r.platforms.some((p) => p.toLowerCase() === "sharesies"))).toBe(true);
+    const equities = filterSignalRows(rows, { exchanges: ["NZX", "ASX", "US"] });
+    expect(equities.map((r) => r.ticker)).toEqual(["FPH.NZ", "BHP.AX"]);
+    expect(read("src/lib/chat-signals.ts")).not.toMatch(/platforms\.some/);
   });
 
   it("uses the bot direction label: Buy above the price, Sell below, no label without a prediction", () => {
@@ -220,7 +221,7 @@ describe("AI-CHAT-SIGNALS-1 filters and labels", () => {
     expect(prepared.mode).toBe("unavailable");
     expect(prepared.text).toContain("Current recommendation signals aren't available.");
     expect(prepared.text).not.toContain("BTC");
-    expect(prepared.text).not.toContain(platformAvailabilityLine("Sharesies"));
+    expect(prepared.text).toContain(platformAvailabilityLine("Sharesies"));
   });
 
   it("a model reply that names a ticker outside the rows is not passed through", () => {
@@ -338,7 +339,7 @@ describe("AI-CHAT-SIGNALS-1 prompt wiring", () => {
       "Recommendation signals are the tool result below. They are the bots' existing picks, already labelled and ranked.
       A Buy label means the bot's prediction is above the current price. A Sell label means it is below. A pick with no prediction is omitted.
       Never invent a ticker, name, label, price, currency, exchange or platform that is not in the tool result.
-      Do not claim that a specific ticker is listed on a platform.
+      Do not claim that a specific ticker is listed, offered or available on a platform.
       If the tool result is empty, stale, failed, or not on this plan, say plainly that current recommendation signals aren't available.
       Always state the as-of time from the tool result.
       Use only the label written on each row. Do not rename Sell to Strong Sell, or Buy to Strong Buy.
@@ -389,5 +390,65 @@ describe("AI-CHAT-SIGNALS-1 prompt wiring", () => {
     expect(route).not.toMatch(/yahoo|fetchQuotes|market-data|coingecko/i);
     expect(read("src/lib/chat-signals.server.ts")).not.toMatch(/yahoo|fetchQuotes|market-data|coingecko/i);
     expect(read("src/app/page.tsx")).not.toContain("chat-signals");
+  });
+});
+
+describe("AI-CHAT-SIGNALS-2 routing and guardrails", () => {
+  it("needs market context, so coffee and a house stay off the signal route", () => {
+    expect(isRecommendationSignalQuestion("best place to buy coffee")).toBe(false);
+    expect(isRecommendationSignalQuestion("best way to buy a house")).toBe(false);
+    expect(isRecommendationSignalQuestion("Whats the best buy today on Sharesies")).toBe(true);
+    expect(isRecommendationSignalQuestion("what's the signal on AAPL")).toBe(true);
+    expect(isRecommendationSignalQuestion("What's the signal on aapl")).toBe(true);
+  });
+
+  it("looks up a ticker case-insensitively and leaves the other rows out", () => {
+    const rows = [
+      row({ ticker: "AAPL", name: "Apple", exchange: "US", currency: "USD", label: "Buy", price: 210, predictedPrice: 220 }),
+      row({ ticker: "FPH.NZ", label: "Strong Buy" }),
+    ];
+    const lower = prepareRecommendationAnswer("what's the signal on aapl", feed(rows));
+    const mixed = prepareRecommendationAnswer("what's the signal on Fph.Nz", feed(rows));
+    expect(lower.mode).toBe("answer");
+    expect(lower.rows.map((r) => r.ticker)).toEqual(["AAPL"]);
+    expect(lower.text).toContain("AAPL");
+    expect(lower.text).not.toContain("FPH.NZ");
+    expect(mixed.rows.map((r) => r.ticker)).toEqual(["FPH.NZ"]);
+    const missing = prepareRecommendationAnswer("what's the signal on MSFT", feed(rows));
+    expect(missing.mode).toBe("unavailable");
+    expect(missing.text).not.toContain("MSFT");
+    expect(missing.text).not.toContain("AAPL");
+  });
+
+  it("drops a listing claim even when the ticker is real", () => {
+    const rows = [row({ ticker: "FPH.NZ", label: "Strong Buy" })];
+    const prepared = prepareRecommendationAnswer("what's the signal on FPH.NZ", feed(rows));
+    expect(signalReplyClaimsListing("FPH.NZ is listed on Sharesies.")).toBe(true);
+    expect(signalReplyClaimsListing("FPH.NZ is offered on Hatch.")).toBe(true);
+    expect(signalReplyClaimsListing("FPH.NZ is available on Stake.")).toBe(true);
+    const kept = acceptSignalModelReply("FPH.NZ is listed on Sharesies.", prepared.text, prepared.rows);
+    expect(kept).toBe(prepared.text);
+    expect(kept).not.toMatch(/listed on Sharesies/i);
+    expect(kept).toContain("FPH.NZ");
+  });
+
+  it("includes the platform line when the feed is empty", () => {
+    const empty = prepareRecommendationAnswer("Whats the best buy today on Sharesies", {
+      status: "empty",
+      asOf: null,
+      platformCoverage: "exchange-only",
+      rows: [],
+    });
+    expect(empty.mode).toBe("unavailable");
+    expect(empty.text).toContain("Current recommendation signals aren't available.");
+    expect(empty.text).toContain(platformAvailabilityLine("Sharesies"));
+    expect(empty.text).toContain("no as-of time");
+    const nzx = prepareRecommendationAnswer("What's the best buy today on NZX?", {
+      status: "empty",
+      asOf: null,
+      platformCoverage: "exchange-only",
+      rows: [],
+    });
+    expect(nzx.text).not.toContain("Check that the ticker is available on");
   });
 });
