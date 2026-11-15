@@ -21,6 +21,7 @@ const loadPublicTickerBounded = vi.hoisted(() => vi.fn(async () => null as unkno
 
 vi.mock("@/lib/ticker-serve", () => ({
   edgeJsonGet: (...args: unknown[]) => edgeJsonGet(...args),
+  edgeJsonPut: vi.fn(async () => undefined),
 }));
 
 vi.mock("@/lib/public-ticker", () => ({
@@ -28,7 +29,9 @@ vi.mock("@/lib/public-ticker", () => ({
   loadPublicTickerBounded: () => loadPublicTickerBounded(),
 }));
 
+import buildSnapshot from "@/data/tape-build-snapshot.json";
 import { ServerTape } from "@/components/ServerTape";
+import { formatUnitPrice } from "@/lib/currency";
 import { closeLabelFor } from "@/lib/market-freshness";
 import { quotedTape } from "@/lib/tape-ssr";
 import type { TickerTapeFeed } from "@/lib/ticker-feed";
@@ -82,11 +85,14 @@ describe("H-1-TAPE-SSR-2 shell tape", () => {
   });
 
   it("with neither a live ticker nor a colo snapshot, the build snapshot still fills the HTML", async () => {
+    const row = buildSnapshot.rows.nzx.find((item) => item.price >= 5 && item.quotedAt);
+    expect(row?.quotedAt).toBeTruthy();
     const html = renderToString(await ServerTape());
     expect(html).not.toContain("Close unavailable");
     expect(html).not.toContain("Loading prices…");
-    expect(html).toContain("Close 13 Nov 2026");
-    expect(html).toContain("FPH.NZ");
+    expect(html).toContain(closeLabelFor("NZX", row!.quotedAt, SATURDAY));
+    expect(html).toContain(row!.symbol);
+    expect(html).toContain(formatUnitPrice(row!.price, "NZD"));
   });
 
   it("drops zero prices from the live ticker before the close label", async () => {
@@ -94,9 +100,10 @@ describe("H-1-TAPE-SSR-2 shell tape", () => {
     expect(quotedTape(zeros)).toBeNull();
     loadPublicTickerBounded.mockResolvedValue(zeros);
     const html = renderToString(await ServerTape());
+    const row = buildSnapshot.rows.nzx.find((item) => item.price >= 5 && item.quotedAt);
     expect(html).not.toMatch(/\$0\.00/);
     expect(html).not.toContain("Close unavailable");
-    expect(html).toContain("NZ$36.20");
+    expect(html).toContain(formatUnitPrice(row!.price, "NZD"));
     const mixed = liveFeed(36.2);
     mixed.rows.nzx = [{ ...mixed.rows.nzx[0], price: 0 }, { ...mixed.rows.nzx[1], price: 0.55 }];
     const kept = quotedTape(mixed);

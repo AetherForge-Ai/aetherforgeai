@@ -20,10 +20,12 @@ vi.mock("next/server", async (importOriginal) => {
 });
 
 const edgeJsonGet = vi.hoisted(() => vi.fn());
+const edgeJsonPut = vi.hoisted(() => vi.fn(async () => undefined));
 const loadPublicTickerBounded = vi.hoisted(() => vi.fn(async () => null as unknown));
 
 vi.mock("@/lib/ticker-serve", () => ({
   edgeJsonGet: (...args: unknown[]) => edgeJsonGet(...args),
+  edgeJsonPut: (...args: unknown[]) => edgeJsonPut(...args),
 }));
 
 vi.mock("@/lib/public-ticker", () => ({
@@ -31,8 +33,11 @@ vi.mock("@/lib/public-ticker", () => ({
   loadPublicTickerBounded: (...args: unknown[]) => loadPublicTickerBounded(...args),
 }));
 
+import buildSnapshot from "@/data/tape-build-snapshot.json";
 import { ServerTape } from "@/components/ServerTape";
-import { SSR_LIVE_WAIT_MS } from "@/lib/tape-ssr";
+import { formatUnitPrice } from "@/lib/currency";
+import { closeLabelFor } from "@/lib/market-freshness";
+import { quotedTape, SSR_LIVE_WAIT_MS } from "@/lib/tape-ssr";
 import type { TickerTapeFeed } from "@/lib/ticker-feed";
 
 /** Sat 14 Nov 2026, 11:00 NZDT. NZX and ASX are shut; Friday's close is 13 Nov. */
@@ -117,6 +122,8 @@ describe("H-1-TAPE-SSR-3 cold shell tape", () => {
   beforeEach(() => {
     edgeJsonGet.mockReset();
     edgeJsonGet.mockResolvedValue(null);
+    edgeJsonPut.mockReset();
+    edgeJsonPut.mockResolvedValue(undefined);
     loadPublicTickerBounded.mockReset();
     loadPublicTickerBounded.mockResolvedValue(null);
     vi.useFakeTimers({ toFake: ["Date"] });
@@ -150,13 +157,93 @@ describe("H-1-TAPE-SSR-3 cold shell tape", () => {
   });
 
   it("a failed live lookup still uses the build snapshot", async () => {
+    const row = buildSnapshot.rows.nzx.find((item) => item.price >= 5 && item.quotedAt);
+    expect(row?.quotedAt).toBeTruthy();
     loadPublicTickerBounded.mockRejectedValue(new Error("cold"));
     const html = renderToString(await ServerTape());
-    expect(html).toContain("FPH.NZ");
-    expect(html).toContain("36.20");
-    expect(html).toContain("Close 13 Nov 2026");
+    expect(html).toContain(row!.symbol);
+    expect(html).toContain(formatUnitPrice(row!.price, "NZD"));
+    expect(html).toContain(closeLabelFor("NZX", row!.quotedAt, SATURDAY));
     expect(html).not.toContain("Loading prices…");
     expect(html).not.toContain("Close unavailable");
+  });
+
+  it("a completed background read keeps the 1800ms lookup and fills the colo copy", async () => {
+    const src = readFileSync("src/lib/tape-ssr.ts", "utf8");
+    expect(src).toMatch(/loadPublicTickerBounded\(\)/);
+    expect(src).not.toMatch(/loadPublicTickerBounded\(\s*SSR_LIVE_WAIT_MS\s*\)/);
+    expect(src).toMatch(/setTimeout\(\(\) => resolve\(null\), SSR_LIVE_WAIT_MS\)/);
+    const colo = new Map<string, unknown>();
+    edgeJsonGet.mockImplementation(async (key: string) => colo.get(key) ?? null);
+    edgeJsonPut.mockImplementation(async (key: string, value: unknown) => {
+      colo.set(key, value);
+    });
+    let release: (feed: TickerTapeFeed) => void = () => undefined;
+    loadPublicTickerBounded.mockImplementation((ms?: number) => {
+      expect(ms).toBeUndefined();
+      return new Promise((resolve) => {
+        release = resolve;
+      });
+    });
+    const first = renderToString(await ServerTape());
+    expect(loadPublicTickerBounded).toHaveBeenCalledWith();
+    expect(first).not.toContain("123.45");
+    const freshAt = "2026-11-13T04:00:08Z";
+    release({
+      rows: {
+        nzx: [
+          {
+            symbol: "FPH.NZ",
+            name: "Fisher & Paykel Health",
+            price: 123.45,
+            change: 0.4,
+            currency: "NZD",
+            provider: "Yahoo Finance",
+            asOf: freshAt,
+            quotedAt: freshAt,
+          },
+        ],
+        asx: [
+          {
+            symbol: "BHP.AX",
+            name: "BHP Group",
+            price: 42.5,
+            change: 0.2,
+            currency: "AUD",
+            provider: "Yahoo Finance",
+            asOf: freshAt,
+            quotedAt: freshAt,
+          },
+        ],
+        crypto: [],
+      },
+      live: { crypto: false, equities: false },
+      providers: { equities: "Yahoo Finance", crypto: null },
+      asOf: freshAt,
+    });
+    await vi.waitFor(() => {
+      const body = colo.get("body") as { body?: { data?: { rows?: { nzx?: Array<{ price: number }> } } } } | undefined;
+      expect(body?.body?.data?.rows?.nzx?.[0]?.price).toBe(123.45);
+    });
+    const second = renderToString(await ServerTape());
+    expect(second).toContain("123.45");
+    expect(second).toContain("Close 13 Nov 2026");
+    expect(second).not.toContain("Loading prices…");
+    expect(quotedTape({ rows: { nzx: [{ symbol: "FPH.NZ", name: "FPH.NZ", price: 10, change: 0, currency: "NZD", provider: "", asOf: "", quotedAt: null }], asx: [], crypto: [] }, live: { crypto: false, equities: false }, providers: { equities: null, crypto: null }, asOf: null })).toBeNull();
+  });
+
+  it("jsdom stays a devDependency and out of the server graph", () => {
+    const pkg = JSON.parse(readFileSync("package.json", "utf8")) as { dependencies?: Record<string, string>; devDependencies?: Record<string, string> };
+    expect(pkg.devDependencies?.jsdom).toBeTruthy();
+    expect(pkg.dependencies?.jsdom).toBeUndefined();
+    expect(readFileSync("src/lib/tape-ssr.ts", "utf8")).not.toContain("jsdom");
+    expect(readFileSync("src/components/ServerTape.tsx", "utf8")).not.toContain("jsdom");
+    expect(readFileSync("scripts/refresh-tape-snapshot.mjs", "utf8")).toContain("keeping the last committed file");
+    expect(buildSnapshot.source).toContain("Yahoo Finance spark");
+    for (const row of [...buildSnapshot.rows.nzx, ...buildSnapshot.rows.asx, ...buildSnapshot.rows.crypto]) {
+      expect(row.price).toBeGreaterThan(0);
+      expect(row.quotedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    }
   });
 });
 
