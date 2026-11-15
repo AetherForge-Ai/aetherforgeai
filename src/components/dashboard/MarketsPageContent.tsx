@@ -75,6 +75,9 @@ export function MarketsPageContent({
         <div className="min-w-0 flex-1">
           <h1 className="font-display text-2xl font-bold">{heading.title}</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">{heading.lede}</p>
+          <a href="/markets/daily-prices" className="mt-1 inline-block text-sm font-semibold text-primary underline-offset-2 hover:underline">
+            Daily prices
+          </a>
         </div>
       </div>
 

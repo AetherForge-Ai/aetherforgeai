@@ -38,9 +38,12 @@ describe("b51 BS-01: cron watchdog", () => {
     expect(wf).not.toMatch(/secrets\./);
     expect(wf).not.toMatch(/aetherforgeai\.co\.nz/);
   });
-  it("cron.yml, h4-playwright.yml and signout-race.yml are untouched by b51", () => {
-    const changed = execSync("git diff --name-only origin/develop -- .github/workflows/cron.yml .github/workflows/h4-playwright.yml .github/workflows/signout-race.yml || true").toString().trim();
-    expect(changed).toBe("");
+  it("h4-playwright.yml and signout-race.yml are untouched; cron.yml still has the broker and track schedules", () => {
+    const frozen = execSync("git diff --name-only origin/develop -- .github/workflows/h4-playwright.yml .github/workflows/signout-race.yml || true").toString().trim();
+    expect(frozen).toBe("");
+    const cron = read(".github/workflows/cron.yml");
+    expect(cron).toContain('- cron: "7 16 * * *"');
+    expect(cron).toContain('- cron: "23 */6 * * *"');
   });
 });
 

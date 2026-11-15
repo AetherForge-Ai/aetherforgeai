@@ -17,7 +17,7 @@ const siteUrl = process.env.NEXT_PUBLIC_APP_URL || "https://www.aetherforgeai.co
  * omitted: a build date would claim the page changed on deploy and then go
  * stale the next session. The sitemap protocol allows leaving lastmod out.
  */
-const LIVE_SITEMAP_PATHS = new Set(["/markets", "/market-news"]);
+const LIVE_SITEMAP_PATHS = new Set(["/markets", "/markets/daily-prices", "/market-news"]);
 
 type SitemapEntry = {
   path: string;
@@ -34,6 +34,7 @@ const ENTRIES: SitemapEntry[] = [
   { path: "/demo", changeFrequency: "monthly", priority: 0.5, lastModified: "2026-10-18" },
   { path: "/pricing", changeFrequency: "monthly", priority: 0.8, lastModified: "2026-10-10" },
   { path: "/markets", changeFrequency: "weekly", priority: 0.8 },
+  { path: "/markets/daily-prices", changeFrequency: "weekly", priority: 0.6 },
   { path: "/market-news", changeFrequency: "weekly", priority: 0.7 },
   { path: "/privacy-policy", changeFrequency: "monthly", priority: 0.4 },
   { path: "/terms-of-service", changeFrequency: "monthly", priority: 0.4 },

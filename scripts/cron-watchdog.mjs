@@ -6,9 +6,40 @@
 export const GRACE_MIN = 45;
 export const MAX_DISPATCHES_PER_SLOT = 2;
 
+function aucklandWall(ms) {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Pacific/Auckland",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date(ms));
+  const read = (type) => parts.find((part) => part.type === type)?.value ?? "";
+  return { hour: Number(read("hour")), minute: Number(read("minute")) };
+}
+
+/** Most recent 06:07 Pacific/Auckland. 17:07 UTC in NZDT, 18:07 UTC in NZST. */
+export function latestAucklandCapture(now) {
+  const t = new Date(now).getTime();
+  const anchor = new Date(t);
+  let best = null;
+  for (let day = -2; day <= 1; day++) {
+    for (const hour of [17, 18]) {
+      const utc = Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth(), anchor.getUTCDate() + day, hour, 7, 0, 0);
+      if (utc > t) continue;
+      const wall = aucklandWall(utc);
+      if (wall.hour === 6 && wall.minute === 7 && (best == null || utc > best)) best = utc;
+    }
+  }
+  return best ?? latestDaily(t, 17, 7);
+}
+
 export const JOBS = [
   { job: "broker-sync", slot: (now) => latestDaily(now, 16, 7) }, // cron.yml "7 16 * * *" (05:07 NZDT)
   { job: "track-record", slot: (now) => latestEvery6h(now, 23) }, // cron.yml "23 */6 * * *"
+  { job: "daily-prices", slot: (now) => latestAucklandCapture(now) }, // cron.yml 06:07 Pacific/Auckland
 ];
 
 export function latestDaily(now, h, m) {
