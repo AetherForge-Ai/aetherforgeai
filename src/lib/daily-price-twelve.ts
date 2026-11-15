@@ -81,9 +81,58 @@ export function barsFromTwelveValues(values: unknown, dates: readonly string[]):
   return out;
 }
 
+export interface TwelveSymbolRequest {
+  internal: string;
+  provider: string;
+}
+
+/**
+ * One time_series body for one symbol (`values`) or several (`{ FPH: { values } }`).
+ * A symbol the payload does not contain is null: a gap, not a guessed close.
+ */
+export function parseTwelveBatch(
+  body: unknown,
+  requests: readonly TwelveSymbolRequest[],
+  dates: readonly string[]
+): Map<string, FeedBar[] | null> {
+  const out = new Map<string, FeedBar[] | null>();
+  const fail = () => {
+    for (const request of requests) out.set(request.internal, null);
+    return out;
+  };
+  if (!body || typeof body !== "object") return fail();
+  const record = body as { values?: unknown; status?: string; code?: number };
+  if (record.status === "error" || (typeof record.code === "number" && record.code >= 400 && !Array.isArray(record.values))) {
+    return fail();
+  }
+  if (Array.isArray(record.values)) {
+    if (requests.length !== 1) return fail();
+    out.set(requests[0].internal, barsFromTwelveValues(record.values, dates));
+    return out;
+  }
+  for (const request of requests) {
+    const node = (record as Record<string, unknown>)[request.provider] ?? (record as Record<string, unknown>)[request.provider.toUpperCase()];
+    if (!node || typeof node !== "object") {
+      out.set(request.internal, null);
+      continue;
+    }
+    const row = node as { values?: unknown; status?: string; code?: number };
+    if (row.status === "error" || typeof row.code === "number") out.set(request.internal, null);
+    else out.set(request.internal, barsFromTwelveValues(row.values, dates));
+  }
+  return out;
+}
+
 export interface TwelveFetchRequest {
   url: string;
   symbol: string;
+  country?: string;
+  apiKey: string;
+}
+
+export interface TwelveBatchFetchRequest {
+  url: string;
+  symbols: string[];
   country?: string;
   apiKey: string;
 }
@@ -111,6 +160,45 @@ export async function loadTwelveDailyBars(args: {
     return null;
   }
   if (body == null) return null;
-  const values = (body as { values?: unknown }).values;
-  return barsFromTwelveValues(values, args.dates);
+  const parsed = parseTwelveBatch(body, [{ internal: args.symbol.toUpperCase(), provider: mapped.symbol }], args.dates);
+  return parsed.get(args.symbol.toUpperCase()) ?? null;
+}
+
+export async function loadTwelveDailyBatch(args: {
+  names: readonly { symbol: string; market: DailyMarket }[];
+  dates: readonly string[];
+  env?: Record<string, string | undefined>;
+  fetchImpl: (req: TwelveBatchFetchRequest) => Promise<unknown>;
+}): Promise<Map<string, FeedBar[] | null>> {
+  const empty = new Map<string, FeedBar[] | null>();
+  for (const name of args.names) empty.set(name.symbol.toUpperCase(), null);
+  const env = args.env ?? process.env;
+  const apiKey = marketDataApiKey(env);
+  if (!canReadTwelveData(env) || !apiKey || !args.names.length) return empty;
+  const requests: TwelveSymbolRequest[] = [];
+  let country: string | undefined;
+  for (const name of args.names) {
+    const mapped = twelveDailySymbol(name.symbol, name.market);
+    if (!mapped.symbol) continue;
+    country = mapped.country;
+    requests.push({ internal: name.symbol.toUpperCase(), provider: mapped.symbol });
+  }
+  if (!requests.length) return empty;
+  const outputsize = Math.min(60, Math.max(args.dates.length + 2, 8));
+  const url = twelveTimeSeriesUrl({
+    symbol: requests.map((request) => request.provider).join(","),
+    country,
+    outputsize,
+    apiKey,
+  });
+  let body: unknown;
+  try {
+    body = await args.fetchImpl({ url, symbols: requests.map((request) => request.provider), country, apiKey });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "failed";
+    console.error(`[daily-prices] Twelve Data batch failed: ${redactSecret(message, apiKey)}`);
+    return empty;
+  }
+  if (body == null) return empty;
+  return parseTwelveBatch(body, requests, args.dates);
 }

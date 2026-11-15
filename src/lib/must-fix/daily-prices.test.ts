@@ -11,6 +11,10 @@ import {
   joinClosesAndPredictions,
   memoryDailyPriceStore,
   predictionsFromReports,
+  absorbHistoryPage,
+  createHistoryReadState,
+  HISTORY_PAGE_SIZE,
+  idemKey,
   type DailyCloseRow,
   type DailyPriceFeed,
 } from "@/lib/daily-price-history";
@@ -23,9 +27,10 @@ import {
   utcForAuckland,
 } from "@/lib/daily-price-schedule";
 import { DAILY_PRICE_FEEDS, DATA_LICENCE_REVIEW, historyStoreAllowed } from "@/lib/daily-price-sources";
-import { barsFromTwelveValues, canReadTwelveData, loadTwelveDailyBars, redactSecret } from "@/lib/daily-price-twelve";
+import { barsFromTwelveValues, canReadTwelveData, loadTwelveDailyBars, loadTwelveDailyBatch, parseTwelveBatch, redactSecret } from "@/lib/daily-price-twelve";
+import { acquireCaptureLock, type CaptureLockRow } from "@/lib/daily-price-lock";
+import { DAILY_PRICE_CAPTURE_LOCK, DAILY_PRICE_CLOSE } from "@/lib/schema/daily-price-history.schema";
 import { DOW_JONES_TICKERS, entriesForExchange } from "@/lib/market-intel";
-import { DAILY_PRICE_CLOSE } from "@/lib/schema/daily-price-history.schema";
 // @ts-expect-error plain script
 import { latestAucklandCapture as watchdogCapture } from "../../../scripts/cron-watchdog.mjs";
 
@@ -108,7 +113,8 @@ describe("DAILY-PRICES-1 schedule is 06:07 Pacific/Auckland", () => {
     expect(yml).not.toMatch(/\?key=/);
     expect(read("wrangler.jsonc")).not.toContain("crons");
     expect(read("src/app/api/cron/daily-prices/route.ts")).toContain("presentedHeaderCronSecret");
-    expect(read("src/app/api/cron/daily-prices/route.ts")).toContain("fetchTwelveDailyBars");
+    expect(read("src/app/api/cron/daily-prices/route.ts")).toContain("fetchTwelveDailyBatch");
+    expect(read("src/app/api/cron/daily-prices/route.ts")).toContain("acquireDailyPriceRunLock");
     expect(read("src/app/api/cron/daily-prices/route.ts")).not.toMatch(/finance\.yahoo/);
     expect(read("src/lib/daily-price-twelve.ts")).not.toMatch(/finance\.yahoo/);
   });
@@ -333,7 +339,171 @@ describe("DAILY-PRICES-1 comparison and gaps", () => {
       "idem_key",
     ]);
     expect(DAILY_PRICE_CLOSE.flag).toBe("DAILY_PRICE_HISTORY_TABLE=on");
+    expect(DAILY_PRICE_CLOSE.indexes[0]).toEqual({ fields: ["idem_key"], unique: true });
+    expect(DAILY_PRICE_CAPTURE_LOCK.table).toBe("daily_price_capture_lock");
+    expect(DAILY_PRICE_CAPTURE_LOCK.indexes[0]).toEqual({ fields: ["lock_key"], unique: true });
     expect(read("src/lib/daily-price-history.server.ts")).toContain("dailyPriceHistoryEnabled");
-    expect(read("src/lib/daily-price-history.server.ts")).not.toMatch(/migrate|CREATE TABLE/i);
+    expect(read("src/lib/daily-price-history.server.ts")).not.toMatch(/migrate|CREATE TABLE|editRecordById|updateRecord|deleteRecord/i);
+  });
+
+  it("paces Twelve Data, fetches indexes first, and skips a symbol that is already stored", async () => {
+    const now = utcForAuckland(2026, 1, 15, 6, 7)!;
+    const names = [
+      { market: "NZX" as const, symbol: "FPH.NZ", name: "Fisher & Paykel Healthcare", role: "constituent" as const },
+      { market: "NZX" as const, symbol: "AIR.NZ", name: "Air New Zealand", role: "constituent" as const },
+      { market: "NZX" as const, symbol: "^NZ50", name: "S&P/NZX 50", role: "index" as const },
+    ];
+    let clock = 0;
+    const sleeps: number[] = [];
+    const called: string[] = [];
+    const paced = await captureDailyCloses({
+      now,
+      store: memoryDailyPriceStore(),
+      feeds: DAILY_PRICE_FEEDS,
+      names,
+      sessions: 1,
+      budget: { creditsPerMinute: 1, maxCreditsPerRun: 2, batchSize: 1, budgetMs: 240_000 },
+      nowMs: () => clock,
+      sleep: async (ms) => {
+        sleeps.push(ms);
+        clock += ms;
+      },
+      readFeed: async (_feed, _market, symbol) => {
+        called.push(symbol);
+        return [{ date: "2026-01-14", close: 10, change: null }];
+      },
+    });
+    expect(called).toEqual(["^NZ50", "AIR.NZ"]);
+    expect(paced.deferred).toBe(1);
+    expect(paced.credits).toBe(2);
+    expect(sleeps[0]).toBeGreaterThanOrEqual(60_000);
+    expect(paced.inserted).toBe(2);
+
+    let fetched = 0;
+    const skipped = await captureDailyCloses({
+      now,
+      store: memoryDailyPriceStore(),
+      feeds: DAILY_PRICE_FEEDS,
+      names: [names[2]],
+      sessions: 1,
+      storedKeys: new Set([idemKey("2026-01-14", "NZX", "^NZ50")]),
+      readFeed: async () => {
+        fetched += 1;
+        return [{ date: "2026-01-14", close: 10, change: null }];
+      },
+    });
+    expect(fetched).toBe(0);
+    expect(skipped.inserted).toBe(0);
+    expect(skipped.credits).toBe(0);
+
+    const batch = await loadTwelveDailyBatch({
+      names: [
+        { symbol: "FPH.NZ", market: "NZX" },
+        { symbol: "AIR.NZ", market: "NZX" },
+      ],
+      dates: ["2026-01-14"],
+      env: { MARKET_DATA_API_KEY: "batch-key" },
+      fetchImpl: async (req) => {
+        expect(req.symbols).toEqual(["FPH", "AIR"]);
+        expect(req.url).not.toContain("finance.yahoo");
+        expect(JSON.stringify(req.symbols)).not.toContain("batch-key");
+        return {
+          FPH: { values: [{ datetime: "2026-01-14", close: "36.8" }] },
+          AIR: { status: "error", code: 404 },
+        };
+      },
+    });
+    expect(batch.get("FPH.NZ")).toEqual([{ date: "2026-01-14", close: 36.8, change: null }]);
+    expect(batch.get("AIR.NZ")).toBeNull();
+    expect(parseTwelveBatch({ values: [{ datetime: "2026-01-14", close: "1" }] }, [{ internal: "FPH.NZ", provider: "FPH" }], ["2026-01-14"]).get("FPH.NZ")?.[0].close).toBe(1);
+  });
+
+  it("reads the newest session when the table has more than 5000 rows", () => {
+    const symbols = Array.from({ length: 401 }, (_, index) => `S${index}`);
+    const dates = Array.from({ length: 20 }, (_, index) => `2026-06-${String(index + 1).padStart(2, "0")}`);
+    const oldestFirst: DailyCloseRow[] = [];
+    for (const date of dates) {
+      for (const symbol of symbols) {
+        oldestFirst.push({
+          date,
+          market: "NZX",
+          symbol,
+          close: 1,
+          change: null,
+          source: "twelve-data",
+          captured_at: `${date}T00:00:00.000Z`,
+        });
+      }
+    }
+    expect(oldestFirst.length).toBe(8020);
+    expect(oldestFirst.slice(0, 5000).some((row) => row.date === dates[19])).toBe(false);
+    const newestFirst = [...oldestFirst].reverse();
+    const state = createHistoryReadState();
+    for (let offset = 0; offset < newestFirst.length; offset += HISTORY_PAGE_SIZE) {
+      const page = newestFirst.slice(offset, offset + HISTORY_PAGE_SIZE);
+      const step = absorbHistoryPage(state, page, page.length, HISTORY_PAGE_SIZE);
+      if (!step.continue) break;
+    }
+    const newest = state.kept.filter((row) => row.date === dates[19]);
+    expect(newest).toHaveLength(401);
+    expect(new Set(newest.map((row) => row.symbol)).size).toBe(401);
+    expect(state.kept.every((row) => row.date === dates[19])).toBe(true);
+
+    const split = createHistoryReadState();
+    const session = ["A", "B", "C"].map((symbol) => ({
+      date: "2026-07-14",
+      market: "NZX" as const,
+      symbol,
+      close: 1,
+      change: null,
+      source: "twelve-data",
+      captured_at: "2026-07-14T18:00:00.000Z",
+    }));
+    const older = { ...session[0], date: "2026-07-13", symbol: "A" };
+    expect(absorbHistoryPage(split, session.slice(0, 2), 2, 2).continue).toBe(true);
+    absorbHistoryPage(split, [session[2], older], 2, 2);
+    expect(split.kept.map((row) => row.symbol)).toEqual(["A", "B", "C"]);
+  });
+
+  it("a second look before insert does not write, and a second run does not take the lock", async () => {
+    let finds = 0;
+    const stored = row({ date: "2026-07-15" });
+    const store = {
+      async find() {
+        finds += 1;
+        return finds === 1 ? null : stored;
+      },
+      async insert() {
+        throw new Error("inserted");
+      },
+      async list() {
+        return [];
+      },
+    };
+    expect(await appendDailyClose(store, stored, [FIXTURE])).toBe("exists");
+    expect(finds).toBe(2);
+
+    const locks: CaptureLockRow[] = [];
+    const list = async () => locks.map((entry) => ({ ...entry }));
+    const insert = async (entry: CaptureLockRow) => {
+      locks.push(entry);
+    };
+    expect(await acquireCaptureLock({ owner: "run-a", now: 1_000, list, insert })).toBe("acquired");
+    expect(await acquireCaptureLock({ owner: "run-b", now: 1_001, list, insert })).toBe("held");
+
+    const raced: CaptureLockRow[] = [{ id: "earlier", owner: "other", acquiredAt: 1, expiresAt: 99_000 }];
+    let reads = 0;
+    const lost = await acquireCaptureLock({
+      owner: "me",
+      now: 50,
+      list: async () => {
+        reads += 1;
+        return reads === 1 ? [] : raced.map((entry) => ({ ...entry }));
+      },
+      insert: async (entry) => {
+        raced.push(entry);
+      },
+    });
+    expect(lost).toBe("held");
   });
 });

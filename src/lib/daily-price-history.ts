@@ -5,6 +5,7 @@
 
 import { signalRowFromPick, type StoredSignalReport } from "@/lib/chat-signals";
 import { resolveExchange } from "@/lib/market-intel";
+import { batchCaptureNames, captureBudgetFromEnv, captureWorkOrder, creditWaitMs, waitForCredits, type CaptureBudget } from "@/lib/daily-price-capture";
 import { dailyPriceDirectory, type DirectoryName } from "@/lib/daily-price-directory";
 import {
   completedSessionDates,
@@ -91,8 +92,9 @@ export async function appendDailyClose(
   if (row.change != null && (typeof row.change !== "number" || !Number.isFinite(row.change))) return "rejected";
   if (!row.source.trim() || !historyStoreAllowed(row.source, feeds)) return "rejected";
   if (!row.captured_at || Number.isNaN(Date.parse(row.captured_at))) return "rejected";
-  const existing = await store.find(row.date, row.market, symbol);
-  if (existing) return "exists";
+  if (await store.find(row.date, row.market, symbol)) return "exists";
+  // A second look closes the gap where another run inserted after the first look.
+  if (await store.find(row.date, row.market, symbol)) return "exists";
   await store.insert({
     date: row.date,
     market: row.market,
@@ -168,6 +170,50 @@ export interface CaptureReport {
   existing: number;
   gaps: number;
   skipped: CaptureSkip[];
+  /** Symbols left for a later run because the credit cap or the time budget was hit. */
+  deferred: number;
+  credits: number;
+}
+
+export const HISTORY_PAGE_SIZE = 1000;
+const DISPLAY_MARKETS: DailyMarket[] = ["NZX", "ASX", "DOW", "NASDAQ"];
+
+export interface HistoryReadState {
+  newest: Map<string, string>;
+  done: Set<string>;
+  kept: DailyCloseRow[];
+}
+
+export function createHistoryReadState(): HistoryReadState {
+  return { newest: new Map(), done: new Set(), kept: [] };
+}
+
+/**
+ * Pages arrive newest date first. Keep every row of each market's newest date,
+ * including when that date is split across pages. Stop once every market has
+ * moved on to an older date, or the page is short.
+ */
+export function absorbHistoryPage(
+  state: HistoryReadState,
+  rows: readonly DailyCloseRow[],
+  rawLength: number,
+  pageSize: number
+): { continue: boolean } {
+  for (const row of rows) {
+    if (!DISPLAY_MARKETS.includes(row.market)) continue;
+    const known = state.newest.get(row.market);
+    if (!known) {
+      state.newest.set(row.market, row.date);
+      state.kept.push(row);
+    } else if (row.date === known) {
+      state.kept.push(row);
+    } else if (row.date < known) {
+      state.done.add(row.market);
+    }
+  }
+  const short = rawLength < pageSize;
+  const allDone = DISPLAY_MARKETS.every((market) => state.done.has(market));
+  return { continue: !short && !allDone };
 }
 
 export async function captureDailyCloses(args: {
@@ -177,53 +223,106 @@ export async function captureDailyCloses(args: {
   feeds: readonly DailyPriceFeed[];
   names?: readonly DirectoryName[];
   sessions?: number;
-  readFeed: (feed: DailyPriceFeed, market: DailyMarket, symbol: string, dates: readonly string[]) => Promise<readonly FeedBar[] | null>;
+  storedKeys?: ReadonlySet<string>;
+  budget?: CaptureBudget;
+  env?: Record<string, string | undefined>;
+  nowMs?: () => number;
+  sleep?: (ms: number) => Promise<void>;
+  readFeed?: (feed: DailyPriceFeed, market: DailyMarket, symbol: string, dates: readonly string[]) => Promise<readonly FeedBar[] | null>;
+  readBatch?: (
+    feed: DailyPriceFeed,
+    names: readonly DirectoryName[],
+    dates: readonly string[]
+  ) => Promise<Map<string, readonly FeedBar[] | null>>;
 }): Promise<CaptureReport> {
+  const empty = { inserted: 0, existing: 0, gaps: 0, skipped: [] as CaptureSkip[], deferred: 0, credits: 0 };
   if (!args.force && !isAucklandCaptureWindow(args.now)) {
-    return { ran: false, reason: "outside-auckland-window", inserted: 0, existing: 0, gaps: 0, skipped: [] };
+    return { ran: false, reason: "outside-auckland-window", ...empty };
   }
+  const budget = args.budget ?? captureBudgetFromEnv(args.env);
+  const nowMs = args.nowMs ?? (() => Date.now());
+  const sleep = args.sleep ?? ((ms: number) => new Promise((resolve) => setTimeout(resolve, ms)));
   const names = args.names ?? dailyPriceDirectory();
   const sessions = args.sessions ?? 1;
+  const stored = new Set(args.storedKeys ?? []);
+  const started = nowMs();
+  const stamps: number[] = [];
   let inserted = 0;
   let existing = 0;
   let gaps = 0;
+  let credits = 0;
+  let deferred = 0;
   const skipped: CaptureSkip[] = [];
+  const datesByMarket = new Map<DailyMarket, string[]>();
   for (const feed of args.feeds) {
     if (!historyStoreAllowed(feed.id, args.feeds)) {
       skipped.push({ source: feed.id, reason: DATA_LICENCE_REVIEW });
       continue;
     }
-    for (const market of feed.markets) {
-      const dates = completedSessionDates(market, args.now, sessions);
-      const symbols = names.filter((name) => name.market === market);
-      for (const name of symbols) {
-        let bars: readonly FeedBar[] | null;
-        try {
-          bars = await args.readFeed(feed, market, name.symbol, dates);
-        } catch {
-          bars = null;
+    const pending = captureWorkOrder(names.filter((name) => (feed.markets as readonly string[]).includes(name.market))).filter((name) => {
+      const dates = datesByMarket.get(name.market) ?? completedSessionDates(name.market, args.now, sessions);
+      datesByMarket.set(name.market, dates);
+      return dates.some((date) => !stored.has(idemKey(date, name.market, name.symbol)));
+    });
+    const batches = batchCaptureNames(pending, budget.batchSize);
+    let stop = false;
+    for (let index = 0; index < batches.length; index++) {
+      const batch = batches[index];
+      const market = batch[0].market;
+      const dates = datesByMarket.get(market) ?? [];
+      const cost = Math.min(batch.length, budget.creditsPerMinute);
+      const at = nowMs();
+      const wait = creditWaitMs(stamps, at, cost, budget.creditsPerMinute);
+      if (credits + batch.length > budget.maxCreditsPerRun || at + wait - started > budget.budgetMs) {
+        deferred += batches.slice(index).reduce((sum, group) => sum + group.length, 0);
+        stop = true;
+        break;
+      }
+      await waitForCredits({ cost: batch.length, perMinute: budget.creditsPerMinute, stamps, now: nowMs, sleep });
+      credits += batch.length;
+      let barsBySymbol: Map<string, readonly FeedBar[] | null>;
+      try {
+        if (args.readBatch) barsBySymbol = await args.readBatch(feed, batch, dates);
+        else {
+          barsBySymbol = new Map();
+          for (const name of batch) {
+            const bars = args.readFeed ? await args.readFeed(feed, name.market, name.symbol, dates) : null;
+            barsBySymbol.set(name.symbol.toUpperCase(), bars);
+          }
         }
+      } catch {
+        barsBySymbol = new Map(batch.map((name) => [name.symbol.toUpperCase(), null]));
+      }
+      for (const name of batch) {
+        const bars = barsBySymbol.get(name.symbol.toUpperCase()) ?? null;
         if (bars == null) {
           gaps += dates.length;
           skipped.push({ source: feed.id, reason: "missing-feed" });
           continue;
         }
-        const prints = printsFromBars({ market, symbol: name.symbol, source: feed.id, bars, dates });
+        const prints = printsFromBars({ market: name.market, symbol: name.symbol, source: feed.id, bars, dates });
         const found = new Set(prints.map((print) => print.date));
-        gaps += dates.filter((date) => !found.has(date)).length;
+        gaps += dates.filter((date) => !found.has(date) && !stored.has(idemKey(date, name.market, name.symbol))).length;
         for (const print of prints) {
+          if (stored.has(idemKey(print.date, print.market, print.symbol))) {
+            existing += 1;
+            continue;
+          }
           const result = await appendDailyClose(
             args.store,
-            { ...print, captured_at: args.now.toISOString() },
+            { ...print, captured_at: new Date(nowMs()).toISOString() },
             args.feeds
           );
-          if (result === "inserted") inserted += 1;
-          else if (result === "exists") existing += 1;
+          if (result === "inserted") {
+            inserted += 1;
+            stored.add(idemKey(print.date, print.market, print.symbol));
+          } else if (result === "exists") existing += 1;
         }
       }
     }
+    if (stop) break;
   }
-  return { ran: true, reason: "captured", inserted, existing, gaps, skipped };
+  return { ran: true, reason: deferred ? "resume" : "captured", inserted, existing, gaps, skipped, deferred, credits };
 }
 
 export interface SessionBoardRow {

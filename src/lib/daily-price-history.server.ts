@@ -5,8 +5,11 @@ import { DAILY_PRICE_CLOSE } from "@/lib/schema/daily-price-history.schema";
 import { flagOn } from "@/lib/schema/types";
 import { totalumSdk } from "@/lib/totalum";
 import {
+  HISTORY_PAGE_SIZE,
   HISTORY_UNAVAILABLE,
+  absorbHistoryPage,
   canonicalRow,
+  createHistoryReadState,
   predictionsFromReports,
   type DailyCloseRow,
   type DailyPriceStore,
@@ -42,20 +45,37 @@ function asRow(raw: Record<string, unknown>): DailyCloseRow | null {
   };
 }
 
+async function queryClosePage(offset: number): Promise<Record<string, unknown>[]> {
+  const res = await totalumSdk.crud.query(DAILY_PRICE_CLOSE.table, {
+    _limit: HISTORY_PAGE_SIZE,
+    _offset: offset,
+    _sort: { date: "desc" },
+  } as never);
+  return ((res as { data?: Array<Record<string, unknown>> })?.data || []);
+}
+
+/** Newest session for each market. Pages are newest-first so a 5000 cap cannot hide that session. */
 export async function readDailyPriceHistory(
   env: Record<string, string | undefined> = process.env
 ): Promise<{ ok: true; rows: DailyCloseRow[] } | { ok: false; reason: typeof HISTORY_UNAVAILABLE }> {
   if (!dailyPriceHistoryEnabled(env)) return { ok: false, reason: HISTORY_UNAVAILABLE };
   try {
-    const res = await totalumSdk.crud.query(DAILY_PRICE_CLOSE.table, {
-      _limit: 5000,
-      _sort: { captured_at: "asc" },
-    } as never);
-    const raw = ((res as { data?: Array<Record<string, unknown>> })?.data || []);
+    const state = createHistoryReadState();
+    let offset = 0;
+    let previousMarker = "";
+    for (let page = 0; page < 40; page++) {
+      const raw = await queryClosePage(offset);
+      const marker = String(raw[0]?._id || raw[0]?.idem_key || "");
+      if (page > 0 && marker && marker === previousMarker) break;
+      previousMarker = marker;
+      const rows = raw.map(asRow).filter((row): row is DailyCloseRow => !!row && row.source === TWELVE_DATA_SOURCE);
+      const step = absorbHistoryPage(state, rows, raw.length, HISTORY_PAGE_SIZE);
+      if (!step.continue) break;
+      offset += raw.length;
+      if (!raw.length) break;
+    }
     const grouped = new Map<string, DailyCloseRow[]>();
-    for (const item of raw) {
-      const row = asRow(item);
-      if (!row) continue;
+    for (const row of state.kept) {
       const key = `${row.date}|${row.market}|${row.symbol}`;
       const list = grouped.get(key);
       if (list) list.push(row);
@@ -64,12 +84,39 @@ export async function readDailyPriceHistory(
     const rows: DailyCloseRow[] = [];
     for (const list of grouped.values()) {
       const chosen = canonicalRow(list);
-      if (chosen && chosen.source === TWELVE_DATA_SOURCE) rows.push(chosen);
+      if (chosen) rows.push(chosen);
     }
     return { ok: true, rows };
   } catch (err) {
     console.error("[daily-prices] history read failed:", err instanceof Error ? err.message.slice(0, 120) : "failed");
     return { ok: false, reason: HISTORY_UNAVAILABLE };
+  }
+}
+
+/** Every stored idem_key for the dates a capture might write. Used to skip Twelve Data calls. */
+export async function listStoredCloseKeys(dates: ReadonlySet<string>): Promise<Set<string> | null> {
+  if (!dates.size) return new Set();
+  try {
+    const keys = new Set<string>();
+    let offset = 0;
+    let previousMarker = "";
+    for (let page = 0; page < 40; page++) {
+      const raw = await queryClosePage(offset);
+      const marker = String(raw[0]?._id || raw[0]?.idem_key || "");
+      if (page > 0 && marker && marker === previousMarker) break;
+      previousMarker = marker;
+      for (const item of raw) {
+        const row = asRow(item);
+        if (!row || row.source !== TWELVE_DATA_SOURCE || !dates.has(row.date)) continue;
+        keys.add(`${row.date}|${row.market}|${row.symbol}`);
+      }
+      if (raw.length < HISTORY_PAGE_SIZE) break;
+      offset += raw.length;
+    }
+    return keys;
+  } catch (err) {
+    console.error("[daily-prices] stored-key read failed:", err instanceof Error ? err.message.slice(0, 120) : "failed");
+    return null;
   }
 }
 
