@@ -162,10 +162,10 @@ export async function POST(req: Request) {
             body = prepared.text;
           }
         }
-        body = ensurePlatformLine(body, parseSignalQuery(userMessage).platform);
       } else {
         console.info(`[api/chat] recommendation signals unavailable (${feed.status}) for user ${user._id}`);
       }
+      body = ensurePlatformLine(body, parseSignalQuery(userMessage).platform);
       const reply = withAssistantDisclaimer(ensureSignalAsOf(body, feed.asOf));
       return finishAssistantReply(reply, user._id, queryLimit, usedBefore);
     }
