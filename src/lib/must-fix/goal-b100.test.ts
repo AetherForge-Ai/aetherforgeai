@@ -1,4 +1,4 @@
-// pull-check:v3-b100-2026-11-15
+// pull-check:v3-b101-2026-11-15
 import { describe, expect, it } from "vitest";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { checkReleaseGate } from "@/lib/release-gate";
@@ -6,7 +6,7 @@ import { BUILD_RELEASE_ID } from "@/lib/goal-test-hooks";
 
 /** b100: release marker. READY stays refused until a preview-b100 grade exists. */
 const read = (p: string) => readFileSync(p, "utf8");
-const VERSION = "v3-b100-2026-11-15";
+const VERSION = "v3-b101-2026-11-15";
 
 function buildNumber(id: string): number {
   const m = /^v3-b(\d+)/.exec(id);
@@ -33,8 +33,8 @@ describe("b100", () => {
         .filter((n): n is string => Boolean(n))
         .map(Number),
     );
-    expect(newest).toBe(100);
-    expect(newest).toBeGreaterThan(99);
+    expect(newest).toBe(101);
+    expect(newest).toBeGreaterThan(100);
     const version = read("public/build-version.txt").trim();
     const m = /^v3-(?:(?:goal|h1|g24|dedupe|g10|del404|fix|m7|cr6|g18|cr6b|dashclean|dashclean-d|dashclean-e)-)?b(\d+)[a-z]?-\d{4}-\d{2}-\d{2}$/.exec(version);
     expect(Number(m?.[1])).toBe(newest);
@@ -49,6 +49,6 @@ describe("b100", () => {
 
   it("dry run: marking this build READY is blocked until a preview-b100 grade exists", () => {
     const r = checkReleaseGate({ read: (p) => (p === "goal-loop/READY_TO_PUBLISH" ? `${VERSION}\n` : existsSync(p) ? read(p) : null), list: (d) => readdirSync(d) });
-    expect(r).toEqual({ ok: false, reason: `No TT preview grade file goal-loop/preview-b100.md or preview-b100-*.md for ${VERSION}.` });
+    expect(r).toEqual({ ok: false, reason: `No TT preview grade file goal-loop/preview-b101.md or preview-b101-*.md for ${VERSION}.` });
   });
 });

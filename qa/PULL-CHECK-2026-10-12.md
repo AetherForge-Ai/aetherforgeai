@@ -749,3 +749,4 @@ Must-fix batch 7 (TT b6 retest: CR-2 CR-5 H-5 H-13 M-3 M-6): marker `pull-check:
 - pull-check:v3-b98-2026-11-10 — H-1 shut-session close label + shared watchlist quote (PR648), H-10 per-broker fixtures incl. Hatch (PR649), four historical docs restored (PR645), 5 MB import boundary tests (PR650), BS-01 IBKR sync acceptance tests (PR651), DEX-1 network|pool dedupe key for count and table (PR652).
 - pull-check:v3-b99-2026-11-15 — release marker.
 - pull-check:v3-b100-2026-11-15 — HOOKS-PROD-OFF (PR683), H-1-TAPE-SSR-2 (PR681), H-10-CASH-FLOOR (PR682).
+- pull-check:v3-b101-2026-11-15 — H-10-FX-GATE (PR688, applyReviewedFxGate in persist.ts), AI-CHAT-SIGNALS-1 (PR689, PLATFORM_EXCHANGES in chat-signals.ts).

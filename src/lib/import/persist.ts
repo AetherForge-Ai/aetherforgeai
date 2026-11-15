@@ -7,8 +7,9 @@
 import { currentCashNzd, planImportUndo } from "@/lib/import-undo-server";
 import { NextResponse } from "next/server";
 import { checkTickerQuota } from "@/lib/entitlements";
-import { historicalNzdPerUnit as liveHistoricalNzdPerUnit } from "@/lib/fx";
+import { getFxSnapshot, historicalNzdPerUnit as liveHistoricalNzdPerUnit } from "@/lib/fx";
 import type { CurrencyCode } from "@/lib/currency";
+import { bookableSnapshotRates, REVIEWED_FX_REJECTED, reviewedFxAllowed } from "@/lib/reviewed-book";
 import { FUNDING_DISCLOSURE } from "@/lib/broker-import";
 import { assetClassForSymbol } from "@/lib/import-symbols";
 import {
@@ -24,7 +25,7 @@ import { IMPORT_TOO_LARGE, textTooLarge } from "@/lib/import/limits";
 import { importCashWarning } from "@/lib/import/cash-guard";
 import { previewImport } from "@/lib/import/plan";
 import { suggestedColumnMap, mappingReady } from "@/lib/import/formats";
-import type { ColumnMap, ImportPreview, ImportRow } from "@/lib/import/types";
+import type { ColumnMap, ImportPreview, ImportRow, RowNote } from "@/lib/import/types";
 import { invalidateBookCache } from "@/lib/book-cache";
 import { planOrApplyLedgerReversal } from "@/lib/ledger-reversal-apply";
 import { applyTransaction } from "@/lib/transactions";
@@ -131,6 +132,50 @@ async function loadLedger(userId: string, crud: H10PersistDeps["crud"]): Promise
   }));
 }
 
+function sumCash(rows: readonly ImportRow[]): number {
+  const cents = rows.reduce((sum, row) => sum + Math.round(row.cashEffectNzd * 100), 0);
+  return cents / 100;
+}
+
+/**
+ * The same 5% trade-date check confirm runs inside booking (`reviewedFxAllowed`).
+ * Off-market rows become preview errors and are left out of the rows to save.
+ */
+async function applyReviewedFxGate(
+  preview: ImportPreview,
+  historicalNzdPerUnit: NonNullable<H10PersistDeps["historicalNzdPerUnit"]>
+): Promise<ImportPreview> {
+  if (!preview.toWrite.length) return preview;
+  const live = bookableSnapshotRates(await getFxSnapshot());
+  const historical: Record<string, number | null> = {};
+  const flagged: RowNote[] = [];
+  for (const row of preview.toWrite) {
+    if (row.currency === "NZD") continue;
+    const key = `${row.currency}|${row.date}`;
+    if (!(key in historical)) historical[key] = await historicalNzdPerUnit(row.currency, row.date);
+    const check = reviewedFxAllowed({
+      currency: row.currency,
+      reviewed: row.fx,
+      snapshot: live ? Number(live[row.currency]) || 0 : 0,
+      historical: historical[key],
+    });
+    if (check.ok === false) {
+      flagged.push({ line: row.line, message: `Line ${row.line}: ${check.message}` });
+    }
+  }
+  if (!flagged.length) return preview;
+  const bad = new Set(flagged.map((note) => note.line));
+  const toWrite = preview.toWrite.filter((row) => !bad.has(row.line));
+  const errors = [...preview.errors, ...flagged].sort((a, b) => a.line - b.line);
+  return {
+    ...preview,
+    toWrite,
+    errors,
+    cashNzd: sumCash(toWrite),
+    error: toWrite.length ? preview.error : errors[0]?.message || preview.error,
+  };
+}
+
 async function previewWithRates(
   text: string,
   mapping: ColumnMap | undefined,
@@ -138,14 +183,21 @@ async function previewWithRates(
   historicalNzdPerUnit: NonNullable<H10PersistDeps["historicalNzdPerUnit"]>
 ): Promise<ImportPreview> {
   const draft = await previewImport(text, { mapping, held });
-  if (!draft.fxNeeds.length) return draft;
-  const reviewedRates: Record<string, number | null> = {};
-  for (const need of draft.fxNeeds) {
-    const key = `${need.currency}|${need.date}`;
-    if (key in reviewedRates) continue;
-    reviewedRates[key] = await historicalNzdPerUnit(need.currency, need.date);
+  let priced = draft;
+  if (draft.fxNeeds.length) {
+    const reviewedRates: Record<string, number | null> = {};
+    for (const need of draft.fxNeeds) {
+      const key = `${need.currency}|${need.date}`;
+      if (key in reviewedRates) continue;
+      reviewedRates[key] = await historicalNzdPerUnit(need.currency, need.date);
+    }
+    priced = await previewImport(text, { mapping, held, reviewedRates });
   }
-  return previewImport(text, { mapping, held, reviewedRates });
+  return applyReviewedFxGate(priced, historicalNzdPerUnit);
+}
+
+function fxGateError(preview: ImportPreview): string | null {
+  return preview.errors.find((error) => error.message.includes(REVIEWED_FX_REJECTED))?.message || null;
 }
 
 function publicPreview(preview: ImportPreview) {
@@ -175,6 +227,7 @@ function publicPreview(preview: ImportPreview) {
     cashNzd: preview.cashNzd,
     fileHash: preview.fileHash,
     error: preview.error,
+    fxBlocked: fxGateError(preview) != null,
   };
 }
 
@@ -269,6 +322,14 @@ export async function runH10Import(
     const opening = typeof user.cash_balance === "number" ? user.cash_balance : 0;
     const cashWarning = recognised ? importCashWarning(opening, preview.cashNzd) : null;
     return NextResponse.json({ ok: true, error: preview.error, data: { ...publicPreview(preview), cashWarning } });
+  }
+  // Same rows the preview flagged. Nothing is written until those rates are fixed.
+  const fxError = fxGateError(preview);
+  if (fxError) {
+    return NextResponse.json(
+      { ok: false, error: fxError, data: { ...publicPreview(preview), written: 0 } },
+      { status: 400 }
+    );
   }
   if (preview.needsMapping || preview.unreadable || !preview.toWrite.length) {
     return NextResponse.json({ ok: false, error: preview.error || "Nothing was written.", data: { ...publicPreview(preview), written: 0 } }, { status: 400 });
