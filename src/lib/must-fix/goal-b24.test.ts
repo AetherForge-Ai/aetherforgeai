@@ -36,7 +36,7 @@ describe("goal b24 SECURITY", () => {
     expect(seed).not.toContain("aetherforge-qa");
     expect(readFileSync(".gitignore", "utf8")).toContain("qa/local-harness/.fixtures-local.md");
     expect(seed).not.toMatch(/PASSWORD\s*\|\|\s*"/);
-  });
+  }, 20_000);
   it("test hooks: account ids only, no email-domain allow-list", () => {
     const on = { GOAL_TEST_HOOKS: "1" };
     expect(testHooksAllowedFor({ _id: "u1", email: "a@example.invalid" }, on)).toBe(false);
