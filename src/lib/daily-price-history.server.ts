@@ -1,5 +1,6 @@
 import "server-only";
 
+import { TWELVE_DATA_SOURCE } from "@/lib/daily-price-twelve";
 import { DAILY_PRICE_CLOSE } from "@/lib/schema/daily-price-history.schema";
 import { flagOn } from "@/lib/schema/types";
 import { totalumSdk } from "@/lib/totalum";
@@ -63,7 +64,7 @@ export async function readDailyPriceHistory(
     const rows: DailyCloseRow[] = [];
     for (const list of grouped.values()) {
       const chosen = canonicalRow(list);
-      if (chosen) rows.push(chosen);
+      if (chosen && chosen.source === TWELVE_DATA_SOURCE) rows.push(chosen);
     }
     return { ok: true, rows };
   } catch (err) {

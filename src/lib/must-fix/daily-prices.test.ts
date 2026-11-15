@@ -23,6 +23,7 @@ import {
   utcForAuckland,
 } from "@/lib/daily-price-schedule";
 import { DAILY_PRICE_FEEDS, DATA_LICENCE_REVIEW, historyStoreAllowed } from "@/lib/daily-price-sources";
+import { barsFromTwelveValues, canReadTwelveData, loadTwelveDailyBars, redactSecret } from "@/lib/daily-price-twelve";
 import { DOW_JONES_TICKERS, entriesForExchange } from "@/lib/market-intel";
 import { DAILY_PRICE_CLOSE } from "@/lib/schema/daily-price-history.schema";
 // @ts-expect-error plain script
@@ -73,7 +74,7 @@ describe("DAILY-PRICES-1 append-only history", () => {
   it("rejects a directory seed and an unconfirmed feed", async () => {
     const store = memoryDailyPriceStore();
     expect(historyStoreAllowed("yahoo-finance")).toBe(false);
-    expect(historyStoreAllowed("twelve-data")).toBe(false);
+    expect(historyStoreAllowed("twelve-data")).toBe(true);
     expect(await appendDailyClose(store, row({ source: "yahoo-finance" }), DAILY_PRICE_FEEDS)).toBe("rejected");
     expect(await appendDailyClose(store, row({ source: "universe-seed", close: 36.8 }), [FIXTURE])).toBe("rejected");
     expect(await store.list()).toEqual([]);
@@ -107,7 +108,9 @@ describe("DAILY-PRICES-1 schedule is 06:07 Pacific/Auckland", () => {
     expect(yml).not.toMatch(/\?key=/);
     expect(read("wrangler.jsonc")).not.toContain("crons");
     expect(read("src/app/api/cron/daily-prices/route.ts")).toContain("presentedHeaderCronSecret");
-    expect(read("src/app/api/cron/daily-prices/route.ts")).not.toMatch(/finance\.yahoo|twelvedata\.com/);
+    expect(read("src/app/api/cron/daily-prices/route.ts")).toContain("fetchTwelveDailyBars");
+    expect(read("src/app/api/cron/daily-prices/route.ts")).not.toMatch(/finance\.yahoo/);
+    expect(read("src/lib/daily-price-twelve.ts")).not.toMatch(/finance\.yahoo/);
   });
 
   it("the watchdog slot matches the Auckland capture instant", () => {
@@ -196,21 +199,103 @@ describe("DAILY-PRICES-1 comparison and gaps", () => {
     expect(mixed[1]).toMatchObject({ date: "2026-07-14", close: null, change: null });
   });
 
-  it("the live feeds are left out, so a capture stores nothing from them", async () => {
+  it("stores Twelve Data bars and refuses Yahoo", async () => {
+    expect(DAILY_PRICE_FEEDS.find((feed) => feed.id === "twelve-data")?.note).toBe("approved by Lukas 15 Nov 2026");
+    expect(DAILY_PRICE_FEEDS.find((feed) => feed.id === "yahoo-finance")?.licence).toBe("unconfirmed");
+    const store = memoryDailyPriceStore();
+    const called: string[] = [];
+    const now = utcForAuckland(2026, 1, 15, 6, 7)!;
+    const report = await captureDailyCloses({
+      now,
+      store,
+      feeds: DAILY_PRICE_FEEDS,
+      names: [{ market: "NZX", symbol: "FPH.NZ", name: "Fisher & Paykel Healthcare", role: "constituent" }],
+      readFeed: async (feed) => {
+        called.push(feed.id);
+        return [{ date: "2026-01-14", close: 36.8, change: 0.4 }];
+      },
+    });
+    expect(called).toEqual(["twelve-data"]);
+    expect(report.skipped.map((skip) => skip.source)).toContain("yahoo-finance");
+    expect(report.skipped.find((skip) => skip.source === "yahoo-finance")?.reason).toBe(DATA_LICENCE_REVIEW);
+    expect(report.inserted).toBe(1);
+    expect((await store.list())[0]).toMatchObject({ source: "twelve-data", close: 36.8, symbol: "FPH.NZ" });
+    expect(await appendDailyClose(store, row({ source: "yahoo-finance", date: "2026-01-13" }), DAILY_PRICE_FEEDS)).toBe("rejected");
+    expect(await store.list()).toHaveLength(1);
+  });
+
+  it("a missing Twelve Data key stores nothing and does not call the feed", async () => {
+    expect(canReadTwelveData({})).toBe(false);
+    expect(canReadTwelveData({ MARKET_DATA_API_KEY: "   " })).toBe(false);
+    const fetchImpl = async () => ({ values: [{ datetime: "2026-01-14", close: "36.8" }] });
+    const barred = await loadTwelveDailyBars({
+      symbol: "FPH.NZ",
+      market: "NZX",
+      dates: ["2026-01-14"],
+      env: {},
+      fetchImpl,
+    });
+    expect(barred).toBeNull();
     const store = memoryDailyPriceStore();
     const report = await captureDailyCloses({
       now: utcForAuckland(2026, 1, 15, 6, 7)!,
       store,
       feeds: DAILY_PRICE_FEEDS,
-      names: [{ market: "NZX", symbol: "^NZ50", name: "S&P/NZX 50", role: "index" }],
-      readFeed: async () => [{ date: "2026-01-14", close: 12000, change: 10 }],
+      names: [{ market: "NZX", symbol: "FPH.NZ", name: "Fisher & Paykel Healthcare", role: "constituent" }],
+      readFeed: async (feed, market, symbol, dates) => {
+        if (feed.id !== "twelve-data") return null;
+        return loadTwelveDailyBars({ symbol, market, dates, env: {}, fetchImpl });
+      },
     });
     expect(report.inserted).toBe(0);
-    expect(report.skipped.map((skip) => skip.reason)).toContain(DATA_LICENCE_REVIEW);
     expect(await store.list()).toEqual([]);
-    for (const market of ["NZX", "ASX", "DOW", "NASDAQ"] as const) {
-      expect(DAILY_PRICE_FEEDS.every((feed) => feed.markets.includes(market) && feed.licence === "unconfirmed")).toBe(true);
-    }
+    expect(read("src/app/markets/daily-prices/page.tsx")).toContain("canReadTwelveData");
+    expect(read("src/app/api/cron/daily-prices/route.ts")).toContain("canReadTwelveData");
+  });
+
+  it("parses Twelve Data daily bars without copying a missing day or keeping the key", async () => {
+    const key = "secret-key-value";
+    expect(redactSecret(`upstream said ${key}`, key)).not.toContain(key);
+    let seen = "";
+    const bars = await loadTwelveDailyBars({
+      symbol: "FPH.NZ",
+      market: "NZX",
+      dates: ["2026-01-13", "2026-01-14", "2026-01-15"],
+      env: { MARKET_DATA_API_KEY: key },
+      fetchImpl: async (req) => {
+        seen = req.apiKey;
+        expect(req.url).toContain("https://api.twelvedata.com/time_series?");
+        expect(req.url).toContain("interval=1day");
+        expect(req.symbol).toBe("FPH");
+        expect(req.country).toBe("New Zealand");
+        return {
+          values: [
+            { datetime: "2026-01-13", close: "36.4" },
+            { datetime: "2026-01-14", close: "36.8" },
+            { datetime: "2026-01-15", close: "" },
+          ],
+        };
+      },
+    });
+    expect(seen).toBe(key);
+    expect(JSON.stringify(bars)).not.toContain(key);
+    expect(bars).toEqual([
+      { date: "2026-01-13", close: 36.4, change: null },
+      { date: "2026-01-14", close: 36.8, change: 0.4 },
+    ]);
+    expect(barsFromTwelveValues([{ datetime: "2026-01-13", close: "1" }], ["2026-01-14"])).toEqual([]);
+    const index = await loadTwelveDailyBars({
+      symbol: "^NZ50",
+      market: "NZX",
+      dates: ["2026-01-14"],
+      env: { MARKET_DATA_API_KEY: key },
+      fetchImpl: async (req) => {
+        expect(req.symbol).toBe("NZ50");
+        expect(req.country).toBe("New Zealand");
+        return { values: [{ datetime: "2026-01-14", close: "12000" }] };
+      },
+    });
+    expect(index).toEqual([{ date: "2026-01-14", close: 12000, change: null }]);
   });
 
   it("uses the constituent lists already in the repo and not their seed prices", () => {

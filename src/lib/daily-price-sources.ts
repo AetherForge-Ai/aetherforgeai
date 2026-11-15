@@ -1,13 +1,11 @@
 /**
  * Feeds this repo already uses for NZX, ASX, Dow Jones and Nasdaq prices.
  *
- * Yahoo Finance (keyless chart and spark) and Twelve Data (when MARKET_DATA_API_KEY
- * is set) are the equity quote feeds in src/lib/yahoo-finance.ts and src/lib/market-data.ts.
- * src/lib/market-freshness.ts records that the Yahoo licence is unconfirmed. Twelve Data's
- * terms for storing or redistributing a history are not recorded in this repo either.
- *
- * An unconfirmed feed is left out of capture, backfill and the numbers on the page.
- * DATA-LICENCE-REVIEW is the skip reason the cron reports.
+ * Twelve Data is the stored daily-close feed. approved by Lukas 15 Nov 2026.
+ * It is read with the existing MARKET_DATA_API_KEY (src/lib/market-data.ts and the
+ * time_series call in src/lib/market-universe.ts). Yahoo Finance stays unconfirmed
+ * and is left out of capture, backfill and this page.
+ * DATA-LICENCE-REVIEW is the skip reason for a feed that is not allowed.
  */
 
 export const DATA_LICENCE_REVIEW = "DATA-LICENCE-REVIEW";
@@ -30,14 +28,14 @@ export const DAILY_PRICE_FEEDS: readonly DailyPriceFeed[] = [
     licence: "unconfirmed",
     markets: ["NZX", "ASX", "DOW", "NASDAQ"],
     usedBy: "src/lib/yahoo-finance.ts",
-    note: "Keyless Yahoo chart and spark. The repo says the Yahoo licence is unconfirmed. Not stored.",
+    note: "Keyless Yahoo chart and spark. The Yahoo licence is unconfirmed. Not stored.",
   },
   {
     id: "twelve-data",
-    licence: "unconfirmed",
+    licence: "allowed",
     markets: ["NZX", "ASX", "DOW", "NASDAQ"],
     usedBy: "src/lib/market-data.ts",
-    note: "Twelve Data quotes when MARKET_DATA_API_KEY is set. Storage terms are not in the repo. Not stored.",
+    note: "approved by Lukas 15 Nov 2026",
   },
 ];
 

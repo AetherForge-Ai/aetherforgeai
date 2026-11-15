@@ -12,6 +12,7 @@ import {
   type SessionBoardRow,
 } from "@/lib/daily-price-history";
 import { loadReportPredictions, readDailyPriceHistory } from "@/lib/daily-price-history.server";
+import { canReadTwelveData } from "@/lib/daily-price-twelve";
 import { EXCHANGES, type Exchange } from "@/lib/market-intel";
 import type { Metadata } from "next";
 
@@ -46,7 +47,8 @@ function shellUser(user: AppUser | null) {
 export default async function DailyPricesPage() {
   const user = await withDeadline<AppUser | null | typeof SESSION_PENDING>(getCurrentUser(), MARKETS_SSR_DEADLINE_MS, SESSION_PENDING);
   if (user === SESSION_PENDING) return <MarketsAccountPending />;
-  const history = await readDailyPriceHistory();
+  const feedReady = canReadTwelveData();
+  const history = feedReady ? await readDailyPriceHistory() : { ok: false as const, reason: HISTORY_UNAVAILABLE };
   const predictions = user && !user.identityConflict ? await loadReportPredictions(user._id) : [];
   const now = new Date();
   const board = buildSessionBoard({ now, rows: history.ok ? history.rows : [] });
@@ -72,8 +74,7 @@ export default async function DailyPricesPage() {
           </p>
         ) : null}
         <p className="mt-4 max-w-3xl text-sm text-muted-foreground">
-          Yahoo Finance and Twelve Data are the equity feeds this site already reads. Their licence for storing a
-          history is unconfirmed, so those prints are not written here and are not used to fill a gap.
+          Stored closes are Twelve Data daily bars. A gap is a session Twelve Data did not return. Yahoo Finance is not used here.
         </p>
         <p className="mt-4 text-sm">
           <a href="/markets/daily-prices/export" className="font-semibold text-primary underline-offset-2 hover:underline">
