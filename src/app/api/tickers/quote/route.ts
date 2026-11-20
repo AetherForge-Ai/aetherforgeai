@@ -7,6 +7,9 @@ import { fetchCryptoQuotes } from "@/lib/market-data";
 import { getMetalsSpot } from "@/lib/metals";
 import { CANONICAL_CRYPTO_IDS } from "@/lib/crypto-ids";
 import { lookupCryptoId } from "@/lib/crypto-id-registry";
+import { quoteCoinId } from "@/lib/crypto-listed-match";
+import { guardTradeQuote } from "@/lib/quote-sanity";
+import { lastGoodCryptoPrice } from "@/lib/crypto-price-feed";
 import { dexQuoteRows } from "@/lib/crypto-coingecko";
 import { normaliseUnitPrice } from "@/lib/currency";
 import { dexPriceForSymbol } from "@/lib/reviewed-book";
@@ -57,7 +60,7 @@ export async function GET(req: Request) {
       const market = (searchParams.get("market") || "").trim().toLowerCase();
       const explicitId = (searchParams.get("id") || "").trim();
       const remembered = lookupCryptoId(symbol);
-      const coinId = explicitId || remembered || "";
+      const coinId = quoteCoinId(symbol, explicitId, remembered || "");
       const knownName = Object.prototype.hasOwnProperty.call(CANONICAL_CRYPTO_IDS, symbol);
       // A known coin (PEPE, UNI) uses the sell-form coin list even when the Add panel sends an id.
       // An unknown extended id or a pool address stays strict so Yahoo cannot guess the wrong asset.
@@ -126,6 +129,25 @@ export async function GET(req: Request) {
       }
       price = pickListedCryptoPrice({ market, dexPrice: dexSearchPrice, coinListPrice });
       let kept = normaliseUnitPrice(price);
+      const guarded = guardTradeQuote(kept, lastGoodCryptoPrice(symbol));
+      if (kept != null && kept > 0 && !guarded.ok) {
+        console.log(`[api/tickers/quote] (crypto) ${symbol} quote rejected against the last good price`);
+        return NextResponse.json({
+          ok: true,
+          data: {
+            symbol,
+            price: null,
+            currency: null,
+            changePct: null,
+            stale: false,
+            source: null,
+            quotedAt: null,
+            chain: chainForTicker(symbol) || null,
+            label: guarded.message,
+            quoteRejected: true,
+          },
+        });
+      }
       let stale = false;
       let label: string | null = null;
       let source: string | null = null;

@@ -13,6 +13,7 @@ import { savedSnapshotLabel } from "@/lib/status-feeds";
 import { formatDisplayDateTime } from "@/lib/currency";
 import type { DexTokenRow } from "@/lib/crypto-dex";
 import { canonicalCryptoId } from "@/lib/crypto-ids";
+import { pickListedCoin } from "@/lib/crypto-listed-match";
 import { coinDisplayName, SYMBOL_IS_OFFICIAL_NAME } from "@/lib/crypto-names";
 import type { CoinMarket } from "@/lib/crypto-market";
 
@@ -407,17 +408,16 @@ export function presentListedCoin<T extends { symbol: string; name: string; id: 
   return { ...coin, name, blockchain };
 }
 
-/** Symbol wins over a shared coin id so two tickers cannot take one print. */
+/**
+ * Symbol wins over a shared coin id so two tickers cannot take one print.
+ * A collision-prone ticker (ARB, JUP, UNI, APT, and the other pinned names)
+ * matches its canonical id only. An ambiguous symbol returns no row.
+ */
 export function pickSnapshotCoin<T extends { id: string; symbol: string }>(
   coins: T[],
   input: { symbol?: string | null; coinId?: string | null }
 ): T | null {
-  const symbol = (input.symbol || "").trim().toUpperCase();
-  const coinId = (input.coinId || "").trim().toLowerCase();
-  if (symbol) return coins.find((row) => row.symbol.toUpperCase() === symbol) ?? null;
-  if (!coinId) return null;
-  const byId = coins.filter((row) => row.id === coinId);
-  return byId.length === 1 ? byId[0] : null;
+  return pickListedCoin(coins, input);
 }
 
 /** Chain label for a ticker. Uses the canonical id, then the ticker itself. */
