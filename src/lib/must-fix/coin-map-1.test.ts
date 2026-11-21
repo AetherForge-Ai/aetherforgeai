@@ -5,7 +5,7 @@
  */
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { findListedCoin, quoteCoinId } from "@/lib/crypto-listed-match";
+import { canonicalGeckoForTicker, findListedCoin, paprikaIdForSymbol, quoteCoinId } from "@/lib/crypto-listed-match";
 import { flagOffMarketFills } from "@/lib/off-market-fills";
 import { guardTradeQuote, PRICE_UNAVAILABLE_MANUAL, quantityFromQuotedAmount } from "@/lib/quote-sanity";
 import { yahooSymbolFor } from "@/lib/crypto-vendors";
@@ -53,6 +53,23 @@ describe("COIN-MAP-1 canonical ids", () => {
     const depth = readFileSync("src/lib/crypto-depth.server.ts", "utf8");
     expect(depth).toContain("findListedCoin");
     expect(depth).not.toContain("coin.symbol.toUpperCase() === symbol");
+  });
+
+  it("pins TON to Toncoin and does not borrow another token that also prints GRAM", () => {
+    expect(canonicalGeckoForTicker("TON")).toBe("the-open-network");
+    expect(canonicalGeckoForTicker("GRAM")).toBe("the-open-network");
+    expect(paprikaIdForSymbol("TON")).toBe("toncoin-the-open-network");
+    expect(paprikaIdForSymbol("GRAM")).toBe("toncoin-the-open-network");
+    const both = [
+      { id: "the-open-network", symbol: "GRAM", price: 0.95 },
+      { id: "gram-blockgram", symbol: "GRAM", price: 0.000022 },
+    ];
+    expect(findListedCoin(both, "TON")?.id).toBe("the-open-network");
+    expect(findListedCoin(both, "gram")?.id).toBe("the-open-network");
+    expect(findListedCoin(both, "the-open-network")?.id).toBe("the-open-network");
+    const otherOnly = [{ id: "gram-blockgram", symbol: "GRAM", price: 0.000022 }];
+    expect(findListedCoin(otherOnly, "TON")).toBeNull();
+    expect(findListedCoin(otherOnly, "gram")).toBeNull();
   });
 });
 
