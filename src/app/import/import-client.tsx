@@ -8,6 +8,7 @@ import { formatNzd } from "@/lib/currency";
 import { bytesTooLarge, IMPORT_TOO_LARGE } from "@/lib/import/limits";
 import { isSpreadsheetName, workbookToCsv } from "@/lib/import/xlsx";
 import { IbkrSyncPanel } from "@/components/import/IbkrSyncPanel";
+import { undoTarget, type ImportBatchSummary } from "@/lib/import-batches";
 
 interface RowNote {
   line: number;
@@ -38,6 +39,8 @@ interface PreviewData {
   toWrite: PreviewRow[];
   cashNzd: number;
   cashWarning?: string | null;
+  /** True when a row's exchange rate is more than 5% from the trade-date market rate. */
+  fxBlocked?: boolean;
   error?: string | null;
   written?: number;
   batchId?: string;
@@ -66,13 +69,24 @@ export function ImportClient() {
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [batchId, setBatchId] = useState("");
+  const [batches, setBatches] = useState<ImportBatchSummary[]>([]);
+  const [batchesLoaded, setBatchesLoaded] = useState(false);
   const [saved, setSaved] = useState(false);
   const [batchReady, setBatchReady] = useState(false);
+
+  async function loadBatches(remembered?: string | null) {
+    const res = await api.post<{ batches?: ImportBatchSummary[] }>("/api/import", { engine: "h10", action: "batches" });
+    const list = Array.isArray(res.data?.batches) ? res.data.batches : [];
+    setBatches(list);
+    setBatchesLoaded(true);
+    if (res.ok) setBatchId(undoTarget(list, remembered));
+  }
 
   useEffect(() => {
     const stored = window.sessionStorage.getItem(BATCH_KEY);
     if (stored) setBatchId(stored);
     setBatchReady(true);
+    void loadBatches(stored);
   }, []);
 
   useEffect(() => {
@@ -100,9 +114,13 @@ export function ImportClient() {
     if (action === "commit" && savedBatch && (res.ok || written > 0)) {
       setBatchId(savedBatch);
       setSaved(true);
+      void loadBatches(savedBatch);
     }
     if (action === "undo" && res.ok) {
-      setBatchId("");
+      const undoneId = batchId;
+      const next = batches.map((batch) => (batch.batchId === undoneId ? { ...batch, status: "undone" as const, rows: 0 } : batch));
+      setBatches(next);
+      setBatchId(undoTarget(next, ""));
       setSaved(false);
       setPreview(null);
       setMessage(res.data?.undone ? `Undone ${res.data.undone} row${res.data.undone === 1 ? "" : "s"}. The totals are back to where they were.` : "Nothing was changed.");
@@ -140,7 +158,10 @@ export function ImportClient() {
     await send("preview", body);
   }
 
-  const canSave = Boolean(preview && preview.toWrite.length > 0 && !preview.needsMapping && !saved);
+  const canSave = Boolean(preview && preview.toWrite.length > 0 && !preview.needsMapping && !preview.fxBlocked && !saved);
+  const canUndo = Boolean(
+    batches.some((batch) => batch.batchId === batchId && batch.status === "active") || (!batchesLoaded && batchId)
+  );
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-10">
@@ -274,11 +295,24 @@ export function ImportClient() {
         </p>
       ) : null}
 
+      {batches.length ? (
+        <section className="mt-6" data-testid="import-batches">
+          <h2 className="text-sm font-semibold text-foreground">Saved imports</h2>
+          <ul className="mt-2 space-y-1 text-sm text-muted-foreground">
+            {batches.map((batch) => (
+              <li key={batch.batchId} data-batch={batch.batchId} data-status={batch.status}>
+                {(batch.date || "").slice(0, 10)} · {batch.broker} · {batch.rows} row{batch.rows === 1 ? "" : "s"} · {batch.status}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
       <div className="mt-6 flex gap-3">
         <Button type="button" disabled={!canSave || busy} onClick={() => void send("commit")}>
           Save these trades
         </Button>
-        <Button type="button" variant="outline" disabled={!batchId || busy} onClick={() => void send("undo")}>
+        <Button type="button" variant="outline" data-testid="undo-import" disabled={!canUndo || busy} onClick={() => void send("undo")}>
           Undo import
         </Button>
       </div>

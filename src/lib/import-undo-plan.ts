@@ -4,7 +4,7 @@
  * Every step is simulated with the same reversal rules the apply path uses, so a batch that
  * passes here is not refused row by row. A batch that fails changes nothing. Pure (no network).
  */
-import { planLedgerReversal, type ReversalTxn } from "@/lib/ledger-reversal";
+import { cashGoesFurtherBelowZero, planLedgerReversal, type ReversalTxn } from "@/lib/ledger-reversal";
 import { strandedImportDeposit } from "@/lib/import-stranded";
 import { notesHaveBatch } from "@/lib/import-commit";
 
@@ -48,7 +48,8 @@ export function planUndoRows(ledger: readonly ReversalTxn[], mine: readonly Reve
   if (!mine.length) return { ok: false, error: UNDO_NOT_FOUND, ids: [] };
   const ordered = orderImportUndo(mine);
   const ids = ordered.map((r) => String(r._id));
-  let remaining = input.ledger.filter((r) => r?._id);
+  const original = input.ledger.filter((r) => r?._id);
+  let remaining = original;
   let cash = round2(Number(input.cashNzd) || 0);
   const cashBefore = cash;
   for (const row of ordered) {
@@ -57,16 +58,20 @@ export function planUndoRows(ledger: readonly ReversalTxn[], mine: readonly Reve
       return { ok: false, ids, error: `${plan.blockedReason} Nothing was changed.` };
     }
     let next = round2(cash + plan.cashDeltaNzd);
-    if (next < -0.009 && strandedImportDeposit(row, remaining)) next = cash;
-    if (next < -0.009) {
-      return {
-        ok: false,
-        ids,
-        error: `Undoing this import would take cash to NZ$${next.toFixed(2)}. Remove or edit the later trades that used this cash first. Nothing was changed.`,
-      };
-    }
+    // A deposit whose trades are already gone was never credited. Judge that against the
+    // ledger as it is now, not against rows this same undo has only simulated away.
+    if (next < -0.009 && strandedImportDeposit(row, original)) next = cash;
     cash = next;
     remaining = remaining.filter((r) => r._id !== row._id);
+  }
+  // The floor is the batch's end cash, not each step. An intermediate dip is allowed
+  // when the finished book is not below zero, or is not more negative than it is now.
+  if (cashGoesFurtherBelowZero(cashBefore, cash)) {
+    return {
+      ok: false,
+      ids,
+      error: `Undoing this import would take cash to NZ$${cash.toFixed(2)}. Remove or edit the later trades that used this cash first. Nothing was changed.`,
+    };
   }
   return { ok: true, ids, cashBefore, cashAfter: cash };
 }

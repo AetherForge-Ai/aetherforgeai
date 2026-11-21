@@ -1,0 +1,569 @@
+/**
+ * Recommendation signals for the signed-in Market Assistant.
+ *
+ * Labels and ranking reuse the bots' existing picks:
+ * - directionLabel (buy-label.ts): Buy when the bot's own prediction is above
+ *   the current price, Sell when it is below, no label when there is no prediction.
+ * - A Strong Buy card word is kept only when that existing card signal already
+ *   says Strong Buy and the prediction is above the price.
+ * - Rank uses confidenceWeightedMove (the same strength the projection list uses)
+ *   and the existing score as a tie-break.
+ *
+ * Platform questions use PLATFORM_EXCHANGES to keep rows on the exchanges that
+ * platform broadly offers. A row is never marked as listed on that platform.
+ */
+import { assistantCompletionMessages, type AiChatTurn } from "@/lib/ai-request-payload";
+import { directionLabel } from "@/lib/buy-label";
+import { holdAssetForMarket, staleHoldDecision } from "@/lib/bot-hold-gate";
+import { currencyForTicker, formatMoney, type CurrencyCode } from "@/lib/currency";
+import { formatAucklandDateTime } from "@/lib/entitlements";
+import { CRYPTO_PROJECTIONS_PAUSED, CRYPTO_PROJECTIONS_PAUSE_MESSAGE, confidenceWeightedMove } from "@/lib/projection-pause";
+
+export const CHAT_SIGNAL_LABELS = ["Strong Buy", "Buy", "Hold", "Sell", "Strong Sell"] as const;
+export type ChatSignalLabel = (typeof CHAT_SIGNAL_LABELS)[number];
+export type SignalExchange = "NZX" | "ASX" | "US" | "CRYPTO";
+export type SignalBot = "stock" | "crypto";
+
+export const SIGNAL_ROW_LIMIT = 8;
+export const RECOMMENDATION_TOOL = "recommendation_signals";
+
+export const RECOMMENDATION_SIGNAL_RULES = [
+  "Recommendation signals are the tool result below. They are the bots' existing picks, already labelled and ranked.",
+  "A Buy label means the bot's prediction is above the current price. A Sell label means it is below. A pick with no prediction is omitted.",
+  "Never invent a ticker, name, label, price, currency, exchange or platform that is not in the tool result.",
+  "Do not claim that a specific ticker is listed, offered or available on a platform.",
+  "If the tool result is empty, stale, failed, or not on this plan, say plainly that current recommendation signals aren't available.",
+  "Always state the as-of time from the tool result.",
+  "Use only the label written on each row. Do not rename Sell to Strong Sell, or Buy to Strong Buy.",
+  "Keep the row order. It is already ranked by the existing strength.",
+  "This is general information, not personalised financial advice. Do not tell the member what they personally should buy, sell or hold.",
+].join("\n");
+
+export const EXCHANGE_ONLY_NOTE =
+  "Platform availability is not in this feed. Use the exchange only. Do not say a ticker is offered on Sharesies, Hatch, Stake, IBKR or any other platform.";
+
+/**
+ * Exchanges a platform broadly offers, used only to narrow a question.
+ * Not a per-ticker listing. None of these include CRYPTO: the crypto names on
+ * src/app/how-it-works/page.tsx are Easy Crypto and the other CRYPTO_PLATFORMS,
+ * not these four.
+ *
+ * Sharesies — NZX, ASX and US: how-it-works STOCK_PLATFORMS, "acquire NZX, ASX and US shares".
+ * Hatch — US: same page, "US-listed shares and ETFs".
+ * Stake — US and ASX: the Stake workbook has ASX and US tabs
+ * (src/lib/broker-sync/broker-sync.test.ts).
+ * IBKR — NZX, ASX and US: how-it-works describes Interactive Brokers as global
+ * shares (150+ markets). This map names only the equity exchanges on the signal feed.
+ */
+export const PLATFORM_EXCHANGES: Record<string, readonly SignalExchange[]> = {
+  Sharesies: ["NZX", "ASX", "US"],
+  Hatch: ["US"],
+  Stake: ["US", "ASX"],
+  IBKR: ["NZX", "ASX", "US"],
+};
+
+export function platformAvailabilityLine(platform: string): string {
+  return `Check that the ticker is available on ${platform} before trading. AetherForge doesn't confirm individual listings.`;
+}
+
+export function ensurePlatformLine(text: string, platform: string | null): string {
+  if (!platform) return text;
+  const line = platformAvailabilityLine(platform);
+  if (text.includes(line)) return text;
+  return `${text.trim()}\n\n${line}`;
+}
+
+/** Exchange names, currencies and label words. They are not tickers. */
+const NOT_A_TICKER = new Set([
+  "NZX", "ASX", "US", "USD", "NZD", "AUD", "NZ", "AI", "BUY", "SELL", "HOLD", "IBKR", "ETF", "CRYPTO", "STRONG", "NZDT", "NZST",
+]);
+
+function knownTickerTokens(rows: readonly { ticker: string }[]): Set<string> {
+  const known = new Set<string>();
+  for (const row of rows) {
+    const ticker = row.ticker.toUpperCase();
+    known.add(ticker);
+    const base = ticker.split(".")[0];
+    if (base) known.add(base);
+  }
+  return known;
+}
+
+/**
+ * True when every ALL-CAPS ticker-like token in the model text is one of the
+ * matched rows (full ticker or its code before the dot). A suffixed code
+ * (FPH.NZ) or a 2–5 letter code outside that set fails the check.
+ */
+export function signalReplyStaysOnRows(text: string, rows: readonly { ticker: string }[]): boolean {
+  const known = knownTickerTokens(rows);
+  const suffixed = String(text || "").match(/\b[A-Z]{1,6}\.(?:NZ|AX)\b/g) || [];
+  for (const token of suffixed) {
+    if (!known.has(token)) return false;
+  }
+  const bare = String(text || "").match(/\b[A-Z]{2,5}\b/g) || [];
+  for (const token of bare) {
+    if (NOT_A_TICKER.has(token)) continue;
+    if (!known.has(token)) return false;
+  }
+  return true;
+}
+
+/** A model sentence that says a name is listed, offered or available on a platform. */
+const LISTING_CLAIM =
+  /\b(?:listed|offered|available)\s+on\s+(?:sharesies|hatch|stake|ibkr|interactive brokers)\b/i;
+
+export function signalReplyClaimsListing(text: string): boolean {
+  return LISTING_CLAIM.test(String(text || ""));
+}
+
+/** Keep the model text only when it stays on the matched rows and makes no listing claim. */
+export function acceptSignalModelReply(modelText: string, fallback: string, rows: readonly { ticker: string }[]): string {
+  const text = String(modelText || "").trim();
+  if (!text || !signalReplyStaysOnRows(text, rows) || signalReplyClaimsListing(text)) return fallback;
+  return text;
+}
+
+export interface ChatSignalRow {
+  ticker: string;
+  name: string;
+  label: ChatSignalLabel;
+  price: number;
+  predictedPrice: number;
+  currency: CurrencyCode;
+  exchange: SignalExchange;
+  platforms: string[];
+  asOf: string;
+  score: number;
+  projected7dPct: number;
+  confidence: number;
+}
+
+export interface SignalFeed {
+  status: "ok" | "empty" | "stale" | "failed" | "not_entitled";
+  asOf: string | null;
+  platformCoverage: "exchange-only" | "listed";
+  rows: ChatSignalRow[];
+}
+
+export interface SignalQuery {
+  platform: string | null;
+  exchange: SignalExchange | null;
+  /** Ticker asked in "signal on X", uppercased. Null when the question is not a lookup. */
+  ticker: string | null;
+  side: "buy" | "sell" | "hold" | "any";
+  strong: boolean;
+}
+
+export interface StoredSignalReport {
+  bot: SignalBot;
+  generatedAt?: string | null;
+  payload?: unknown;
+}
+
+type StoredPick = {
+  ticker?: string;
+  name?: string;
+  price?: number;
+  signal?: string;
+  sentiment?: number;
+  priceUnavailable?: boolean;
+  analysisUnavailable?: boolean;
+  analysisHold?: string | null;
+  platforms?: string[];
+  call?: {
+    oddsPct?: number;
+    base?: [number, number];
+    bear?: [number, number];
+    bull?: [number, number];
+    horizon?: string;
+    range?: string;
+    killPrice?: number;
+    realizedVolPct?: number | null;
+  };
+  shortTerm?: { day?: string; direction?: "up" | "down" | "flat"; movePct: number; confidence?: number }[];
+};
+
+const PLATFORM_WORDS: Array<[RegExp, string]> = [
+  [/\bsharesies\b/i, "Sharesies"],
+  [/\bhatch\b/i, "Hatch"],
+  [/\bstake\b/i, "Stake"],
+  [/\binteractive brokers\b/i, "IBKR"],
+  [/\bibkr\b/i, "IBKR"],
+];
+
+/** Market words that make a buy/sell question a signal question. */
+const MARKET_CONTEXT =
+  /\b(?:stocks?|shares?|crypto|coins?|tickers?|invest(?:ing|ment|or)?s?|portfolios?|signals?|nzx|asx|nasdaq|nyse|etfs?|koins|stox)\b/i;
+const PLATFORM_CONTEXT = /\b(?:sharesies|hatch|stake|ibkr|interactive brokers)\b/i;
+const SIGNAL_PHRASE =
+  /\b(?:strong\s+sells?|any\s+(?:strong\s+)?sells?|recommendation\s+signals?|(?:buy|sell)\s+signals?|today(?:'s|s)?\s+(?:buys?|sells?|picks|signals))\b/i;
+const BEST_BUY = /\b(?:best|top|strongest)\b(?:\s+\w+){0,6}\s+buys?\b/i;
+const BUY_OR_SELL = /\b(?:buys?|sells?)\b/i;
+const SIGNAL_ON = /\bsignals?\b[^.?!]{0,40}\b(?:on|for)\s+([A-Za-z]{1,5}(?:\.(?:nz|ax))?)\b/i;
+
+const TICKER_STOP = new Set([
+  "SHARESIES", "HATCH", "STAKE", "IBKR", "NZX", "ASX", "CRYPTO", "US", "THE", "TODAY", "BUY", "SELL",
+  "SIGNAL", "SIGNALS", "SHARES", "SHARE", "STOCK", "STOCKS", "COIN", "COINS", "HOUSE", "COFFEE", "PLACE", "WAY",
+]);
+
+/** "signal on AAPL" / "signal on fph.nz". Platform and ordinary words are not tickers. */
+export function tickerAsked(message: string): string | null {
+  const match = SIGNAL_ON.exec(message || "");
+  if (!match) return null;
+  const token = match[1].toUpperCase();
+  if (TICKER_STOP.has(token) || TICKER_STOP.has(token.split(".")[0])) return null;
+  return token;
+}
+
+function rowMatchesTicker(row: ChatSignalRow, asked: string): boolean {
+  const want = asked.toUpperCase();
+  const ticker = row.ticker.toUpperCase();
+  return ticker === want || ticker.split(".")[0] === want;
+}
+
+/**
+ * A signal question needs market language, a platform, or buy/sell next to a ticker.
+ * "best place to buy coffee" has none of those.
+ */
+export function isRecommendationSignalQuestion(message: string): boolean {
+  const text = message || "";
+  if (tickerAsked(text)) return true;
+  if (SIGNAL_PHRASE.test(text)) return true;
+  // "best buy" needs a market or a platform. "Should I buy … shares" does not.
+  if (BEST_BUY.test(text) && (MARKET_CONTEXT.test(text) || PLATFORM_CONTEXT.test(text))) return true;
+  if (BUY_OR_SELL.test(text) && PLATFORM_CONTEXT.test(text)) return true;
+  return false;
+}
+
+export function allowedSignalBots(access: string | null | undefined, stripeConfigured: boolean): SignalBot[] {
+  if (!stripeConfigured) return ["stock", "crypto"];
+  if (access === "both") return ["stock", "crypto"];
+  if (access === "stock" || access === "crypto") return [access];
+  return [];
+}
+
+export function parseSignalQuery(message: string): SignalQuery {
+  const text = message || "";
+  let platform: string | null = null;
+  for (const [pattern, name] of PLATFORM_WORDS) {
+    if (pattern.test(text)) {
+      platform = name;
+      break;
+    }
+  }
+  let exchange: SignalExchange | null = null;
+  if (/\bcrypto\b|\bkoins\b/i.test(text)) exchange = "CRYPTO";
+  else if (/\bnzx\b/i.test(text)) exchange = "NZX";
+  else if (/\basx\b/i.test(text)) exchange = "ASX";
+  else if (/\b(?:nasdaq|nyse|dow jones|us shares|u\.s\. shares)\b/i.test(text)) exchange = "US";
+  const strong = /\bstrong\b/i.test(text);
+  let side: SignalQuery["side"] = "any";
+  const sell = /\bsells?\b/i.test(text);
+  const buy = /\bbuys?\b/i.test(text);
+  const hold = /\bholds?\b/i.test(text);
+  if (sell && !buy) side = "sell";
+  else if (buy && !sell) side = "buy";
+  else if (hold && !buy && !sell) side = "hold";
+  return { platform, exchange, ticker: tickerAsked(text), side, strong };
+}
+
+export function labelsForQuery(query: SignalQuery): ChatSignalLabel[] | null {
+  if (query.side === "hold") return ["Hold"];
+  if (query.side === "buy") return query.strong ? ["Strong Buy"] : ["Strong Buy", "Buy"];
+  if (query.side === "sell") return ["Strong Sell", "Sell"];
+  return null;
+}
+
+function roundPrice(n: number): number {
+  return Math.round(n * 10000) / 10000;
+}
+
+function exchangeFromTicker(ticker: string, bot: SignalBot): SignalExchange {
+  if (bot === "crypto") return "CRYPTO";
+  const t = ticker.toUpperCase();
+  if (t.endsWith(".NZ")) return "NZX";
+  if (t.endsWith(".AX")) return "ASX";
+  return "US";
+}
+
+function asCurrency(ticker: string, exchange: SignalExchange): CurrencyCode {
+  return currencyForTicker(ticker, exchange === "CRYPTO" ? "crypto" : "stock");
+}
+
+/** One bot ticker card → one signal row, or null when the existing label source has no label. */
+export function signalRowFromPick(pick: StoredPick, asOf: string, bot: SignalBot): ChatSignalRow | null {
+  const ticker = String(pick.ticker || "").trim();
+  const price = Number(pick.price);
+  if (!ticker || !(price > 0) || !Number.isFinite(price)) return null;
+  if (bot === "crypto" && CRYPTO_PROJECTIONS_PAUSED) return null;
+  const exchange = exchangeFromTicker(ticker, bot);
+  if (exchange === "CRYPTO" && CRYPTO_PROJECTIONS_PAUSED) return null;
+  const direction = directionLabel({
+    price,
+    priceUnavailable: pick.priceUnavailable,
+    analysisUnavailable: pick.analysisUnavailable,
+    call: pick.call as never,
+    shortTerm: (pick.shortTerm || []) as never,
+  });
+  if (!direction) return null;
+  const card = String(pick.signal || "");
+  let label: ChatSignalLabel = direction.label;
+  if (direction.label === "Buy" && card === "Strong Buy") label = "Strong Buy";
+  if (direction.label === "Sell" && card === "Strong Sell") label = "Strong Sell";
+  const base = pick.call?.base;
+  const predictedPrice =
+    direction.basis === "base-range" && base && base[0] > 0 && base[1] > 0
+      ? (base[0] + base[1]) / 2
+      : price * (1 + direction.predictedPct / 100);
+  const confidence =
+    pick.shortTerm?.find((day) => typeof day.confidence === "number")?.confidence ??
+    (typeof pick.call?.oddsPct === "number" ? pick.call.oddsPct : 100);
+  const score = typeof pick.sentiment === "number" && Number.isFinite(pick.sentiment) ? pick.sentiment : 0;
+  const platforms = Array.isArray(pick.platforms)
+    ? pick.platforms.map((name) => String(name || "").trim()).filter(Boolean)
+    : [];
+  return {
+    ticker,
+    name: String(pick.name || "").trim() || ticker,
+    label,
+    price: roundPrice(price),
+    predictedPrice: roundPrice(predictedPrice),
+    currency: asCurrency(ticker, exchange),
+    exchange,
+    platforms,
+    asOf,
+    score,
+    projected7dPct: direction.predictedPct,
+    confidence,
+  };
+}
+
+function parsePayload(payload: unknown): { tickers?: StoredPick[] } | null {
+  if (payload && typeof payload === "object") return payload as { tickers?: StoredPick[] };
+  if (typeof payload !== "string" || !payload.trim()) return null;
+  try {
+    const parsed = JSON.parse(payload) as { tickers?: StoredPick[] };
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function newestIso(values: string[]): string | null {
+  let best: string | null = null;
+  let bestMs = -Infinity;
+  for (const value of values) {
+    const ms = Date.parse(value);
+    if (Number.isFinite(ms) && ms > bestMs) {
+      bestMs = ms;
+      best = value;
+    }
+  }
+  return best;
+}
+
+function rowIsFresh(row: ChatSignalRow, now: Date): boolean {
+  const at = Date.parse(row.asOf);
+  if (!Number.isFinite(at)) return false;
+  return !staleHoldDecision(holdAssetForMarket(row.exchange), row.asOf, now).held;
+}
+
+/** Turn saved Stox/Koins report payloads into a feed. No network. */
+export function buildSignalFeed(records: StoredSignalReport[], now = new Date()): SignalFeed {
+  const fresh: ChatSignalRow[] = [];
+  const staleAt: string[] = [];
+  for (const record of records) {
+    const asOf = String(record.generatedAt || "").trim();
+    if (!asOf || !Number.isFinite(Date.parse(asOf))) continue;
+    const payload = parsePayload(record.payload);
+    const tickers = Array.isArray(payload?.tickers) ? payload.tickers : [];
+    for (const pick of tickers) {
+      const row = signalRowFromPick(pick, asOf, record.bot);
+      if (!row) continue;
+      if (rowIsFresh(row, now)) fresh.push(row);
+      else staleAt.push(asOf);
+    }
+  }
+  if (fresh.length) {
+    const listed = fresh.some((row) => row.platforms.length > 0);
+    return {
+      status: "ok",
+      asOf: newestIso(fresh.map((row) => row.asOf)),
+      platformCoverage: listed ? "listed" : "exchange-only",
+      rows: fresh,
+    };
+  }
+  if (staleAt.length) {
+    return { status: "stale", asOf: newestIso(staleAt), platformCoverage: "exchange-only", rows: [] };
+  }
+  return { status: "empty", asOf: null, platformCoverage: "exchange-only", rows: [] };
+}
+
+/** Exchange and label filter. A platform question uses PLATFORM_EXCHANGES, not row.platforms. */
+export function filterSignalRows(
+  rows: ChatSignalRow[],
+  query: {
+    exchange?: SignalExchange | null;
+    exchanges?: readonly SignalExchange[] | null;
+    labels?: ChatSignalLabel[] | null;
+    ticker?: string | null;
+  }
+): ChatSignalRow[] {
+  const labels = query.labels;
+  const exchanges = query.exchanges;
+  return rows.filter((row) => {
+    if (exchanges && !exchanges.includes(row.exchange)) return false;
+    if (query.exchange && row.exchange !== query.exchange) return false;
+    if (labels && !labels.includes(row.label)) return false;
+    if (query.ticker && !rowMatchesTicker(row, query.ticker)) return false;
+    return true;
+  });
+}
+
+/** Buys: highest existing strength first. Sells: most negative first. Score breaks ties. */
+export function rankSignalRows(rows: ChatSignalRow[], side: SignalQuery["side"]): ChatSignalRow[] {
+  return [...rows].sort((a, b) => {
+    const move = confidenceWeightedMove(a) - confidenceWeightedMove(b);
+    if (move !== 0) return side === "sell" ? move : -move;
+    const score = side === "sell" ? a.score - b.score : b.score - a.score;
+    if (score !== 0) return score;
+    return a.ticker.localeCompare(b.ticker);
+  });
+}
+
+export function asOfSentence(asOf: string | null): string {
+  if (!asOf || !Number.isFinite(Date.parse(asOf))) return "There is no as-of time on the current feed.";
+  return `As of ${formatAucklandDateTime(asOf)}.`;
+}
+
+/** Keep the as-of line even when the model omits it. */
+export function ensureSignalAsOf(text: string, asOf: string | null): string {
+  const body = String(text || "").trim();
+  if (/\bas of\b/i.test(body) || /no as-of time/i.test(body)) return body;
+  return `${body}\n\n${asOfSentence(asOf)}`.trim();
+}
+
+export function unavailableSignalText(feed: SignalFeed, detail?: string): string {
+  const lead = "Current recommendation signals aren't available.";
+  const extra = detail ? ` ${detail}` : "";
+  return `${lead}${extra} ${asOfSentence(feed.asOf)}`.replace(/\s+/g, " ").trim();
+}
+
+export interface PreparedSignalAnswer {
+  mode: "unavailable" | "answer";
+  text: string;
+  toolText: string;
+  rows: ChatSignalRow[];
+}
+
+function toolPayload(feed: SignalFeed, rows: ChatSignalRow[], platformNote?: string): string {
+  return JSON.stringify({
+    tool: RECOMMENDATION_TOOL,
+    asOf: feed.asOf,
+    asOfLabel: feed.asOf ? formatAucklandDateTime(feed.asOf) : null,
+    platformCoverage: feed.platformCoverage,
+    platformNote: platformNote ?? (feed.platformCoverage === "listed" ? "Name a platform only when it is listed on that row." : EXCHANGE_ONLY_NOTE),
+    cryptoProjections: CRYPTO_PROJECTIONS_PAUSED ? CRYPTO_PROJECTIONS_PAUSE_MESSAGE : null,
+    rows: rows.map((row) => ({
+      ticker: row.ticker,
+      name: row.name,
+      label: row.label,
+      price: row.price,
+      predictedPrice: row.predictedPrice,
+      currency: row.currency,
+      exchange: row.exchange,
+      platforms: row.platforms,
+      asOf: row.asOf,
+      score: row.score,
+    })),
+  });
+}
+
+function deterministicLines(rows: ChatSignalRow[], side: SignalQuery["side"], asOf: string | null, platform: string | null): string {
+  const heading =
+    side === "sell"
+      ? "Sell-side signals, strongest first:"
+      : side === "hold"
+        ? "Hold labels in the current feed:"
+        : side === "buy"
+          ? "Buy-side signals, strongest first:"
+          : "Current signals, strongest first:";
+  const lines = rows.map(
+    (row) =>
+      `- ${row.ticker} (${row.name}) — ${row.label} — ${formatMoney(row.price, row.currency)} now, predicted ${formatMoney(row.predictedPrice, row.currency)} — ${row.exchange}.`
+  );
+  const body = [asOfSentence(asOf), "", heading, ...lines];
+  if (platform) body.push("", platformAvailabilityLine(platform));
+  return body.join("\n");
+}
+
+/**
+ * Filter and rank a feed for one question.
+ * Unavailable answers name no ticker. Answer mode lists only the filtered rows.
+ */
+export function prepareRecommendationAnswer(message: string, feed: SignalFeed): PreparedSignalAnswer {
+  const query = parseSignalQuery(message);
+  const unavailable = (detail: string): PreparedSignalAnswer => ({
+    mode: "unavailable",
+    text: ensurePlatformLine(unavailableSignalText(feed, detail), query.platform),
+    toolText: toolPayload({ ...feed, rows: [] }, []),
+    rows: [],
+  });
+  if (query.exchange === "CRYPTO" && CRYPTO_PROJECTIONS_PAUSED) {
+    return unavailable(CRYPTO_PROJECTIONS_PAUSE_MESSAGE);
+  }
+  if (feed.status !== "ok") {
+    const detail =
+      feed.status === "stale"
+        ? "The latest feed is older than the freshness rule for those markets."
+        : feed.status === "failed"
+          ? "The signal feed could not be read."
+          : feed.status === "not_entitled"
+            ? "Those picks are not included on this plan."
+            : "The feed has no labelled picks.";
+    return unavailable(detail);
+  }
+  let exchanges: readonly SignalExchange[] | null = null;
+  if (query.platform) {
+    const mapped = PLATFORM_EXCHANGES[query.platform];
+    if (!mapped) {
+      return unavailable(`${query.platform} is not in this feed. ${EXCHANGE_ONLY_NOTE}`);
+    }
+    exchanges = query.exchange ? (mapped.includes(query.exchange) ? [query.exchange] : []) : mapped;
+  }
+  const labels = labelsForQuery(query);
+  const matched = rankSignalRows(
+    filterSignalRows(feed.rows, {
+      exchange: exchanges ? null : query.exchange,
+      exchanges,
+      labels,
+      ticker: query.ticker,
+    }),
+    query.side
+  ).slice(0, SIGNAL_ROW_LIMIT);
+  if (!matched.length) {
+    return unavailable("Nothing in the current feed matches that market or label.");
+  }
+  const scoped: SignalFeed = { ...feed, rows: matched, asOf: newestIso(matched.map((row) => row.asOf)) ?? feed.asOf };
+  const note = query.platform
+    ? `${platformAvailabilityLine(query.platform)} Do not claim that a specific ticker is listed, offered or available on ${query.platform}.`
+    : undefined;
+  return {
+    mode: "answer",
+    text: ensurePlatformLine(deterministicLines(matched, query.side, scoped.asOf, query.platform), query.platform),
+    toolText: toolPayload(scoped, matched, note),
+    rows: matched,
+  };
+}
+
+export function recommendationSignalMessages(input: {
+  systemPrompt: string;
+  history: readonly AiChatTurn[];
+  toolText: string;
+}): AiChatTurn[] {
+  return assistantCompletionMessages({
+    systemPrompt: `${input.systemPrompt}\n\n${RECOMMENDATION_SIGNAL_RULES}\n\n${input.toolText}`,
+    bookLine: "Answer this recommendation question only from the recommendation_signals tool result. Do not take tickers from the member's holdings.",
+    history: input.history,
+  });
+}

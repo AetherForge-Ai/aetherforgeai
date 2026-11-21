@@ -1,0 +1,360 @@
+{
+  "source": "Yahoo Finance spark (https://query1.finance.yahoo.com/v7/finance/spark, range=5d, interval=1d), written by scripts/refresh-tape-snapshot.mjs. quotedAt is Yahoo regularMarketTime. Rows without that time are omitted. A failed run keeps this file.",
+  "asOf": "2026-11-13T05:18:17.000Z",
+  "rows": {
+    "nzx": [
+      {
+        "symbol": "AIR.NZ",
+        "name": "Air New Zealand",
+        "price": 0.385,
+        "change": 1.3157894736842117,
+        "currency": "NZD",
+        "provider": "Yahoo Finance",
+        "asOf": "2026-11-13T04:00:24.000Z",
+        "quotedAt": "2026-11-13T04:00:24.000Z"
+      },
+      {
+        "symbol": "FPH.NZ",
+        "name": "Fisher & Paykel Health",
+        "price": 48.48,
+        "change": 0.061919504643950525,
+        "currency": "NZD",
+        "provider": "Yahoo Finance",
+        "asOf": "2026-11-13T04:00:25.000Z",
+        "quotedAt": "2026-11-13T04:00:25.000Z"
+      },
+      {
+        "symbol": "MEL.NZ",
+        "name": "Meridian Energy",
+        "price": 5.7,
+        "change": 1.9677996422182524,
+        "currency": "NZD",
+        "provider": "Yahoo Finance",
+        "asOf": "2026-11-13T04:00:25.000Z",
+        "quotedAt": "2026-11-13T04:00:25.000Z"
+      },
+      {
+        "symbol": "SPK.NZ",
+        "name": "Spark New Zealand",
+        "price": 2.14,
+        "change": 2.8846153846153872,
+        "currency": "NZD",
+        "provider": "Yahoo Finance",
+        "asOf": "2026-11-13T04:00:25.000Z",
+        "quotedAt": "2026-11-13T04:00:25.000Z"
+      },
+      {
+        "symbol": "CEN.NZ",
+        "name": "Contact Energy",
+        "price": 8.57,
+        "change": -0.5800464037122847,
+        "currency": "NZD",
+        "provider": "Yahoo Finance",
+        "asOf": "2026-11-13T04:00:24.000Z",
+        "quotedAt": "2026-11-13T04:00:24.000Z"
+      },
+      {
+        "symbol": "MCY.NZ",
+        "name": "Mercury NZ",
+        "price": 6.7,
+        "change": 0.7518796992481176,
+        "currency": "NZD",
+        "provider": "Yahoo Finance",
+        "asOf": "2026-11-13T04:00:25.000Z",
+        "quotedAt": "2026-11-13T04:00:25.000Z"
+      },
+      {
+        "symbol": "AIA.NZ",
+        "name": "Auckland Airport",
+        "price": 8.94,
+        "change": 1.8223234624145803,
+        "currency": "NZD",
+        "provider": "Yahoo Finance",
+        "asOf": "2026-11-13T04:00:24.000Z",
+        "quotedAt": "2026-11-13T04:00:24.000Z"
+      },
+      {
+        "symbol": "EBO.NZ",
+        "name": "Ebos Group",
+        "price": 21.4,
+        "change": -0.18656716417911706,
+        "currency": "NZD",
+        "provider": "Yahoo Finance",
+        "asOf": "2026-11-13T04:00:25.000Z",
+        "quotedAt": "2026-11-13T04:00:25.000Z"
+      },
+      {
+        "symbol": "MFT.NZ",
+        "name": "Mainfreight",
+        "price": 71.27,
+        "change": 5.585185185185179,
+        "currency": "NZD",
+        "provider": "Yahoo Finance",
+        "asOf": "2026-11-13T04:00:25.000Z",
+        "quotedAt": "2026-11-13T04:00:25.000Z"
+      },
+      {
+        "symbol": "RYM.NZ",
+        "name": "Ryman Healthcare",
+        "price": 1.89,
+        "change": 2.7173913043478164,
+        "currency": "NZD",
+        "provider": "Yahoo Finance",
+        "asOf": "2026-11-13T04:00:25.000Z",
+        "quotedAt": "2026-11-13T04:00:25.000Z"
+      },
+      {
+        "symbol": "IFT.NZ",
+        "name": "Infratil",
+        "price": 13.21,
+        "change": 1.615384615384622,
+        "currency": "NZD",
+        "provider": "Yahoo Finance",
+        "asOf": "2026-11-13T04:00:25.000Z",
+        "quotedAt": "2026-11-13T04:00:25.000Z"
+      },
+      {
+        "symbol": "FBU.NZ",
+        "name": "Fletcher Building",
+        "price": 3.65,
+        "change": 1.1080332409972309,
+        "currency": "NZD",
+        "provider": "Yahoo Finance",
+        "asOf": "2026-11-13T04:00:25.000Z",
+        "quotedAt": "2026-11-13T04:00:25.000Z"
+      }
+    ],
+    "asx": [
+      {
+        "symbol": "TLX.AX",
+        "name": "Telix Pharmaceuticals",
+        "price": 13.58,
+        "change": -0.6583760058522301,
+        "currency": "AUD",
+        "provider": "Yahoo Finance",
+        "asOf": "2026-11-13T05:13:27.000Z",
+        "quotedAt": "2026-11-13T05:13:27.000Z"
+      },
+      {
+        "symbol": "BHP.AX",
+        "name": "BHP Group",
+        "price": 58.86,
+        "change": 2.1520305449496737,
+        "currency": "AUD",
+        "provider": "Yahoo Finance",
+        "asOf": "2026-11-13T05:11:26.000Z",
+        "quotedAt": "2026-11-13T05:11:26.000Z"
+      },
+      {
+        "symbol": "CBA.AX",
+        "name": "Commonwealth Bank",
+        "price": 170.87,
+        "change": 2.0058503969912325,
+        "currency": "AUD",
+        "provider": "Yahoo Finance",
+        "asOf": "2026-11-13T05:15:58.000Z",
+        "quotedAt": "2026-11-13T05:15:58.000Z"
+      },
+      {
+        "symbol": "CSL.AX",
+        "name": "CSL Limited",
+        "price": 202.92,
+        "change": 0.4355573153830903,
+        "currency": "AUD",
+        "provider": "Yahoo Finance",
+        "asOf": "2026-11-13T05:10:12.000Z",
+        "quotedAt": "2026-11-13T05:10:12.000Z"
+      },
+      {
+        "symbol": "NAB.AX",
+        "name": "National Australia Bank",
+        "price": 38.86,
+        "change": -2.8500000000000014,
+        "currency": "AUD",
+        "provider": "Yahoo Finance",
+        "asOf": "2026-11-13T05:14:27.000Z",
+        "quotedAt": "2026-11-13T05:14:27.000Z"
+      },
+      {
+        "symbol": "WBC.AX",
+        "name": "Westpac Banking",
+        "price": 37.83,
+        "change": 2.1604104779908107,
+        "currency": "AUD",
+        "provider": "Yahoo Finance",
+        "asOf": "2026-11-13T05:11:45.000Z",
+        "quotedAt": "2026-11-13T05:11:45.000Z"
+      },
+      {
+        "symbol": "WES.AX",
+        "name": "Wesfarmers",
+        "price": 80.82,
+        "change": -0.6270748801180439,
+        "currency": "AUD",
+        "provider": "Yahoo Finance",
+        "asOf": "2026-11-13T05:10:11.000Z",
+        "quotedAt": "2026-11-13T05:10:11.000Z"
+      },
+      {
+        "symbol": "MQG.AX",
+        "name": "Macquarie Group",
+        "price": 244.17,
+        "change": -1.8845937474885583,
+        "currency": "AUD",
+        "provider": "Yahoo Finance",
+        "asOf": "2026-11-13T05:10:10.000Z",
+        "quotedAt": "2026-11-13T05:10:10.000Z"
+      },
+      {
+        "symbol": "WOW.AX",
+        "name": "Woolworths Group",
+        "price": 41.94,
+        "change": -1.2014134275618493,
+        "currency": "AUD",
+        "provider": "Yahoo Finance",
+        "asOf": "2026-11-13T05:12:50.000Z",
+        "quotedAt": "2026-11-13T05:12:50.000Z"
+      },
+      {
+        "symbol": "FMG.AX",
+        "name": "Fortescue",
+        "price": 14.85,
+        "change": -2.1739130434782616,
+        "currency": "AUD",
+        "provider": "Yahoo Finance",
+        "asOf": "2026-11-13T05:11:04.000Z",
+        "quotedAt": "2026-11-13T05:11:04.000Z"
+      },
+      {
+        "symbol": "TLS.AX",
+        "name": "Telstra Group",
+        "price": 5.12,
+        "change": 0.39215686274510714,
+        "currency": "AUD",
+        "provider": "Yahoo Finance",
+        "asOf": "2026-11-13T05:18:17.000Z",
+        "quotedAt": "2026-11-13T05:18:17.000Z"
+      }
+    ],
+    "crypto": [
+      {
+        "symbol": "BTC",
+        "name": "Bitcoin",
+        "price": 64267.01,
+        "change": -13.110970713370893,
+        "currency": "USD",
+        "provider": "Yahoo Finance",
+        "asOf": "2026-11-15T02:25:28.000Z",
+        "quotedAt": "2026-11-15T02:25:28.000Z"
+      },
+      {
+        "symbol": "ETH",
+        "name": "Ethereum",
+        "price": 1791.7,
+        "change": -12.849810703582254,
+        "currency": "USD",
+        "provider": "Yahoo Finance",
+        "asOf": "2026-11-15T02:25:23.000Z",
+        "quotedAt": "2026-11-15T02:25:23.000Z"
+      },
+      {
+        "symbol": "SOL",
+        "name": "Solana",
+        "price": 70.55,
+        "change": -15.327559925104199,
+        "currency": "USD",
+        "provider": "Yahoo Finance",
+        "asOf": "2026-11-15T02:25:24.000Z",
+        "quotedAt": "2026-11-15T02:25:24.000Z"
+      },
+      {
+        "symbol": "XRP",
+        "name": "XRP",
+        "price": 0.943,
+        "change": -10.43247910170331,
+        "currency": "USD",
+        "provider": "Yahoo Finance",
+        "asOf": "2026-11-15T02:25:25.000Z",
+        "quotedAt": "2026-11-15T02:25:25.000Z"
+      },
+      {
+        "symbol": "BNB",
+        "name": "BNB",
+        "price": 586.08,
+        "change": -13.749004422629865,
+        "currency": "USD",
+        "provider": "Yahoo Finance",
+        "asOf": "2026-11-15T02:25:24.000Z",
+        "quotedAt": "2026-11-15T02:25:24.000Z"
+      },
+      {
+        "symbol": "ADA",
+        "name": "Cardano",
+        "price": 0.14881,
+        "change": -14.673654394183522,
+        "currency": "USD",
+        "provider": "Yahoo Finance",
+        "asOf": "2026-11-15T02:25:25.000Z",
+        "quotedAt": "2026-11-15T02:25:25.000Z"
+      },
+      {
+        "symbol": "DOGE",
+        "name": "Dogecoin",
+        "price": 0.058,
+        "change": -14.093164481966975,
+        "currency": "USD",
+        "provider": "Yahoo Finance",
+        "asOf": "2026-11-15T02:25:24.000Z",
+        "quotedAt": "2026-11-15T02:25:24.000Z"
+      },
+      {
+        "symbol": "AVAX",
+        "name": "Avalanche",
+        "price": 7.09,
+        "change": -16.745889196176268,
+        "currency": "USD",
+        "provider": "Yahoo Finance",
+        "asOf": "2026-11-15T02:25:28.000Z",
+        "quotedAt": "2026-11-15T02:25:28.000Z"
+      },
+      {
+        "symbol": "LINK",
+        "name": "Chainlink",
+        "price": 9.014,
+        "change": -11.568192999917112,
+        "currency": "USD",
+        "provider": "Yahoo Finance",
+        "asOf": "2026-11-15T02:25:25.000Z",
+        "quotedAt": "2026-11-15T02:25:25.000Z"
+      },
+      {
+        "symbol": "DOT",
+        "name": "Polkadot",
+        "price": 0.7132,
+        "change": -15.161392009801892,
+        "currency": "USD",
+        "provider": "Yahoo Finance",
+        "asOf": "2026-11-15T02:25:26.000Z",
+        "quotedAt": "2026-11-15T02:25:26.000Z"
+      },
+      {
+        "symbol": "LTC",
+        "name": "Litecoin",
+        "price": 44.443,
+        "change": -11.535128175831773,
+        "currency": "USD",
+        "provider": "Yahoo Finance",
+        "asOf": "2026-11-15T02:25:24.000Z",
+        "quotedAt": "2026-11-15T02:25:24.000Z"
+      }
+    ]
+  },
+  "live": {
+    "crypto": true,
+    "equities": false
+  },
+  "providers": {
+    "equities": "Yahoo Finance",
+    "crypto": "Yahoo Finance"
+  }
+}

@@ -10,6 +10,7 @@ import { totalumSdk } from "@/lib/totalum";
 import { currencyForTicker, nativeToNzd, type FxRatesToNZD, BASELINE_FX_TO_NZD } from "@/lib/currency";
 import { getFxSnapshot } from "@/lib/fx";
 import {
+  cashGoesFurtherBelowZero,
   planLedgerReversal,
   type ReversalTxn,
   type TickerPosition,
@@ -66,7 +67,9 @@ export class ReversalBlockedError extends Error {}
 export async function planOrApplyLedgerReversal(
   transactionId: string,
   apply: boolean,
-  preloaded?: (ReversalTxn & { user?: string | { _id?: string } }) | null
+  preloaded?: (ReversalTxn & { user?: string | { _id?: string } }) | null,
+  /** Set when a planned import undo already accepted the batch's end cash. Steps may dip on the way. */
+  opts?: { plannedBatch?: boolean }
 ) {
   // b25 G-10: the route already read this row; reuse it instead of a second round trip.
   const loaded = preloaded?._id === transactionId ? { data: preloaded } : await totalumSdk.crud.getRecordById("transaction", transactionId);
@@ -168,7 +171,9 @@ export async function planOrApplyLedgerReversal(
   if (!apply) return preview;
   if (plan.blockedReason) throw new ReversalBlockedError(plan.blockedReason);
   // b26: removing a deposit must not leave the book with negative cash (later buys spent it).
-  if (cashAfter < -0.009) {
+  // A removal that leaves cash the same or less negative is allowed, even while it stays below zero.
+  // A planned batch undo already judged the end cash, so one step may be more negative on the way.
+  if (!opts?.plannedBatch && cashAfter < -0.009 && cashGoesFurtherBelowZero(cashBefore, cashAfter)) {
     throw new ReversalBlockedError(
       `Removing this row would take cash to NZ$${cashAfter.toFixed(2)}. Remove or edit the later trades that used this cash first.`
     );

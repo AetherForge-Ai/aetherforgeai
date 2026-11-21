@@ -252,7 +252,7 @@ export async function POST(req: Request) {
       const outcome = await undoImportInOrder(
         plan.ids,
         async (id) => {
-          await planOrApplyLedgerReversal(id, true);
+          await planOrApplyLedgerReversal(id, true, null, { plannedBatch: true });
         }
       );
       // b22 H-10: the snapshot must not keep showing the pre-undo cash.

@@ -82,7 +82,16 @@ vi.mock("@/lib/session", () => ({
 }));
 vi.mock("@/lib/totalum", () => ({ totalumSdk: { crud: harness.methods } }));
 vi.mock("@/lib/fx", () => ({
-  historicalNzdPerUnit: async (currency: string) => (currency === "AUD" ? 1.1 : currency === "USD" ? 1.6 : currency === "NZD" ? 1 : null),
+  // ibkr.csv dates use the ECB prints. Other dates stay on the rates that file already uses.
+  historicalNzdPerUnit: async (currency: string, day?: string | null) => {
+    if (currency === "NZD") return 1;
+    if (currency === "AUD" && day === "2026-03-02") return 1.1888;
+    if (currency === "AUD" && day === "2026-03-20") return 1.2062;
+    if (currency === "USD" && day === "2026-04-01") return 1.7322;
+    if (currency === "AUD") return 1.1;
+    if (currency === "USD") return 1.6;
+    return null;
+  },
   getFxSnapshot: async () => ({
     ratesToNZD: { NZD: 1, USD: 1.6, AUD: 1.1 },
     live: false,
@@ -108,7 +117,7 @@ import { importCashWarning } from "@/lib/import/cash-guard";
 import { POST as postTransaction } from "@/app/api/transactions/route";
 
 const IBKR = readFileSync("src/lib/import/fixtures/ibkr.csv", "utf8");
-const WARNING = "Your cash will be NZ$-588.90 after this import. Add a deposit if that's not right.";
+const WARNING = "Your cash will be NZ$-634.29 after this import. Add a deposit if that's not right.";
 
 function openBook(cash: number) {
   harness.reset();
@@ -133,13 +142,13 @@ beforeEach(() => {
 });
 
 describe("H-10 cash floor", () => {
-  it("ibkr.csv on a NZ$0 book persists 3 trades and cash -588.90", async () => {
+  it("ibkr.csv on a NZ$0 book persists 3 trades and cash -634.29", async () => {
     const user = openBook(0);
     const preview = await runH10Import(user as never, IBKR, { engine: "h10", action: "preview" });
     const previewBody = (await preview.json()) as { data?: { cashWarning?: string; toWrite?: unknown[] } };
     expect(previewBody.data?.cashWarning).toBe(WARNING);
     expect(previewBody.data?.toWrite).toHaveLength(3);
-    expect(importCashWarning(0, -588.9)).toBe(WARNING);
+    expect(importCashWarning(0, -634.29)).toBe(WARNING);
 
     const saved = await runH10Import(user as never, IBKR, { engine: "h10", action: "commit" });
     const body = (await saved.json()) as { ok?: boolean; data?: { written?: number } };
@@ -147,7 +156,7 @@ describe("H-10 cash floor", () => {
     expect(body.data?.written).toBe(3);
     expect(trades()).toHaveLength(3);
     expect(harness.bucket("transaction").some((row) => /would otherwise make paper cash negative/.test(String(row.notes || "")))).toBe(false);
-    expect(Math.abs(cashOf() - -588.9)).toBeLessThanOrEqual(0.01);
+    expect(Math.abs(cashOf() - -634.29)).toBeLessThanOrEqual(0.01);
   });
 
   it("a manual trade that would go below zero is still refused", async () => {
@@ -241,13 +250,13 @@ describe("H-10 cash floor", () => {
     const user = openBook(0);
     const preview = await runH10Import(user as never, IBKR, { engine: "h10", action: "preview" }, "broker-sync");
     const previewBody = (await preview.json()) as { data?: { cashWarning?: string | null } };
-    expect(previewBody.data?.cashWarning).toBe("Your cash will be NZ$-588.90 after this import. Add a deposit if that's not right.");
+    expect(previewBody.data?.cashWarning).toBe("Your cash will be NZ$-634.29 after this import. Add a deposit if that's not right.");
     const saved = await runH10Import(user as never, IBKR, { engine: "h10", action: "commit" }, "broker-sync");
     const body = (await saved.json()) as { data?: { written?: number } };
     expect(saved.status, JSON.stringify(body)).toBe(200);
     expect(body.data?.written).toBe(3);
     expect(harness.bucket("transaction").some((row) => row.type === "deposit")).toBe(false);
-    expect(Math.abs(cashOf() - -588.9)).toBeLessThanOrEqual(0.01);
+    expect(Math.abs(cashOf() - -634.29)).toBeLessThanOrEqual(0.01);
   });
 
   it("a failed import still writes nothing", async () => {
