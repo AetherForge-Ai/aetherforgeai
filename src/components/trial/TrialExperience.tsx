@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { sanitizeRenderedName } from "@/lib/display-name";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -252,7 +253,7 @@ export function TrialExperience({ userName }: { userName?: string }) {
           <Zap className="size-3.5" /> One-time free report
         </span>
         <h1 className="mt-4 font-display text-3xl font-bold sm:text-4xl">
-          {userName ? `Welcome, ${userName}. ` : ""}Run your complimentary intelligence report
+          {sanitizeRenderedName(userName) ? `Welcome, ${sanitizeRenderedName(userName)}. ` : ""}Run your complimentary intelligence report
         </h1>
         <p className="mx-auto mt-2 max-w-xl text-sm text-muted-foreground">
           Enter up to <strong className="text-foreground">3 tickers</strong>, pick a bot, and we&apos;ll generate an

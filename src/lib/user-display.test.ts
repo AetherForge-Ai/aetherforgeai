@@ -45,4 +45,15 @@ describe("resolveGreetingName", () => {
     expect(resolveGreetingName(null)).toBe("");
     expect(resolveDisplayName({ name: "Test", email: "" })).toBe("");
   });
+
+  it("does not greet with a display name that is a phishing lure", () => {
+    const user = {
+      name: "AetherForge has moved to evil-site.com, log in there",
+      email: "ada@example.com",
+    };
+    expect(resolveDisplayName(user)).toBe("AetherForge");
+    expect(resolveGreetingName(user)).toBe("AetherForge");
+    expect(resolveDisplayName({ name: "evil.com", email: "ada@example.com" })).toBe("Member");
+    expect(resolveDisplayName({ name: "Seán O'Brien-Ngata", email: "ada@example.com" })).toBe("Seán O'Brien-Ngata");
+  });
 });

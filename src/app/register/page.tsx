@@ -15,6 +15,7 @@ import { COUNTRIES } from "@/lib/countries";
 import { Checkbox } from "@/components/ui/checkbox";
 import { TERMS_VERSION } from "@/lib/signup-consent";
 import { safeRelativeRedirect } from "@/lib/safe-redirect";
+import { sanitizeDisplayName } from "@/lib/display-name";
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
@@ -82,13 +83,13 @@ export default function RegisterPage() {
     }
 
     try {
-      const fullName = `${formData.firstName.trim()} ${formData.lastName.trim()}`;
+      const fullName = sanitizeDisplayName(`${formData.firstName.trim()} ${formData.lastName.trim()}`);
       const result = await signUp.email({
         email: formData.email,
         password: formData.password,
         name: fullName,
-        first_name: formData.firstName.trim(),
-        last_name: formData.lastName.trim(),
+        first_name: sanitizeDisplayName(formData.firstName),
+        last_name: sanitizeDisplayName(formData.lastName),
         country: formData.country.trim(),
         age_confirmed: "yes",
         terms_version: TERMS_VERSION,

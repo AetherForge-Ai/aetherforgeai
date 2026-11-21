@@ -6,6 +6,7 @@
 
 import { formatDisplayDate, formatNzd } from "@/lib/currency";
 import { DEFAULT_EMAIL_PREFS, type EmailPrefs } from "@/lib/notification-prefs";
+import { sanitizeRenderedName } from "@/lib/display-name";
 
 export const ACTIVITY_EMAIL_FROM = "noreply@aetherforgeai.co.nz";
 export const ACTIVITY_EMAIL_FROM_NAME = "AetherForge AI";
@@ -96,7 +97,7 @@ export function renderActivityEmail(input: {
   amountNzd?: number | null;
   when?: Date | string | null;
 }): Omit<ActivityEmailPreview, "sent" | "mode" | "reason"> {
-  const name = (input.name || "there").trim() || "there";
+  const name = sanitizeRenderedName(input.name) || "there";
   const when = formatDisplayDate(input.when ?? new Date());
   const lines: string[] = [];
   let subject = "AetherForge AI";

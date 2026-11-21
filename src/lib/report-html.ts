@@ -32,6 +32,7 @@ import { moverSweepCaption } from "@/lib/mover-sweep";
 import { memberUnderReviewLines, printUnderReviewLabel, PROJECTION_RANK_NOTE, projectionLeaderLine } from "@/lib/report-copy";
 import { botFacingWord, isStaleHoldText, scrubBotReportCopy } from "@/lib/bot-hold-gate";
 import type { ClosedCallScore } from "@/lib/report-topup";
+import { sanitizeRenderedName } from "@/lib/display-name";
 
 export interface ReportAlert {
   ticker: string;
@@ -666,7 +667,7 @@ export function renderReportHtml(source: ApexReport, opts: RenderReportOptions):
         </div>
 
         <h1 style="font-size:22px;margin:14px 0 2px;color:${INK}">${esc(report.title)}</h1>
-        <div style="font-size:13px;color:${MUTE}">${esc(report.marketLabel)}${opts.userName ? ` · Prepared for ${esc(opts.userName)}` : ""}</div>
+        <div style="font-size:13px;color:${MUTE}">${esc(report.marketLabel)}${sanitizeRenderedName(opts.userName) ? ` · Prepared for ${esc(sanitizeRenderedName(opts.userName))}` : ""}</div>
         ${report.isDemo ? `<p style="margin:12px 0 0;padding:10px 12px;border:1px solid #f59e0b;background:#fffbeb;color:#92400e;border-radius:8px;font-size:13px;font-weight:600">Illustrative demo — not real market data.</p>` : ""}
 
         ${portfolio}

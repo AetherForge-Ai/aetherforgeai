@@ -1,3 +1,5 @@
+import { sanitizeDisplayName, sanitizeRenderedName } from "@/lib/display-name";
+
 /**
  * Session payload the dashboard is allowed to paint.
  * Built only from GET /api/session for the browser that holds the cookie.
@@ -54,11 +56,11 @@ export function parseDashboardSessionUser(data: unknown): DashboardSessionUser |
   return {
     id: row.id,
     email: row.email,
-    name: typeof row.name === "string" && row.name ? row.name : row.email,
+    name: typeof row.name === "string" && row.name.trim() ? sanitizeDisplayName(row.name) : row.email,
     image: typeof row.image === "string" ? row.image : null,
     subscription_status: typeof row.subscription_status === "string" ? row.subscription_status : status,
     subscription_plan: typeof row.subscription_plan === "string" ? row.subscription_plan : plan,
-    greetingName: typeof row.greetingName === "string" ? row.greetingName : "",
+    greetingName: sanitizeRenderedName(row.greetingName),
     metalsEntitled: row.metalsEntitled === true,
     subscription: {
       status,

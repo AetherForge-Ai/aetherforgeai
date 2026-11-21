@@ -19,6 +19,7 @@ import { isProPlan, limitScope, resolveTickerLimit } from "@/lib/entitlements";
 import { billingPortalReady, hasLiveSubscription, paidPlanNextStep } from "@/lib/billing-guard";
 import { formatDisplayDate, formatUsdWithRate, type FxRatesToNZD } from "@/lib/currency";
 import { resolveDisplayName } from "@/lib/user-display";
+import { sanitizeDisplayName, sanitizeRenderedName } from "@/lib/display-name";
 import { useFxRates } from "@/hooks/useFxRates";
 import { COUNTRIES } from "@/lib/countries";
 import { SettingsSectionNav } from "@/components/settings/SettingsSectionNav";
@@ -111,11 +112,11 @@ export function SettingsClient({
   user: SettingsUser;
   initialFx?: { rates: FxRatesToNZD; asOf: string } | null;
 }) {
-  const greetingName = resolveDisplayName(user) || user.name || "";
+  const greetingName = sanitizeRenderedName(resolveDisplayName(user) || user.name || "");
   const greetingWords = greetingName.trim().split(/\s+/).filter(Boolean);
   const split = (user.name || "").trim().split(/\s+/);
-  const inferredFirst = greetingWords[0] || user.first_name || split[0] || "";
-  const inferredLast = greetingWords.slice(1).join(" ") || user.last_name || (split.length > 1 ? split.slice(1).join(" ") : "");
+  const inferredFirst = sanitizeRenderedName(greetingWords[0] || user.first_name || split[0] || "");
+  const inferredLast = sanitizeRenderedName(greetingWords.slice(1).join(" ") || user.last_name || (split.length > 1 ? split.slice(1).join(" ") : ""));
 
   const [firstName, setFirstName] = useState(inferredFirst);
   const [lastName, setLastName] = useState(inferredLast);
@@ -183,7 +184,7 @@ export function SettingsClient({
     ? []
     : PLANS.filter((p) => !p.archived && p.key === `pro_${nextIntervalSuffix}` && p.key !== livePlanKey).slice(0, 1);
 
-  const displayName = `${firstName} ${lastName}`.trim() || user.name;
+  const displayName = sanitizeRenderedName(`${firstName} ${lastName}`.trim() || user.name || "");
 
   async function onPickAvatar(file: File | null) {
     if (!file) return;
@@ -251,9 +252,11 @@ export function SettingsClient({
     }
     setSavingProfile(true);
     console.log("[settings] Saving profile…");
+    const safeFirst = sanitizeDisplayName(firstName);
+    const safeLast = sanitizeDisplayName(lastName);
     const res = await api.put("/api/profile", {
-      first_name: firstName.trim(),
-      last_name: lastName.trim(),
+      first_name: safeFirst,
+      last_name: safeLast,
       country: country.trim(),
       phone: phone.trim() || null,
       secondary_email: secondaryEmail.trim() || null,
@@ -261,6 +264,8 @@ export function SettingsClient({
     });
     setSavingProfile(false);
     if (res.ok) {
+      setFirstName(safeFirst);
+      setLastName(safeLast);
       toast.success("Profile updated");
     } else {
       console.error("[settings] Profile save failed:", res.error);

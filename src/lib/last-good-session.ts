@@ -9,6 +9,7 @@
  * server secret and the same session token.
  */
 import { AuthSecretUnavailable, isUsableAuthSecret } from "@/lib/auth-secret";
+import { sanitizeDisplayName } from "@/lib/display-name";
 
 export const LAST_GOOD_SESSION_COOKIE = "af_ls";
 export const LAST_GOOD_SESSION_MAX_AGE_S = 30 * 60;
@@ -49,7 +50,7 @@ export async function signLastGoodSession(secret: string, token: string, user: {
   const body: LastGoodSession & { th: string } = {
     uid: user.id,
     email: user.email,
-    name: String(user.name || "").slice(0, 80),
+    name: typeof user.name === "string" && user.name.trim() ? sanitizeDisplayName(user.name) : "",
     exp: now + LAST_GOOD_SESSION_MAX_AGE_S * 1000,
     th: (await sha256Hex(token)).slice(0, 32),
   };
@@ -73,7 +74,8 @@ export async function verifyLastGoodSession(secret: string, token: string, value
     const body = JSON.parse(unb64url(payload)) as LastGoodSession & { th?: string };
     if (!body.uid || !(body.exp > now)) return null;
     if (body.th !== (await sha256Hex(token)).slice(0, 32)) return null;
-    return { uid: body.uid, email: body.email, name: body.name, exp: body.exp };
+    const name = typeof body.name === "string" && body.name.trim() ? sanitizeDisplayName(body.name) : String(body.name || "");
+    return { uid: body.uid, email: body.email, name, exp: body.exp };
   } catch {
     return null;
   }

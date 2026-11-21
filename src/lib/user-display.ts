@@ -7,6 +7,8 @@
  * Returns "" when nothing trustworthy is available so the UI can stay neutral.
  */
 
+import { sanitizeDisplayName } from "@/lib/display-name";
+
 const PLACEHOLDER_NAMES = new Set([
   "test",
   "tester",
@@ -50,6 +52,15 @@ function distinctiveName(value: string): string {
   return words.join(" ");
 }
 
+/** Keep a cleaned lure ("Member", or the name with the URL removed) even when that label is a placeholder word. */
+function presentDistinctive(raw: string): string {
+  const trimmed = raw.trim().replace(/\s+/g, " ");
+  if (!trimmed) return "";
+  const safe = sanitizeDisplayName(trimmed);
+  if (safe !== trimmed) return safe;
+  return distinctiveName(trimmed);
+}
+
 function fromEmailLocal(email?: string | null): string {
   const local = (email || "").split("@")[0]?.trim() || "";
   if (!local || isPlaceholderWord(local)) return "";
@@ -63,9 +74,9 @@ function fromEmailLocal(email?: string | null): string {
 export function resolveSettingsDisplayName(user: NameSource): string {
   if (!user) return "";
   const composed = `${(user.first_name || "").trim()} ${(user.last_name || "").trim()}`.trim();
-  const fromSettings = distinctiveName(composed);
+  const fromSettings = composed ? presentDistinctive(composed) : "";
   if (fromSettings) return fromSettings;
-  return distinctiveName((user.name || "").trim());
+  return presentDistinctive((user.name || "").trim());
 }
 
 export function resolveGreetingName(user: NameSource): string {
@@ -76,11 +87,21 @@ export function resolveGreetingName(user: NameSource): string {
     if (first && isPlaceholderWord(first)) return display;
     return first;
   }
-  return fromEmailLocal(user?.email);
+  const emailName = fromEmailLocal(user?.email);
+  if (!emailName) return "";
+  const safe = sanitizeDisplayName(emailName);
+  if (safe !== emailName) return safe;
+  if (isPlaceholderWord(safe)) return "";
+  return safe;
 }
 
 export function resolveDisplayName(user: NameSource): string {
   const display = resolveSettingsDisplayName(user);
   if (display) return display;
-  return fromEmailLocal(user?.email);
+  const emailName = fromEmailLocal(user?.email);
+  if (!emailName) return "";
+  const safe = sanitizeDisplayName(emailName);
+  if (safe !== emailName) return safe;
+  if (isPlaceholderWord(safe)) return "";
+  return safe;
 }

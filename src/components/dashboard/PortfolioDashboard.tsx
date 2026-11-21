@@ -18,6 +18,7 @@ import {
   WRITE_TIMEOUT_MS, cancelWriteKey, isOptimisticId } from "@/lib/write-journal";
 import { reconcileLedger } from "@/lib/ledger-reconcile";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { sanitizeRenderedName } from "@/lib/display-name";
 import dynamic from "next/dynamic";
 import { api } from "@/lib/api";
 import type { TradeEditFields } from "@/lib/ledger-row-edit";
@@ -2432,8 +2433,8 @@ export function PortfolioDashboard({
           <p className="text-sm text-muted-foreground">
             {preview
               ? "Live preview"
-              : userName.trim()
-                ? `Welcome, ${userName.trim()}`
+              : sanitizeRenderedName(userName)
+                ? `Welcome, ${sanitizeRenderedName(userName)}`
                 : "Welcome"}
           </p>
           {!isHome ? (

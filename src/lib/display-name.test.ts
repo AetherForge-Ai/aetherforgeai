@@ -1,0 +1,121 @@
+import { describe, expect, it } from "vitest";
+import {
+  DISPLAY_NAME_FALLBACK,
+  DISPLAY_NAME_MAX,
+  presentAccountNames,
+  sanitizeDisplayName,
+  sanitizeNameFields,
+  sanitizeRenderedName,
+} from "@/lib/display-name";
+import { passwordResetEmail, verificationEmail } from "@/lib/transactional-mail";
+import { renderActivityEmail } from "@/lib/activity-email";
+import { seatInviteEmail } from "@/lib/ultimate/core";
+
+const CLEAN = "Seán O'Brien-Ngata";
+
+describe("sanitizeDisplayName", () => {
+  it("leaves real names unchanged, including accents, apostrophes, hyphens and CJK", () => {
+    for (const name of [CLEAN, "Anne-Marie", "José Muñoz", "李明", "佐藤", "Aroha Ngata", "Lukas Southey", "AetherForge 1T", "Test UserAF", "Dr. Smith", "Jr.", "Dot Ngata", "Mary dot Ngata"]) {
+      expect(sanitizeDisplayName(name)).toBe(name);
+      expect(sanitizeDisplayName(sanitizeDisplayName(name))).toBe(name);
+    }
+  });
+
+  it("strips a moved-to URL lure and the instruction to log in there", () => {
+    const cleaned = sanitizeDisplayName("AetherForge has moved to evil-site.com, log in there");
+    expect(cleaned).toBe("AetherForge");
+    expect(cleaned).not.toMatch(/evil|http|moved|log in/i);
+  });
+
+  it("replaces bare domains, obfuscations, emails and schemes with the safe default", () => {
+    for (const lure of [
+      "evil-site.com",
+      "evil[.]com",
+      "evil (.) com",
+      "evil dot com",
+      "evil dot co dot nz",
+      "https://evil.com/login",
+      "hxxps://evil.com/login",
+      "www.evil.com",
+      "phish@evil.com",
+      "user @ evil.com",
+      "mail (at) evil.com",
+      "mail at evil.com",
+      "javascript:alert(1)",
+      "203.0.113.10",
+      "site has moved",
+      "please log in at",
+      "visit us at",
+    ]) {
+      const cleaned = sanitizeDisplayName(lure);
+      expect(cleaned, lure).toBe(DISPLAY_NAME_FALLBACK);
+      expect(cleaned).not.toMatch(/evil|http|@|javascript/i);
+    }
+  });
+
+  it("removes zero-width and bidi tricks before looking for a domain", () => {
+    expect(sanitizeDisplayName(`evil\u200B.com`)).toBe(DISPLAY_NAME_FALLBACK);
+    expect(sanitizeDisplayName(`\u202Eevil.com\u202C`)).toBe(DISPLAY_NAME_FALLBACK);
+    expect(sanitizeDisplayName(`Seán\u200B O'Brien-Ngata`)).toBe(CLEAN);
+    expect(sanitizeDisplayName("evil．com")).toBe(DISPLAY_NAME_FALLBACK);
+    expect(sanitizeDisplayName("evil。com")).toBe(DISPLAY_NAME_FALLBACK);
+  });
+
+  it("caps at 40 characters and falls back when nothing usable remains", () => {
+    expect(sanitizeDisplayName("A".repeat(80))).toBe("A".repeat(DISPLAY_NAME_MAX));
+    expect(sanitizeDisplayName("A".repeat(DISPLAY_NAME_MAX))).toBe("A".repeat(DISPLAY_NAME_MAX));
+    for (const empty of ["", "   ", "...", "https://evil.com", "<script>alert(1)</script>", null, undefined, 12]) {
+      expect(sanitizeDisplayName(empty)).toBe(DISPLAY_NAME_FALLBACK);
+    }
+    expect(sanitizeRenderedName("")).toBe("");
+    expect(sanitizeRenderedName("   ")).toBe("");
+    expect(sanitizeRenderedName("evil.com")).toBe(DISPLAY_NAME_FALLBACK);
+  });
+
+  it("is idempotent and only rewrites name fields that are present", () => {
+    const row = sanitizeNameFields({ name: "evil.com", first_name: CLEAN, email: "a@b.co", country: "NZ" });
+    expect(row).toEqual({ name: DISPLAY_NAME_FALLBACK, first_name: CLEAN, email: "a@b.co", country: "NZ" });
+    expect(sanitizeNameFields(row)).toEqual(row);
+    expect(sanitizeNameFields({ emailVerified: true })).toEqual({ emailVerified: true });
+    expect(presentAccountNames({ name: "", first_name: null, last_name: "李明" })).toEqual({
+      name: "",
+      first_name: null,
+      last_name: "李明",
+    });
+  });
+});
+
+describe("names in email", () => {
+  it("HTML-escapes a sanitised name and keeps it out of the subject", () => {
+    const lure = `AetherForge has moved to evil-site.com, log in there <script>`;
+    const verify = verificationEmail({ to: "a@b.co", name: lure, url: "https://aetherforgeai.co.nz/verify" });
+    expect(verify.subject).not.toMatch(/evil|script|moved/i);
+    expect(verify.html).not.toContain("evil-site.com");
+    expect(verify.html).not.toContain("<script>");
+    expect(verify.text).not.toContain("evil-site.com");
+    expect(verify.html).toContain("AetherForge");
+
+    const reset = passwordResetEmail({ to: "a@b.co", name: "phish@evil.com", url: "https://aetherforgeai.co.nz/reset" });
+    expect(reset.html).not.toContain("phish@evil.com");
+    expect(reset.html).toContain(DISPLAY_NAME_FALLBACK);
+    expect(reset.subject).not.toContain("@");
+
+    const activity = renderActivityEmail({ kind: "welcome", to: "member@example.com", name: "www.evil.com" });
+    expect(activity.subject).toBe("Welcome to AetherForge AI");
+    expect(activity.html).not.toContain("evil.com");
+    expect(activity.text).toContain(`Kia ora ${DISPLAY_NAME_FALLBACK}`);
+    expect(activity.html).toContain(`Kia ora ${DISPLAY_NAME_FALLBACK}`);
+
+    const invite = seatInviteEmail({
+      ownerName: "Visit at evil.com",
+      portfolioName: "Client A",
+      role: "viewer",
+      acceptUrl: "https://example.test/accept",
+    });
+    expect(invite.subject).toBe(`${DISPLAY_NAME_FALLBACK} invited you to a portfolio on AetherForge AI`);
+    expect(invite.text).not.toContain("evil.com");
+    expect(invite.html).not.toContain("evil.com");
+    expect(invite.html).not.toContain("<script");
+    expect(invite.text).toContain("cannot change anything");
+  });
+});

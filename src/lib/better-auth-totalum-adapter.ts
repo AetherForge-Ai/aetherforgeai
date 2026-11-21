@@ -5,6 +5,7 @@ import { createAdapterFactory } from "better-auth/adapters";
 import { sessionWriteResult } from "@/lib/trade-commit-session";
 import { createUserWithConsentFallback } from "@/lib/signup-consent";
 import { coerceUserRow } from "@/lib/totalum-user-row";
+import { sanitizeNameFields } from "@/lib/display-name";
 
 // ==================== Type Definitions ====================
 
@@ -70,6 +71,12 @@ function isTotalumAutoField(field: string): boolean {
  * IMPORTANT: Totalum auto-fields (_id, createdAt, updatedAt, createdBy) stay in camelCase
  * Custom fields get converted to snake_case
  */
+/** Last line of defence for every Better Auth user write, including a future OAuth profile. */
+function sanitizeUserWrite<T extends Record<string, any>>(model: string, data: T): T {
+  if (model !== "user" || !data || typeof data !== "object") return data;
+  return sanitizeNameFields(data);
+}
+
 function objectToSnakeCase(obj: Record<string, any>): Record<string, any> {
   const result: Record<string, any> = {};
   for (const [key, value] of Object.entries(obj)) {
@@ -301,7 +308,7 @@ export function totalumAdapter(
         }): Promise<R> {
           log("CREATE", data);
           const tableName = getTableName(data.model);
-          const snakeCaseData = objectToSnakeCase(data.data);
+          const snakeCaseData = objectToSnakeCase(sanitizeUserWrite(data.model, data.data as Record<string, any>));
 
           // Remove _id if present (Totalum auto-generates)
           if (!data.forceAllowId) {
@@ -454,7 +461,7 @@ export function totalumAdapter(
           }
 
           const recordId = record._id;
-          const snakeCaseUpdate = objectToSnakeCase(data.update);
+          const snakeCaseUpdate = objectToSnakeCase(sanitizeUserWrite(data.model, data.update));
           delete snakeCaseUpdate._id; // Don't update ID
 
           // editRecordById now returns the full updated record
@@ -490,7 +497,7 @@ export function totalumAdapter(
           });
 
           const items = unwrapTotalumResponse<any[]>(findResponse) || [];
-          const snakeCaseUpdate = objectToSnakeCase(data.update);
+          const snakeCaseUpdate = objectToSnakeCase(sanitizeUserWrite(data.model, data.update));
           delete snakeCaseUpdate._id;
 
           // Update each record
