@@ -1,7 +1,7 @@
 import buildSnapshot from "@/data/tape-build-snapshot.json";
-import { parseQuoteTime } from "@/lib/market-freshness";
+import { equitySessionDate, equitySessionOpen, parseQuoteTime, tapeCloseIso, tapeCloseIsPreviousSession } from "@/lib/market-freshness";
 import { keepAlive } from "@/lib/keep-alive.server";
-import { loadPublicTickerBounded } from "@/lib/public-ticker";
+import { loadPublicTickerBounded, tickerEquityQuotes } from "@/lib/public-ticker";
 import { edgeJsonGet, edgeJsonPut } from "@/lib/ticker-serve";
 import type { TapeRow, TickerTapeFeed } from "@/lib/ticker-feed";
 
@@ -113,17 +113,111 @@ export function quotedTape(feed: TickerTapeFeed | null): TickerTapeFeed | null {
   return { ...feed, rows: { nzx, asx, crypto } };
 }
 
+/** Newest NZX/ASX close date this isolate has seen from the ticker, YYYY-MM-DD. */
+let latestTickerCloseIso: string | null = null;
+
+function noteTickerClose(iso: string | null | undefined): void {
+  if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return;
+  if (!latestTickerCloseIso || iso > latestTickerCloseIso) latestTickerCloseIso = iso;
+}
+
+/** Tests move the clock backwards. A remembered close must not follow them. */
+export function resetTapeCloseMemoryForTests(): void {
+  latestTickerCloseIso = null;
+}
+
+function closeIsoOf(feed: TickerTapeFeed | null | undefined, now = new Date()): string | null {
+  if (!feed?.rows) return null;
+  return tapeCloseIso(feed.rows, now);
+}
+
+function rememberedClose(now: Date): string | null {
+  if (!latestTickerCloseIso) return null;
+  // A close remembered under a later clock is not applied when time moves backwards.
+  if (!equitySessionOpen("NZX", now) && latestTickerCloseIso > equitySessionDate("NZX", now)) return null;
+  return latestTickerCloseIso;
+}
+
+/**
+ * A close observed from the ticker this request. A remembered close from an
+ * earlier session is not authority to keep printing that old date.
+ */
+function authorityIso(observed: string | null, now: Date): string | null {
+  if (observed) return observed;
+  const remembered = rememberedClose(now);
+  if (!remembered) return null;
+  if (!equitySessionOpen("NZX", now) && remembered < equitySessionDate("NZX", now)) return null;
+  return remembered;
+}
+
+function newestClose(values: Array<string | null | undefined>): string | null {
+  let best: string | null = null;
+  for (const value of values) {
+    if (!value) continue;
+    if (!best || value > best) best = value;
+  }
+  return best;
+}
+
+type EquityQuote = { symbol: string; quotedAt: string | null; price: number | null; changePct: number | null };
+
+/** The ticker's own equity quotes, as a tape. Crypto is filled by the live read. */
+function feedFromEquityQuotes(quotes: EquityQuote[]): TickerTapeFeed | null {
+  const row = (quote: EquityQuote): TapeRow | null => {
+    const price = positivePrice(quote.price);
+    if (!quote.symbol || price == null || !parseQuoteTime(quote.quotedAt)) return null;
+    const nz = quote.symbol.endsWith(".NZ");
+    return {
+      symbol: quote.symbol,
+      name: quote.symbol,
+      price,
+      change: typeof quote.changePct === "number" && Number.isFinite(quote.changePct) ? quote.changePct : null,
+      currency: nz ? "NZD" : "AUD",
+      provider: "",
+      asOf: quote.quotedAt ?? "",
+      quotedAt: quote.quotedAt,
+    };
+  };
+  const nzx = quotes.filter((quote) => quote.symbol.endsWith(".NZ")).map(row).filter((item) => item != null);
+  const asx = quotes.filter((quote) => quote.symbol.endsWith(".AX")).map(row).filter((item) => item != null);
+  return feedFromRows(nzx, asx, []);
+}
+
+/**
+ * Cache-busted (?cb=) and no-store documents must not render a stale close.
+ * Outside a request (unit tests, scripts) this is false unless the caller opts in.
+ */
+export async function requestTapeMustBeFresh(): Promise<boolean> {
+  try {
+    const { headers } = await import("next/headers");
+    const h = await headers();
+    if (h.get("x-af-tape-fresh") === "1") return true;
+    const cache = `${h.get("cache-control") ?? ""} ${h.get("cdn-cache-control") ?? ""}`.toLowerCase();
+    if (/\bno-store\b/.test(cache)) return true;
+    const search = `${h.get("x-af-search") ?? ""} ${h.get("next-url") ?? ""}`;
+    if (/(?:^|[?&])cb=/.test(search)) return true;
+  } catch {
+    return false;
+  }
+  return false;
+}
+
 /**
  * A finished background read fills the colo copy the next request reads.
- * A body the ticker route stored (version > 0) is left alone.
+ * A body the ticker route stored (version > 0) is left alone when its close
+ * is current. A close date that has moved forward replaces that body.
  */
 async function publishTape(feed: TickerTapeFeed | null): Promise<void> {
   const quoted = quotedTape(feed);
   if (!quoted) return;
+  noteTickerClose(closeIsoOf(quoted));
   await edgeJsonPut("equity", { nzx: quoted.rows.nzx, asx: quoted.rows.asx });
   const existing = await edgeJsonGet<{ version?: number }>("body", BODY_MS).catch(() => null);
-  if (existing && typeof existing.version === "number" && existing.version > 0) return;
-  await edgeJsonPut("body", { body: { ok: true, data: quoted }, headers: {}, version: 0 });
+  const version = existing && typeof existing.version === "number" ? existing.version : 0;
+  const existingIso = closeIsoOf(quotedTape(tapeFeedFromStored(existing)));
+  const nextIso = closeIsoOf(quoted);
+  if (version > 0 && !(existingIso && nextIso && nextIso > existingIso)) return;
+  await edgeJsonPut("body", { body: { ok: true, data: quoted }, headers: {}, version: version > 0 ? version : 0 });
 }
 
 /** Prices shipped with the build. Used when the colo copy and the live read are both missing. */
@@ -132,18 +226,25 @@ export function bundledTape(): TickerTapeFeed | null {
 }
 
 /**
- * First HTML uses a tape that is already in hand. The stored colo copy wins,
- * then a live read that has already finished, then the build snapshot. The
- * live lookup is loadPublicTickerBounded() — the 1800 ms public-ticker bound.
- * keepAlive is registered before any await, so a read that finishes during the
- * colo lookup is still held on Workers while publishTape writes.
- * SSR_LIVE_WAIT_MS caps only the foreground wait, and only when nothing is in hand.
+ * First HTML uses a tape that is already in hand, unless that tape's close
+ * date is older than the latest NZX/ASX ticker close (or, with the session
+ * shut, older than the current session). A stale colo body, module quote, or
+ * build snapshot is not rendered. The live lookup is loadPublicTickerBounded()
+ * — the 1800 ms public-ticker bound. keepAlive is registered before any await,
+ * so a read that finishes during the colo lookup is still held on Workers
+ * while publishTape writes. SSR_LIVE_WAIT_MS caps only the foreground wait,
+ * and only when nothing current is in hand. On that timeout the ticker's own
+ * close is used, or the date is omitted. An older date is never printed.
+ * Cache-busted (?cb=) and no-store requests follow the same rule.
  */
-export async function loadRequestTape(): Promise<TickerTapeFeed | null> {
+export async function loadRequestTape(opts?: { fresh?: boolean }): Promise<TickerTapeFeed | null> {
+  const now = () => new Date();
   let settled: TickerTapeFeed | null | undefined;
+  let quoteRows: EquityQuote[] | undefined;
   const live = loadPublicTickerBounded()
     .then(async (feed) => {
       settled = feed;
+      noteTickerClose(closeIsoOf(quotedTape(feed)));
       await publishTape(feed).catch(() => undefined);
       return feed;
     })
@@ -152,19 +253,91 @@ export async function loadRequestTape(): Promise<TickerTapeFeed | null> {
       return null;
     });
   void keepAlive(live);
-  const stored = quotedTape(await loadServerTape());
-  if (stored) return stored;
-  if (settled !== undefined) {
-    const fresh = quotedTape(settled);
-    if (fresh) return fresh;
+  const quotesP = tickerEquityQuotes()
+    .then((rows) => {
+      quoteRows = rows;
+      noteTickerClose(closeIsoOf(feedFromEquityQuotes(rows)));
+      return rows;
+    })
+    .catch(() => [] as EquityQuote[]);
+  // Start the colo read before the first await. A live result that resolves
+  // during that read must not take the body lock the colo read is holding.
+  const storedPromise = loadServerTape();
+
+  const fresh = opts?.fresh ?? (await requestTapeMustBeFresh());
+  const stored = quotedTape(await storedPromise);
+
+  const observed = () =>
+    newestClose([
+      closeIsoOf(feedFromEquityQuotes(quoteRows ?? [])),
+      settled !== undefined ? closeIsoOf(quotedTape(settled)) : null,
+    ]);
+
+  const accept = (feed: TickerTapeFeed | null): TickerTapeFeed | null => {
+    const quoted = quotedTape(feed);
+    if (!quoted) return null;
+    const iso = closeIsoOf(quoted, now());
+    const auth = authorityIso(observed(), now());
+    if (auth && iso && iso < auth) return null;
+    // No ticker close yet, and this snapshot is a previous shut session.
+    if (!observed() && tapeCloseIsPreviousSession(quoted.rows, now())) return null;
+    if (fresh && auth && iso && iso < auth) return null;
+    return quoted;
+  };
+
+  // Ticker quotes already in hand win when their close is the same day or newer,
+  // so SSR prices match /api/ticker without waiting out the colo snapshot.
+  const storedOk = accept(stored);
+  const tickerNow = quoteRows ? accept(feedFromEquityQuotes(quoteRows)) : null;
+  if (tickerNow) {
+    const tickerIso = closeIsoOf(tickerNow, now());
+    const storedIso = closeIsoOf(stored, now());
+    const storedWins = !!(storedOk && storedIso && tickerIso && tickerIso < storedIso);
+    if (!storedWins) {
+      if (storedIso && tickerIso && tickerIso > storedIso) await publishTape(tickerNow).catch(() => undefined);
+      return tickerNow;
+    }
   }
-  const built = bundledTape();
-  if (built) return built;
-  const raced = await Promise.race([
-    live,
-    new Promise<null>((resolve) => setTimeout(() => resolve(null), SSR_LIVE_WAIT_MS)),
-  ]);
-  return quotedTape(raced);
+
+  // Current colo snapshot. A previous session does not take this path.
+  if (storedOk && !tapeCloseIsPreviousSession(storedOk.rows, now())) return storedOk;
+
+  if (settled !== undefined) {
+    const liveOk = accept(settled);
+    if (liveOk) return liveOk;
+  }
+
+  const builtOk = accept(bundledTape());
+  if (builtOk && !tapeCloseIsPreviousSession(builtOk.rows, now())) return builtOk;
+
+  if (settled === undefined || quoteRows === undefined) {
+    const pending = new Promise<never>(() => undefined);
+    await Promise.race([
+      (async () => {
+        while (settled === undefined || quoteRows === undefined) {
+          if (quoteRows && accept(feedFromEquityQuotes(quoteRows))) return;
+          if (settled !== undefined && accept(settled)) return;
+          if (settled !== undefined && quoteRows !== undefined) return;
+          // An already-finished side must not resolve this race or the loop spins.
+          await Promise.race([
+            quoteRows === undefined ? quotesP.then(() => undefined, () => undefined) : pending,
+            settled === undefined ? live.then(() => undefined, () => undefined) : pending,
+          ]);
+        }
+      })(),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), SSR_LIVE_WAIT_MS)),
+    ]);
+  }
+
+  const tickerLate = accept(feedFromEquityQuotes(quoteRows ?? []));
+  if (tickerLate) return tickerLate;
+  if (settled !== undefined) {
+    const liveOk = accept(settled);
+    if (liveOk) return liveOk;
+  }
+  // Fresh close was not available within the cap. Never print an older date.
+  if (fresh) return null;
+  return null;
 }
 
 /**

@@ -269,6 +269,16 @@ export async function middleware(request: NextRequest) {
   // renders a skeleton until GET /api/session confirms the same browser.
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-af-doc", signedIn ? "member" : "guest");
+  // TAPE-STALE-CLOSE: cache-busted and no-store documents must not paint an older close.
+  // Drop a client-supplied copy so only this decision counts.
+  requestHeaders.delete("x-af-tape-fresh");
+  requestHeaders.delete("x-af-search");
+  const search = request.nextUrl.search;
+  if (search) requestHeaders.set("x-af-search", search.slice(0, 200));
+  const cacheBust = request.nextUrl.searchParams.has("cb");
+  const sharedDocumentCache =
+    !signedIn && (isCacheableMarketingPath(pathname) || isCacheableMarketsPath(pathname));
+  if (cacheBust || !sharedDocumentCache) requestHeaders.set("x-af-tape-fresh", "1");
   // Next.js reads the nonce from the request CSP header and stamps its own scripts.
   const nonce = makeCspNonce();
   const csp = nonceCsp(nonce);

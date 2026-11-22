@@ -8,7 +8,7 @@ const route = () => read("src/app/api/ticker/route.ts");
 describe("b47 H-1 (a): colo copies are written under waitUntil; a last stored-copy read before any 503", () => {
   it("no colo put is fire-and-forget", () => {
     expect(route()).not.toMatch(/\n\s*void edge(SnapshotPut|JsonPut)\(/);
-    expect(route().match(/void keepAlive\(edge(SnapshotPut|JsonPut)\(/g)?.length).toBe(3);
+    expect(route().match(/void keepAlive\(edge(SnapshotPut|JsonPut)\(/g)?.length).toBe(4);
     expect(read("src/lib/status-feeds.server.ts")).toContain("void keepAlive(cache.put(");
   });
   it("reads the stored copy with the time left before 503", () => {
