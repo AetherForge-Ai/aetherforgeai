@@ -4,7 +4,7 @@
  * Share with accountant is future work and is not implemented here.
  */
 import "server-only";
-import type { AccountantLedgerRow } from "@/lib/accountant-export";
+import { ACCOUNTANT_READ_LIMIT, type AccountantLedgerRow } from "@/lib/accountant-export";
 import { totalumSdk } from "@/lib/totalum";
 
 function asText(value: unknown): string {
@@ -13,12 +13,12 @@ function asText(value: unknown): string {
   return String(value);
 }
 
-/** This user's ledger rows, capped at 5,000. Does not write. */
+/** This user's ledger rows. One past the pack cap, so a full book can be told apart. Does not write. */
 export async function loadAccountantLedger(userId: string): Promise<AccountantLedgerRow[]> {
   if (!userId) return [];
   const res = await totalumSdk.crud.query("transaction", {
     _filter: { user: userId },
-    _limit: 5000,
+    _limit: ACCOUNTANT_READ_LIMIT,
   });
   const rows = (res?.data as unknown as AccountantLedgerRow[]) || [];
   return rows.map((row) => ({

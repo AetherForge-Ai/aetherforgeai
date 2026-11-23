@@ -97,11 +97,7 @@ export function TaxPageContent({ book = null, xero = "guest" }: { book?: TaxBook
           {ACCOUNTANT_PACK_LABEL}
         </p>
         <p className="mt-1 text-muted-foreground">Sharing this pack with your accountant from AetherForge is future work.</p>
-        {xero === "guest" ? (
-          <Link href="/login?redirect=/tax" className="mt-2 inline-flex min-h-11 items-center rounded-md border px-4 font-medium">
-            Sign in to export
-          </Link>
-        ) : (
+        {xero === "paid" ? (
           <form action="/api/tax/accountant/export" method="get" className="mt-2 flex flex-wrap items-end gap-2">
             <label className="flex flex-col gap-1 text-xs">
               Holdings as at
@@ -119,6 +115,19 @@ export function TaxPageContent({ book = null, xero = "guest" }: { book?: TaxBook
               Export for my accountant
             </button>
           </form>
+        ) : xero === "free" ? (
+          <span
+            aria-disabled="true"
+            className="mt-2 inline-flex min-h-11 items-center rounded-md border px-4 font-medium text-muted-foreground"
+            aria-label={csvLockAccessibleName("Export for my accountant")}
+            data-accountant-export-locked
+          >
+            {CSV_LOCK_LABEL} (Export for my accountant)
+          </span>
+        ) : (
+          <Link href="/login?redirect=/tax" className="mt-2 inline-flex min-h-11 items-center rounded-md border px-4 font-medium">
+            Sign in to export
+          </Link>
         )}
       </section>
       {/* Goal b20 G-29: the Xero export where accountants look; Free sees the lock. */}

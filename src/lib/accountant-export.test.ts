@@ -6,14 +6,18 @@ import { TaxPageContent } from "@/components/tax/TaxPageContent";
 import { csvEscape } from "@/lib/csv-cell";
 import { buildDividendRecord, dividendNotesPrefix } from "@/lib/dividend-ledger";
 import { moneyCell } from "@/lib/currency";
+import { crc32 } from "@/lib/zip-store";
 import {
   ACCOUNTANT_PACK_LABEL,
   DIVIDEND_COLUMNS,
   HOLDINGS_COLUMNS,
   TRANSACTION_COLUMNS,
   buildAccountantPack,
+  buildAccountantZip,
+  formatNzGeneratedAt,
   resolveAccountantRange,
   rowsOwnedBy,
+  selectAccountantRows,
   type AccountantLedgerRow,
 } from "@/lib/accountant-export";
 
@@ -62,11 +66,12 @@ describe("accountant export builders", () => {
   });
 
   it("uses stable headers, the cover label, the tax year and documents every column", () => {
-    expect(pack.holdings.startsWith(`${HOLDINGS_COLUMNS.join(",")}\n`)).toBe(true);
-    expect(pack.transactions.startsWith(`${TRANSACTION_COLUMNS.join(",")}\n`)).toBe(true);
-    expect(pack.dividends.startsWith(`${DIVIDEND_COLUMNS.join(",")}\n`)).toBe(true);
+    expect(pack.holdings.startsWith(`\uFEFF${HOLDINGS_COLUMNS.join(",")}\n`)).toBe(true);
+    expect(pack.transactions.startsWith(`\uFEFF${TRANSACTION_COLUMNS.join(",")}\n`)).toBe(true);
+    expect(pack.dividends.startsWith(`\uFEFF${DIVIDEND_COLUMNS.join(",")}\n`)).toBe(true);
+    expect(pack.readme.startsWith("AetherForge")).toBe(true);
     expect(pack.readme).toContain(ACCOUNTANT_PACK_LABEL);
-    expect(pack.readme).toContain(`Generated at: ${GENERATED}`);
+    expect(pack.readme).toContain(`Generated at: ${formatNzGeneratedAt(new Date(GENERATED))}`);
     expect(pack.readme).toContain("NZ tax year: 1 Apr 2026 to 31 Mar 2027");
     expect(pack.readme).toContain("The New Zealand tax year runs from 1 Apr to 31 Mar.");
     expect(pack.readme).toContain("Share with accountant: future work.");
@@ -157,7 +162,7 @@ describe("accountant export builders", () => {
       range: resolved.range,
       generatedAt: GENERATED,
     });
-    const holding = built.holdings.trim().split("\n")[1].split(",");
+    const holding = built.holdings.replace(/^\uFEFF/, "").trim().split("\n")[1].split(",");
     expect(holding[4]).toBe("200.00");
     expect(holding[5]).toBe("2.0000");
     expect(built.transactions).toContain("2.0000");
@@ -167,9 +172,9 @@ describe("accountant export builders", () => {
     const resolved = resolveAccountantRange({}, "2026-11-23");
     if (!resolved.ok) throw new Error(resolved.error);
     const empty = buildAccountantPack({ rows: [], range: resolved.range, generatedAt: GENERATED });
-    expect(empty.holdings.trim().split("\n")).toEqual([HOLDINGS_COLUMNS.join(",")]);
-    expect(empty.transactions.trim().split("\n")).toEqual([TRANSACTION_COLUMNS.join(",")]);
-    expect(empty.dividends.trim().split("\n")).toEqual([DIVIDEND_COLUMNS.join(",")]);
+    expect(empty.holdings.replace(/^\uFEFF/, "").trim().split("\n")).toEqual([HOLDINGS_COLUMNS.join(",")]);
+    expect(empty.transactions.replace(/^\uFEFF/, "").trim().split("\n")).toEqual([TRANSACTION_COLUMNS.join(",")]);
+    expect(empty.dividends.replace(/^\uFEFF/, "").trim().split("\n")).toEqual([DIVIDEND_COLUMNS.join(",")]);
     expect(empty.readme).toContain(ACCOUNTANT_PACK_LABEL);
     expect(empty.readme).toContain("only its header row");
     expect(resolved.range).toMatchObject({ endingYear: 2027, asOf: "2026-11-23", from: "2026-04-01", to: "2027-03-31" });
@@ -188,14 +193,18 @@ describe("accountant export builders", () => {
     expect(rowsOwnedBy([{ user: "user-a", ticker: "A" }, { user: { _id: "user-b" }, ticker: "B" }, { ticker: "C" }], "user-a").map((row) => row.ticker)).toEqual(["A", "C"]);
   });
 
-  it("shows the download to a signed-in member and a sign-in link otherwise", () => {
-    const signedIn = renderToStaticMarkup(createElement(TaxPageContent, { xero: "free" }));
-    expect(signedIn).toContain("Export for my accountant");
-    expect(signedIn).toContain('action="/api/tax/accountant/export"');
-    expect(signedIn).toContain('name="asOf"');
-    expect(signedIn).toContain('name="from"');
-    expect(signedIn).toContain('name="to"');
-    expect(signedIn).toContain(ACCOUNTANT_PACK_LABEL);
+  it("shows the download to a paid member, a lock to Free, and a sign-in link otherwise", () => {
+    const paid = renderToStaticMarkup(createElement(TaxPageContent, { xero: "paid" }));
+    expect(paid).toContain("Export for my accountant");
+    expect(paid).toContain('action="/api/tax/accountant/export"');
+    expect(paid).toContain('name="asOf"');
+    expect(paid).toContain('name="from"');
+    expect(paid).toContain('name="to"');
+    expect(paid).toContain(ACCOUNTANT_PACK_LABEL);
+    const free = renderToStaticMarkup(createElement(TaxPageContent, { xero: "free" }));
+    expect(free).toContain("CSV export: Starter and above");
+    expect(free).toContain("Export for my accountant");
+    expect(free).not.toContain('action="/api/tax/accountant/export"');
     const guest = renderToStaticMarkup(createElement(TaxPageContent, { xero: "guest" }));
     expect(guest).toContain('href="/login?redirect=/tax"');
     expect(guest).toContain("Sign in to export");
@@ -212,7 +221,148 @@ describe("accountant export builders", () => {
     const loader = readFileSync("src/lib/accountant-export.server.ts", "utf8");
     expect(route).toContain("getStableSessionUser");
     expect(route).toContain("requestClaimsOtherUser");
+    expect(route).toContain("canExportCsv");
+    expect(route.indexOf("if (!canExportCsv")).toBeGreaterThan(route.indexOf("requestClaimsOtherUser(req, user._id)"));
+    expect(route.indexOf("if (!canExportCsv")).toBeLessThan(route.indexOf("loadAccountantLedger(user._id)"));
     expect(route).toContain("rowsOwnedBy");
+    expect(route).not.toContain('searchParams.get("userId")');
     expect(`${route}\n${loader}`).not.toMatch(/editRecord|createRecord|deleteRecord|updateRecord/);
   });
+
+  it("escapes a formula in a name the member typed", () => {
+    const resolved = resolveAccountantRange({ asOf: "2026-05-01", from: "2026-04-01", to: "2026-05-02" }, "2026-11-23");
+    if (!resolved.ok) throw new Error(resolved.error);
+    const built = buildAccountantPack({
+      rows: [{ _id: "formula", type: "buy", ticker: "FPH.NZ", asset_name: '=HYPERLINK("http://evil")', quantity: 1, price: 2, currency: "NZD", fx_rate: 1, trade_date: "2026-04-02", executed_at: "2026-04-02" }],
+      range: resolved.range,
+      generatedAt: GENERATED,
+    });
+    expect(built.holdings).toContain(`'=HYPERLINK(""http://evil"")`);
+    expect(built.holdings).not.toMatch(/(^|,)=HYPERLINK/);
+  });
+
+  it("keeps 31 March and 1 April on the Auckland day, not the UTC date", () => {
+    const resolved = resolveAccountantRange({ asOf: "2027-03-31", from: "2026-04-01", to: "2027-03-31" }, "2026-11-23");
+    if (!resolved.ok) throw new Error(resolved.error);
+    const built = buildAccountantPack({
+      rows: [
+        { _id: "mar31", type: "buy", ticker: "MAR.NZ", quantity: 1, price: 1, currency: "NZD", fx_rate: 1, executed_at: "2026-03-31T10:00:00.000Z" },
+        { _id: "apr1", type: "buy", ticker: "APR.NZ", quantity: 1, price: 1, currency: "NZD", fx_rate: 1, executed_at: "2026-03-31T23:00:00.000Z" },
+        { _id: "end-in", type: "buy", ticker: "END.NZ", quantity: 1, price: 1, currency: "NZD", fx_rate: 1, executed_at: "2027-03-31T10:00:00.000Z" },
+        { _id: "end-out", type: "buy", ticker: "OUT.NZ", quantity: 1, price: 1, currency: "NZD", fx_rate: 1, executed_at: "2027-03-31T23:00:00.000Z" },
+      ],
+      range: resolved.range,
+      generatedAt: GENERATED,
+    });
+    const days = built.transactions
+      .replace(/^\uFEFF/, "")
+      .trim()
+      .split("\n")
+      .slice(1)
+      .map((row) => row.split(",")[0] + " " + row.split(",").at(-1));
+    expect(days).toEqual(["2026-04-01 apr1", "2027-03-31 end-in"]);
+    expect(built.transactions).not.toContain("mar31");
+    expect(built.transactions).not.toContain("end-out");
+  });
+
+  it("names every tax year when the dates cross 31 March", () => {
+    const span = resolveAccountantRange({ from: "2025-04-01", to: "2027-03-31", asOf: "2027-03-31" }, "2026-11-23");
+    if (!span.ok) throw new Error(span.error);
+    expect(span.range.taxYearLabel).toBe("1 Apr 2025 to 31 Mar 2026; 1 Apr 2026 to 31 Mar 2027");
+    const edge = resolveAccountantRange({ from: "2026-03-31", to: "2026-04-01", asOf: "2026-04-01" }, "2026-11-23");
+    if (!edge.ok) throw new Error(edge.error);
+    expect(edge.range.taxYearLabel).toBe("1 Apr 2025 to 31 Mar 2026; 1 Apr 2026 to 31 Mar 2027");
+  });
+
+  it("sorts by date then id and records a truncation past 5,000 rows", () => {
+    const rows: AccountantLedgerRow[] = [
+      { _id: "b", type: "fee", trade_date: "2026-02-01", executed_at: "2026-02-01" },
+      { _id: "a", type: "fee", trade_date: "2026-02-01", executed_at: "2026-02-01" },
+      { _id: "c", type: "fee", trade_date: "2026-01-01", executed_at: "2026-01-01" },
+    ];
+    const picked = selectAccountantRows(rows, 2);
+    expect(picked.truncated).toBe(true);
+    expect(picked.read).toBe(3);
+    expect(picked.kept).toBe(2);
+    expect(picked.rows.map((row) => row._id)).toEqual(["c", "a"]);
+    const resolved = resolveAccountantRange({ asOf: "2026-06-30", from: "2026-01-01", to: "2026-06-30" }, "2026-11-23");
+    if (!resolved.ok) throw new Error(resolved.error);
+    const built = buildAccountantPack({ rows: picked.rows, range: resolved.range, generatedAt: GENERATED, truncation: { read: picked.read, kept: picked.kept } });
+    expect(built.readme).toContain("Truncated: 3 rows were read and 2 are included, chosen by date then id.");
+  });
+
+  it("writes a stored zip whose CSV payloads start with a UTF-8 BOM and whose clock is New Zealand time", () => {
+    const resolved = resolveAccountantRange({}, "2026-11-23");
+    if (!resolved.ok) throw new Error(resolved.error);
+    const built = buildAccountantPack({ rows: [], range: resolved.range, generatedAt: GENERATED });
+    const when = new Date(GENERATED);
+    const zip = buildAccountantZip(built, when);
+    const files = readStoredZip(zip);
+    expect(files.map((file) => file.name)).toEqual(["holdings.csv", "transactions.csv", "dividends.csv", "README.txt"]);
+    const text = new TextDecoder("utf-8", { ignoreBOM: true });
+    for (const file of files) {
+      expect(file.method).toBe(0);
+      expect(file.crc).toBe(crc32(file.data));
+      expect(file.size).toBe(file.data.length);
+      if (file.name.endsWith(".csv")) {
+        expect(file.data[0]).toBe(0xef);
+        expect(file.data[1]).toBe(0xbb);
+        expect(file.data[2]).toBe(0xbf);
+      }
+    }
+    expect(text.decode(files[3].data)).toBe(built.readme);
+    expect(text.decode(files[0].data)).toBe(built.holdings);
+    // 2026-11-23 06:00 UTC is 19:00 in New Zealand (NZDT, UTC+13). DOS time stores seconds in units of 2.
+    expect(files[0].hour).toBe(19);
+    expect(files[0].minute).toBe(0);
+    expect(files[0].year).toBe(2026);
+    expect(files[0].month).toBe(11);
+    expect(files[0].day).toBe(23);
+    expect(zipHasEocd(zip)).toBe(true);
+  });
 });
+
+function readStoredZip(buf: Uint8Array): { name: string; data: Uint8Array; method: number; crc: number; size: number; hour: number; minute: number; year: number; month: number; day: number }[] {
+  const view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+  const out: { name: string; data: Uint8Array; method: number; crc: number; size: number; hour: number; minute: number; year: number; month: number; day: number }[] = [];
+  let offset = 0;
+  while (offset + 30 <= buf.length && view.getUint32(offset, true) === 0x04034b50) {
+    const method = view.getUint16(offset + 8, true);
+    const time = view.getUint16(offset + 10, true);
+    const date = view.getUint16(offset + 12, true);
+    const crc = view.getUint32(offset + 14, true);
+    const size = view.getUint32(offset + 18, true);
+    const nameLen = view.getUint16(offset + 26, true);
+    const extraLen = view.getUint16(offset + 28, true);
+    const nameStart = offset + 30;
+    const name = new TextDecoder().decode(buf.slice(nameStart, nameStart + nameLen));
+    const dataStart = nameStart + nameLen + extraLen;
+    out.push({
+      name,
+      data: buf.slice(dataStart, dataStart + size),
+      method,
+      crc,
+      size,
+      hour: time >> 11,
+      minute: (time >> 5) & 63,
+      year: ((date >> 9) & 127) + 1980,
+      month: (date >> 5) & 15,
+      day: date & 31,
+    });
+    offset = dataStart + size;
+  }
+  return out;
+}
+
+function zipHasEocd(buf: Uint8Array): boolean {
+  const view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+  let locals = 0;
+  let centrals = 0;
+  for (let i = 0; i + 4 <= buf.length; i += 1) {
+    const sig = view.getUint32(i, true);
+    if (sig === 0x04034b50) locals += 1;
+    if (sig === 0x02014b50) centrals += 1;
+    if (sig === 0x06054b50) return locals === 4 && centrals === 4 && view.getUint16(i + 10, true) === 4;
+  }
+  return false;
+}

@@ -55,7 +55,8 @@ describe("GET /api/tax/accountant/export", () => {
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toContain("application/zip");
     expect(res.headers.get("content-disposition")).toContain('filename="accountant-pack-2026.zip"');
-    expect(res.headers.get("cache-control")).toContain("no-store");
+    expect(res.headers.get("cache-control")).toBe("private, no-store");
+    expect(res.headers.get("x-export-truncated")).toBe("0");
     expect(loadAccountantLedger).toHaveBeenCalledTimes(1);
     expect(loadAccountantLedger).toHaveBeenCalledWith("user-a");
     expect(loadHoldingMarks).toHaveBeenCalledWith("user-a");
@@ -72,18 +73,65 @@ describe("GET /api/tax/accountant/export", () => {
     expect(text).not.toContain("ZZZZ.NZ");
   });
 
-  it("downloads for a signed-in free plan as well as a paid plan", async () => {
+  it("returns 403 for Free before any ledger read", async () => {
     getStableSessionUser.mockResolvedValue({ ...userA, subscription_plan: "free" });
-    const res = await call();
-    expect(res.status).toBe(200);
-    expect(res.headers.get("content-type")).toContain("application/zip");
-    expect(loadAccountantLedger).toHaveBeenCalledWith("user-a");
+    const res = await call("http://localhost/api/tax/accountant/export?asOf=2026-02-31&userId=user-b");
+    expect(res.status).toBe(403);
+    expect(await res.json()).toMatchObject({ ok: false, data: { code: "not_entitled" } });
+    expect(loadAccountantLedger).not.toHaveBeenCalled();
+    expect(loadHoldingMarks).not.toHaveBeenCalled();
   });
 
-  it("returns 400 for a date that is not a calendar day", async () => {
+  it("returns 200 for Starter and Pro", async () => {
+    for (const plan of ["starter_monthly", "pro_monthly", "starter_yearly", "pro_yearly"]) {
+      getStableSessionUser.mockResolvedValue({ ...userA, subscription_plan: plan });
+      const res = await call();
+      expect(res.status, plan).toBe(200);
+      expect(loadAccountantLedger).toHaveBeenCalledWith("user-a");
+    }
+  });
+
+  it("ignores a userId query and still reads the session account", async () => {
+    const res = await call("http://localhost/api/tax/accountant/export?year=2026&asOf=2026-03-31&from=2025-04-01&to=2026-03-31&userId=user-b");
+    expect(res.status).toBe(200);
+    expect(loadAccountantLedger).toHaveBeenCalledTimes(1);
+    expect(loadAccountantLedger).toHaveBeenCalledWith("user-a");
+    expect(loadAccountantLedger).not.toHaveBeenCalledWith("user-b");
+    const text = new TextDecoder().decode(await res.arrayBuffer());
+    expect(text).not.toContain("ZZZZ.NZ");
+    expect(text).toContain("FPH.NZ");
+  });
+
+  it("returns a page for a bad date instead of JSON", async () => {
     const res = await call("http://localhost/api/tax/accountant/export?asOf=2026-02-31");
     expect(res.status).toBe(400);
+    expect(res.headers.get("content-type")).toContain("text/html");
+    expect(res.headers.get("cache-control")).toBe("private, no-store");
+    const text = await res.text();
+    expect(text.startsWith("{")).toBe(false);
+    expect(text).toContain("Use dates as YYYY-MM-DD.");
+    expect(text).toContain("Back to Tax");
     expect(loadAccountantLedger).not.toHaveBeenCalled();
+  });
+
+  it("sets X-Export-Truncated and names the counts when the read passes 5,000 rows", async () => {
+    const rows = Array.from({ length: 5001 }, (_, index) => ({
+      _id: String(index).padStart(5, "0"),
+      user: "user-a",
+      type: "fee",
+      trade_date: "2026-01-01",
+      executed_at: "2026-01-01",
+      cash_nzd: -1,
+    }));
+    loadAccountantLedger.mockResolvedValue(rows);
+    loadHoldingMarks.mockResolvedValue([]);
+    const res = await call();
+    expect(res.status).toBe(200);
+    expect(res.headers.get("x-export-truncated")).toBe("1");
+    const text = new TextDecoder().decode(await res.arrayBuffer());
+    expect(text).toContain("Truncated: 5001 rows were read and 5000 are included, chosen by date then id.");
+    expect(text).toContain(",04999");
+    expect(text).not.toContain(",05000");
   });
 
   it("returns a header-only pack when the book is empty", async () => {

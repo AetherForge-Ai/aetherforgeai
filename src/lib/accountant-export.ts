@@ -16,6 +16,10 @@ import { ACCOUNTANT_PACK_LABEL } from "@/lib/accountant-export-label";
 
 export { ACCOUNTANT_PACK_LABEL };
 
+/** Ledger rows kept in one pack. One extra row is read so a full cap can be told apart from a shorter book. */
+export const ACCOUNTANT_ROW_CAP = 5000;
+export const ACCOUNTANT_READ_LIMIT = ACCOUNTANT_ROW_CAP + 1;
+
 export const HOLDINGS_COLUMNS = [
   "Holding",
   "Name",
@@ -28,7 +32,7 @@ export const HOLDINGS_COLUMNS = [
   "Market value NZD",
   "Market FX rate",
   "Market FX date",
-  "Price date",
+  "Price updated",
   "Data note",
 ] as const;
 
@@ -76,7 +80,7 @@ const HOLDINGS_DEFINITIONS = {
     "Open quantity times the stored price, for an NZD holding, when that price date is on or before the holdings date. Blank when no usable NZD price is stored.",
   "Market FX rate": "1.0000 when the market value is filled for an NZD holding. Blank otherwise. This export does not look up a rate.",
   "Market FX date": "The stored price date when the market value is filled. Blank otherwise.",
-  "Price date": "The date stored with the holding's price. Blank when no price date is stored.",
+  "Price updated": "The time the holding's price was saved. A stored clock is shown in New Zealand time. A date with no clock stays that date. Blank when no price time is stored.",
   "Data note": "Why a cost or market value cell is blank. Empty when both figures are filled.",
 } satisfies Record<(typeof HOLDINGS_COLUMNS)[number], string>;
 
@@ -205,7 +209,64 @@ export function resolveAccountantRange(
   const asOf = String(params.asOf ?? "").trim() || asOfDefault;
   if (!isIsoDate(from) || !isIsoDate(to) || !isIsoDate(asOf)) return { ok: false, error: "Use dates as YYYY-MM-DD." };
   if (from > to) return { ok: false, error: "The transaction start is after the end." };
-  return { ok: true, range: { endingYear, taxYearLabel: nzTaxYearLabel(endingYear), asOf, from, to } };
+  return { ok: true, range: { endingYear, taxYearLabel: taxYearsInRange(from, to, endingYear), asOf, from, to } };
+}
+
+/** One NZ tax year, or each year the chosen dates cross. A range that passes 31 March names both years. */
+function taxYearsInRange(from: string, to: string, fallbackYear: number): string {
+  const start = nzTaxYearEnding(from);
+  const end = nzTaxYearEnding(to);
+  if (start == null || end == null || end < start) return nzTaxYearLabel(fallbackYear);
+  if (start === end) return nzTaxYearLabel(start);
+  const labels: string[] = [];
+  for (let year = start; year <= end; year += 1) labels.push(nzTaxYearLabel(year));
+  return labels.join("; ");
+}
+
+function nzParts(when: Date): { year: string; month: string; day: string; hour: string; minute: string; second: string } | null {
+  const parts = new Intl.DateTimeFormat("en-NZ", {
+    timeZone: "Pacific/Auckland",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(when);
+  const read = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
+  const year = read("year");
+  const month = read("month");
+  const day = read("day");
+  const hour = read("hour");
+  const minute = read("minute");
+  const second = read("second");
+  if (!year || !month || !day || hour === "" || !minute || second === "") return null;
+  return { year, month, day, hour: hour === "24" ? "00" : hour, minute, second };
+}
+
+/** Cover-sheet clock. 2026-11-23T06:00:00.000Z is 19:00 on that date in New Zealand. */
+export function formatNzGeneratedAt(when: Date): string {
+  const wall = nzParts(when);
+  if (!wall) return when.toISOString();
+  return `${wall.year}-${wall.month}-${wall.day} ${wall.hour}:${wall.minute}:${wall.second} New Zealand time`;
+}
+
+/**
+ * A Date whose local calendar fields are the Auckland clock, so the ZIP DOS time
+ * matches New Zealand time on a UTC host.
+ */
+export function nzWallClock(when: Date): Date {
+  const wall = nzParts(when);
+  if (!wall) return when;
+  return new Date(Number(wall.year), Number(wall.month) - 1, Number(wall.day), Number(wall.hour), Number(wall.minute), Number(wall.second));
+}
+
+function coverTime(value: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}T/.test(value)) return value;
+  const when = new Date(value);
+  if (Number.isNaN(when.getTime())) return value;
+  return formatNzGeneratedAt(when);
 }
 
 export function accountantExportDefaults(today: string): AccountantRange | null {
@@ -228,11 +289,30 @@ function qtyCell(value: unknown): string {
 function csvDoc(headers: readonly string[], rows: readonly (readonly string[])[]): string {
   const lines = [headers.join(",")];
   for (const row of rows) lines.push(row.map((cell) => csvEscape(cell)).join(","));
-  return `${lines.join("\n")}\n`;
+  return `\uFEFF${lines.join("\n")}\n`;
 }
 
 function rowDay(row: AccountantLedgerRow): string {
   return buyLotDay(row);
+}
+
+export interface AccountantRowSelection {
+  rows: AccountantLedgerRow[];
+  truncated: boolean;
+  kept: number;
+  read: number;
+}
+
+/** Date, then id. A row with no date sorts last so a cap keeps dated rows. */
+export function selectAccountantRows(rows: readonly AccountantLedgerRow[], cap = ACCOUNTANT_ROW_CAP): AccountantRowSelection {
+  const sorted = [...rows].sort((a, b) => {
+    const day = (rowDay(a) || "9999-99-99").localeCompare(rowDay(b) || "9999-99-99");
+    if (day) return day;
+    return String(a._id || "").localeCompare(String(b._id || ""));
+  });
+  const truncated = sorted.length > cap;
+  const keptRows = truncated ? sorted.slice(0, cap) : sorted;
+  return { rows: keptRows, truncated, kept: keptRows.length, read: sorted.length };
 }
 
 /** NZD per 1 unit, read the same way the book reads a stored rate. */
@@ -269,6 +349,16 @@ function cashCell(row: AccountantLedgerRow): string {
 function priceDayOf(mark: StoredPrice | null): string {
   if (!mark?.asOf) return "";
   return lotCivilDay(mark.asOf, "");
+}
+
+/** Date-only marks stay as stored. A clock is the Auckland time the price was saved. */
+function priceUpdatedCell(mark: StoredPrice | null): string {
+  if (!mark?.asOf) return "";
+  const text = String(mark.asOf).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+  const when = new Date(text);
+  if (Number.isNaN(when.getTime())) return priceDayOf(mark);
+  return formatNzGeneratedAt(when);
 }
 
 function holdingCells(pos: SnapshotPosition, mark: StoredPrice | null, asOf: string): string[] {
@@ -310,7 +400,7 @@ function holdingCells(pos: SnapshotPosition, mark: StoredPrice | null, asOf: str
     market,
     marketFx,
     marketFxDate,
-    priceDay,
+    priceUpdatedCell(mark),
     notes.join(" "),
   ];
 }
@@ -417,13 +507,18 @@ function columnBlock(file: string, columns: readonly string[], definitions: Reco
   return [`${file}`, ...columns.map((column) => `${file} | ${column}: ${definitions[column]}`)];
 }
 
-export function accountantReadme(range: AccountantRange, generatedAt: string): string {
+export function accountantReadme(
+  range: AccountantRange,
+  generatedAt: string,
+  truncation?: { read: number; kept: number } | null
+): string {
+  const yearHeading = range.taxYearLabel.includes(";") ? "NZ tax years" : "NZ tax year";
   const lines = [
     "AetherForge accountant export",
     ACCOUNTANT_PACK_LABEL,
     "",
-    `Generated at: ${generatedAt}`,
-    `NZ tax year: ${range.taxYearLabel}`,
+    `Generated at: ${coverTime(generatedAt)}`,
+    `${yearHeading}: ${range.taxYearLabel}`,
     "The New Zealand tax year runs from 1 Apr to 31 Mar.",
     `Holdings as at: ${range.asOf}`,
     `Transactions from: ${range.from}`,
@@ -432,7 +527,8 @@ export function accountantReadme(range: AccountantRange, generatedAt: string): s
     "Share with accountant: future work. This download is the pack itself.",
     "",
     "Data sources",
-    "- Ledger rows saved on your account (buys, sells, dividends, fees, tax and opening balances). The read is capped at 5,000 rows, the same cap as the other book exports. Rows past that cap are not in this pack.",
+    "- Ledger rows saved on your account (buys, sells, dividends, fees, tax and opening balances). The read stops after 5,001 rows. When more than 5,000 come back, this pack keeps 5,000 chosen by date, then id.",
+    ...(truncation ? [`Truncated: ${truncation.read} rows were read and ${truncation.kept} are included, chosen by date then id.`] : []),
     "- Holding prices stored on the holding record (the current price and the time it was saved). Market value uses that price only when its date is on or before the holdings date and the holding is in NZD.",
     "- Dividend imputation, RWT and foreign tax are the amounts already stored on the dividend. Nothing is calculated from a tax rate.",
     "- This pack does not include FIF or IR3 calculations.",
@@ -462,13 +558,14 @@ export function buildAccountantPack(input: {
   marks?: readonly StoredPrice[];
   range: AccountantRange;
   generatedAt: string;
+  truncation?: { read: number; kept: number } | null;
 }): AccountantPack {
   return {
     range: input.range,
     holdings: holdingsCsv(input.rows, input.marks ?? [], input.range.asOf),
     transactions: transactionsCsv(input.rows, input.range.from, input.range.to),
     dividends: dividendsCsv(input.rows, input.range.from, input.range.to),
-    readme: accountantReadme(input.range, input.generatedAt),
+    readme: accountantReadme(input.range, input.generatedAt, input.truncation),
   };
 }
 
@@ -484,6 +581,6 @@ export function buildAccountantZip(pack: AccountantPack, generatedAt: Date): Uin
       { name: "dividends.csv", data: pack.dividends },
       { name: "README.txt", data: pack.readme },
     ],
-    generatedAt
+    nzWallClock(generatedAt)
   );
 }
