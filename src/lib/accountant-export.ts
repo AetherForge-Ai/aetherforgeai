@@ -16,9 +16,10 @@ import { ACCOUNTANT_PACK_LABEL } from "@/lib/accountant-export-label";
 
 export { ACCOUNTANT_PACK_LABEL };
 
-/** Ledger rows kept in one pack. One extra row is read so a full cap can be told apart from a shorter book. */
+/** Ledger rows kept in one pack. The query sorts newest execution time first, then id, and stops here. */
 export const ACCOUNTANT_ROW_CAP = 5000;
-export const ACCOUNTANT_READ_LIMIT = ACCOUNTANT_ROW_CAP + 1;
+/** Totalum sort for the ledger read. Newest `executed_at` survives the cap; `_id` breaks ties. */
+export const ACCOUNTANT_LEDGER_SORT = { executed_at: "desc", _id: "asc" } as const;
 
 export const HOLDINGS_COLUMNS = [
   "Holding",
@@ -296,25 +297,6 @@ function rowDay(row: AccountantLedgerRow): string {
   return buyLotDay(row);
 }
 
-export interface AccountantRowSelection {
-  rows: AccountantLedgerRow[];
-  truncated: boolean;
-  kept: number;
-  read: number;
-}
-
-/** Date, then id. A row with no date sorts last so a cap keeps dated rows. */
-export function selectAccountantRows(rows: readonly AccountantLedgerRow[], cap = ACCOUNTANT_ROW_CAP): AccountantRowSelection {
-  const sorted = [...rows].sort((a, b) => {
-    const day = (rowDay(a) || "9999-99-99").localeCompare(rowDay(b) || "9999-99-99");
-    if (day) return day;
-    return String(a._id || "").localeCompare(String(b._id || ""));
-  });
-  const truncated = sorted.length > cap;
-  const keptRows = truncated ? sorted.slice(0, cap) : sorted;
-  return { rows: keptRows, truncated, kept: keptRows.length, read: sorted.length };
-}
-
 /** NZD per 1 unit, read the same way the book reads a stored rate. */
 function fxUsed(currency: string, fxRate: unknown): number | null {
   if (currency === "NZD") return 1;
@@ -507,10 +489,18 @@ function columnBlock(file: string, columns: readonly string[], definitions: Reco
   return [`${file}`, ...columns.map((column) => `${file} | ${column}: ${definitions[column]}`)];
 }
 
+export function ledgerCountLine(ledger: { total: number; kept: number }): string {
+  const base = `Ledger rows stored: ${ledger.total}. Rows in this pack: ${ledger.kept}.`;
+  if (ledger.total > ledger.kept) {
+    return `${base} Truncated: yes. The newest rows by execution time, then id, are the ones included.`;
+  }
+  return base;
+}
+
 export function accountantReadme(
   range: AccountantRange,
   generatedAt: string,
-  truncation?: { read: number; kept: number } | null
+  ledger?: { total: number; kept: number } | null
 ): string {
   const yearHeading = range.taxYearLabel.includes(";") ? "NZ tax years" : "NZ tax year";
   const lines = [
@@ -523,12 +513,12 @@ export function accountantReadme(
     `Holdings as at: ${range.asOf}`,
     `Transactions from: ${range.from}`,
     `Transactions to: ${range.to}`,
+    ...(ledger ? [ledgerCountLine(ledger)] : []),
     "",
     "Share with accountant: future work. This download is the pack itself.",
     "",
     "Data sources",
-    "- Ledger rows saved on your account (buys, sells, dividends, fees, tax and opening balances). The read stops after 5,001 rows. When more than 5,000 come back, this pack keeps 5,000 chosen by date, then id.",
-    ...(truncation ? [`Truncated: ${truncation.read} rows were read and ${truncation.kept} are included, chosen by date then id.`] : []),
+    "- Ledger rows saved on your account (buys, sells, dividends, fees, tax and opening balances). The read is newest execution time first, then id, and keeps at most 5,000 rows.",
     "- Holding prices stored on the holding record (the current price and the time it was saved). Market value uses that price only when its date is on or before the holdings date and the holding is in NZD.",
     "- Dividend imputation, RWT and foreign tax are the amounts already stored on the dividend. Nothing is calculated from a tax rate.",
     "- This pack does not include FIF or IR3 calculations.",
@@ -558,14 +548,14 @@ export function buildAccountantPack(input: {
   marks?: readonly StoredPrice[];
   range: AccountantRange;
   generatedAt: string;
-  truncation?: { read: number; kept: number } | null;
+  ledger?: { total: number; kept: number } | null;
 }): AccountantPack {
   return {
     range: input.range,
     holdings: holdingsCsv(input.rows, input.marks ?? [], input.range.asOf),
     transactions: transactionsCsv(input.rows, input.range.from, input.range.to),
     dividends: dividendsCsv(input.rows, input.range.from, input.range.to),
-    readme: accountantReadme(input.range, input.generatedAt, input.truncation),
+    readme: accountantReadme(input.range, input.generatedAt, input.ledger),
   };
 }
 

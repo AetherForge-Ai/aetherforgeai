@@ -17,7 +17,6 @@ import {
   formatNzGeneratedAt,
   resolveAccountantRange,
   rowsOwnedBy,
-  selectAccountantRows,
   type AccountantLedgerRow,
 } from "@/lib/accountant-export";
 
@@ -274,21 +273,31 @@ describe("accountant export builders", () => {
     expect(edge.range.taxYearLabel).toBe("1 Apr 2025 to 31 Mar 2026; 1 Apr 2026 to 31 Mar 2027");
   });
 
-  it("sorts by date then id and records a truncation past 5,000 rows", () => {
-    const rows: AccountantLedgerRow[] = [
-      { _id: "b", type: "fee", trade_date: "2026-02-01", executed_at: "2026-02-01" },
-      { _id: "a", type: "fee", trade_date: "2026-02-01", executed_at: "2026-02-01" },
-      { _id: "c", type: "fee", trade_date: "2026-01-01", executed_at: "2026-01-01" },
-    ];
-    const picked = selectAccountantRows(rows, 2);
-    expect(picked.truncated).toBe(true);
-    expect(picked.read).toBe(3);
-    expect(picked.kept).toBe(2);
-    expect(picked.rows.map((row) => row._id)).toEqual(["c", "a"]);
+  it("states the stored total on a short book and on a truncated one", () => {
     const resolved = resolveAccountantRange({ asOf: "2026-06-30", from: "2026-01-01", to: "2026-06-30" }, "2026-11-23");
     if (!resolved.ok) throw new Error(resolved.error);
-    const built = buildAccountantPack({ rows: picked.rows, range: resolved.range, generatedAt: GENERATED, truncation: { read: picked.read, kept: picked.kept } });
-    expect(built.readme).toContain("Truncated: 3 rows were read and 2 are included, chosen by date then id.");
+    const short = buildAccountantPack({ rows: [], range: resolved.range, generatedAt: GENERATED, ledger: { total: 4, kept: 4 } });
+    expect(short.readme).toContain("Ledger rows stored: 4. Rows in this pack: 4.");
+    expect(short.readme).not.toContain("Truncated: yes");
+    const capped = buildAccountantPack({ rows: [], range: resolved.range, generatedAt: GENERATED, ledger: { total: 8000, kept: 5000 } });
+    expect(capped.readme).toContain("Ledger rows stored: 8000. Rows in this pack: 5000. Truncated: yes. The newest rows by execution time, then id, are the ones included.");
+  });
+
+  it("uses the New Zealand daylight hour in summer and the standard hour in winter", () => {
+    const summer = new Date("2026-11-23T06:00:00.000Z");
+    const winter = new Date("2026-07-15T06:00:00.000Z");
+    expect(formatNzGeneratedAt(summer)).toBe("2026-11-23 19:00:00 New Zealand time");
+    expect(formatNzGeneratedAt(winter)).toBe("2026-07-15 18:00:00 New Zealand time");
+    const resolved = resolveAccountantRange({}, "2026-07-15");
+    if (!resolved.ok) throw new Error(resolved.error);
+    const pack = buildAccountantPack({ rows: [], range: resolved.range, generatedAt: winter.toISOString(), ledger: { total: 0, kept: 0 } });
+    expect(pack.readme).toContain("Generated at: 2026-07-15 18:00:00 New Zealand time");
+    const file = readStoredZip(buildAccountantZip(pack, winter))[0];
+    expect(file.hour).toBe(18);
+    expect(file.minute).toBe(0);
+    expect(file.year).toBe(2026);
+    expect(file.month).toBe(7);
+    expect(file.day).toBe(15);
   });
 
   it("writes a stored zip whose CSV payloads start with a UTF-8 BOM and whose clock is New Zealand time", () => {

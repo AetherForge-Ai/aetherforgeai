@@ -8,7 +8,6 @@ import {
   buildAccountantZip,
   resolveAccountantRange,
   rowsOwnedBy,
-  selectAccountantRows,
   type StoredPrice,
 } from "@/lib/accountant-export";
 import { loadAccountantLedger } from "@/lib/accountant-export.server";
@@ -59,7 +58,9 @@ export async function GET(req: Request) {
     );
     if (resolved.ok === false) return friendlyDateError(resolved.error);
     const [ledger, marks] = await Promise.all([loadAccountantLedger(user._id), loadHoldingMarks(user._id)]);
-    const selected = selectAccountantRows(rowsOwnedBy(ledger, user._id));
+    const rows = rowsOwnedBy(ledger.rows, user._id);
+    const kept = rows.length;
+    const total = ledger.total;
     const prices: StoredPrice[] = marks.map((mark) => ({
       ticker: mark.ticker,
       price: mark.currentPrice,
@@ -68,11 +69,11 @@ export async function GET(req: Request) {
     }));
     const generatedAt = new Date();
     const pack = buildAccountantPack({
-      rows: selected.rows,
+      rows,
       marks: prices,
       range: resolved.range,
       generatedAt: generatedAt.toISOString(),
-      truncation: selected.truncated ? { read: selected.read, kept: selected.kept } : null,
+      ledger: { total, kept },
     });
     const zip = buildAccountantZip(pack, generatedAt);
     return new NextResponse(zip as unknown as BodyInit, {
@@ -81,7 +82,7 @@ export async function GET(req: Request) {
         "Content-Type": "application/zip",
         "Content-Disposition": `attachment; filename="${accountantPackFilename(resolved.range.endingYear)}"`,
         ...PRIVATE_CACHE,
-        "X-Export-Truncated": selected.truncated ? "1" : "0",
+        "X-Export-Truncated": `${total > kept ? "1" : "0"}; total=${total}; kept=${kept}`,
       },
     });
   } catch (err) {
