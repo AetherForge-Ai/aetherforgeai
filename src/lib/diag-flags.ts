@@ -1,3 +1,4 @@
+import { nzTaxPreviewEnabled } from "@/lib/feature-flags";
 import { goalTestHooksOn } from "@/lib/goal-test-hooks";
 
 /**
@@ -33,7 +34,7 @@ export function flagEnabled(name: DiagFlagName, raw: string | undefined): boolea
   if (name === "PORTFOLIO_SHARING") return value.toLowerCase() === "on";
   // No call site reads this flag yet. Accept the two switches used by the others.
   if (name === "NEW_PRICE_STRUCTURE") return value === "1" || value.toLowerCase() === "on";
-  // NZ_TAX_PREVIEW uses the same "1" switch as nzTaxPreviewEnabled.
+  // NZ_TAX_PREVIEW is decided by nzTaxPreviewEnabled (trim, K-05 gate, sign-off), not this helper.
   return value === "1";
 }
 
@@ -50,7 +51,7 @@ export function edgeFlagState(): Record<DiagFlagName, boolean> {
       process.env.NEW_PRICE_STRUCTURE === "1" ||
       (process.env.NEW_PRICE_STRUCTURE || "").trim().toLowerCase() === "on",
     AI_SHOW_WORKING: process.env.AI_SHOW_WORKING === "1",
-    NZ_TAX_PREVIEW: process.env.NZ_TAX_PREVIEW === "1",
+    NZ_TAX_PREVIEW: nzTaxPreviewEnabled(),
   };
 }
 
@@ -60,7 +61,7 @@ export function runtimeFlagState(
 ): Record<DiagFlagName, boolean> {
   const flags = {} as Record<DiagFlagName, boolean>;
   for (const name of DIAG_FLAG_NAMES) {
-    flags[name] = name === "GOAL_TEST_HOOKS" ? goalTestHooksOn(env) : flagEnabled(name, env[name]);
+    flags[name] = name === "GOAL_TEST_HOOKS" ? goalTestHooksOn(env) : name === "NZ_TAX_PREVIEW" ? nzTaxPreviewEnabled(env) : flagEnabled(name, env[name]);
   }
   return flags;
 }

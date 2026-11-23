@@ -35,6 +35,7 @@ function stubFlags(extra: Record<string, string> = {}) {
   vi.stubEnv("NEW_PRICE_STRUCTURE", "");
   vi.stubEnv("AI_SHOW_WORKING", "");
   vi.stubEnv("NZ_TAX_PREVIEW", "");
+  vi.stubEnv("TAX_SALE_PREVIEW", "");
   vi.stubEnv("GOAL_TEST_HOOK_USER_IDS", SECRET_IDS);
   for (const [key, value] of Object.entries(extra)) vi.stubEnv(key, value);
 }

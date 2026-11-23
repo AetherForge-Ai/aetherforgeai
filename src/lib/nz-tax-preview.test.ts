@@ -13,6 +13,7 @@ import {
   NOT_ESTIMATED,
   previewNzTaxSale,
   previewSaleDate,
+  resolvePreviewDate,
 } from "@/lib/nz-tax-preview";
 import { taxableIncome, type TaxLedgerRow } from "@/lib/taxable-income";
 
@@ -33,6 +34,7 @@ const gate = vi.hoisted(() => ({
   yields: [] as { ticker: string; shares: number; purchasePrice: number | null; currentPrice: number | null }[],
   stocks: [] as { id: string; ticker: string; notes: string; shares: number; assetType: string }[],
   threshold: 50_000,
+  reads: 0,
 }));
 
 vi.mock("server-only", () => ({}));
@@ -52,12 +54,24 @@ vi.mock("@/lib/session", () => ({
   getStableSessionUser: async () => gate.user,
 }));
 vi.mock("@/lib/tax-book-server", () => ({
-  loadTaxRows: async () => gate.rows,
-  loadYieldHoldings: async () => gate.yields,
-  loadStockNoteRows: async () => gate.stocks,
+  loadTaxRows: async () => {
+    gate.reads += 1;
+    return gate.rows;
+  },
+  loadYieldHoldings: async () => {
+    gate.reads += 1;
+    return gate.yields;
+  },
+  loadStockNoteRows: async () => {
+    gate.reads += 1;
+    return gate.stocks;
+  },
 }));
 vi.mock("@/lib/fif-setting.server", () => ({
-  readFifThreshold: async () => gate.threshold,
+  readFifThreshold: async () => {
+    gate.reads += 1;
+    return gate.threshold;
+  },
 }));
 
 import { GET } from "@/app/api/tax/nz-preview/route";
@@ -101,7 +115,13 @@ afterEach(() => {
   gate.yields = [];
   gate.stocks = [];
   gate.threshold = 50_000;
+  gate.reads = 0;
 });
+
+function enablePreview(flag = "1") {
+  vi.stubEnv("NZ_TAX_PREVIEW", flag);
+  vi.stubEnv("TAX_SALE_PREVIEW", "1");
+}
 
 describe("NZ tax preview math uses the FIF paper", () => {
   it("crosses under NZ$50,000 of year-end cost while the year's peak test stays over", () => {
@@ -140,8 +160,16 @@ describe("NZ tax preview math uses the FIF paper", () => {
     expect(preview.ir3IncomeBeforeNzd).toBeNull();
     const text = preview.lines.join("\n");
     expect(text).toContain("drop under");
+    expect(text).toContain("only affects next year");
     expect(text).toContain("does not change the highest cost");
-    expect(text).toContain(NOT_ESTIMATED);
+    expect(preview.lines).toContain(`The FDR opening value is ${NOT_ESTIMATED}.`);
+    expect(preview.lines).toContain(`Fair dividend rate income is ${NOT_ESTIMATED}.`);
+    expect(preview.lines).toContain(`Comparative value is ${NOT_ESTIMATED}.`);
+    expect(preview.lines).toContain(`Total overseas income is ${NOT_ESTIMATED}.`);
+    expect(preview.lines).toContain(`Total overseas tax paid is ${NOT_ESTIMATED}.`);
+    for (const line of preview.lines.filter((row) => row.includes(NOT_ESTIMATED))) {
+      expect(line.endsWith(`${NOT_ESTIMATED}.`)).toBe(true);
+    }
     expect(text).not.toMatch(/\b(proven|accurate|IRD-ready)\b/i);
     expect(crossing).toHaveLength(2);
   });
@@ -159,6 +187,7 @@ describe("NZ tax preview math uses the FIF paper", () => {
     expect(preview.dropsUnderDeMinimis).toBe(false);
     expect(preview.lines.join("\n")).not.toContain("would drop under");
     expect(preview.lines.join("\n")).toContain("not under");
+    expect(preview.lines.join("\n")).toContain("only affects next year");
   });
 
   it("cost left exactly at NZ$50,000 is not under the de minimis", () => {
@@ -173,8 +202,9 @@ describe("NZ tax preview math uses the FIF paper", () => {
     if (!preview.ok) return;
     expect(preview.yearEndCostBeforeNzd).toBe(60_000);
     expect(preview.yearEndCostAfterNzd).toBe(50_000);
-    expect(preview.dropsUnderDeMinimis).toBe(false);
-    expect(preview.lines.join("\n")).toContain("not under");
+    expect(preview.dropsUnderDeMinimis).toBe(true);
+    expect(preview.lines.join("\n")).toContain("counts as exempt");
+    expect(preview.lines.join("\n")).toContain("only affects next year");
   });
 
   it("FDR, CV and IR3 match the existing helper when opening and closing values are stored", () => {
@@ -222,7 +252,9 @@ describe("NZ tax preview math uses the FIF paper", () => {
     expect(buildFifPaper({ rows: missingRate, markets: [], endingYear: 2027, thresholdNzd: 50_000 }).threshold).toBe("unknown");
     expect(missing.dropsUnderDeMinimis).toBeNull();
     expect(missing.peakThresholdAfter).toBe("unknown");
-    expect(missing.lines.join("\n")).toContain(NOT_ESTIMATED);
+    expect(missing.lines).toContain(`Whether total offshore cost would drop under the de minimis for next year is ${NOT_ESTIMATED}.`);
+    expect(missing.lines).toContain(`The FDR opening value is ${NOT_ESTIMATED}.`);
+    expect(missing.lines).toContain(`Comparative value is ${NOT_ESTIMATED}.`);
 
     const nz = previewNzTaxSale({
       rows: [buy({ ticker: "FBU.NZ", executed_at: "2025-06-01", quantity: 10, price: 5, currency: "NZD", fx_rate: 1 })],
@@ -246,18 +278,69 @@ describe("NZ tax preview math uses the FIF paper", () => {
     expect(previewSaleDate("2026-11-23", 2026)).toBe("2026-03-31");
     expect(previewSaleDate("2026-11-23", 2027)).toBe("2026-11-23");
   });
+  it("rejects a future sale date and a date before the first ledger year", () => {
+    const future = previewNzTaxSale({
+      rows: crossing,
+      markets: [],
+      sale: { ticker: "MSFT", quantity: 1, price: 10, date: "2026-12-01" },
+      today: "2026-11-23",
+      thresholdNzd: 50_000,
+    });
+    expect(future.ok).toBe(false);
+    if (future.ok) return;
+    expect(future.error).toMatch(/future/);
+    const early = previewNzTaxSale({
+      rows: crossing,
+      markets: [],
+      sale: { ticker: "MSFT", quantity: 1, price: 10, date: "2024-06-01" },
+      today: "2026-11-23",
+      thresholdNzd: 50_000,
+    });
+    expect(early.ok).toBe(false);
+    if (early.ok) return;
+    expect(early.error).toMatch(/first year/);
+    const sameYear = previewNzTaxSale({
+      rows: crossing,
+      markets: [],
+      sale: { ticker: "MSFT", quantity: 1, price: 10, date: "2025-04-02" },
+      today: "2026-11-23",
+      thresholdNzd: 50_000,
+    });
+    expect(sameYear.ok).toBe(true);
+  });
+  it("?year that disagrees with the sale date is refused, and the date's year is the only year", () => {
+    const clash = resolvePreviewDate({ date: "2026-06-01", year: "2026", today: "2026-11-23" });
+    expect(clash.ok).toBe(false);
+    if (clash.ok) return;
+    expect(clash.error).toContain("2027");
+    expect(clash.error).toContain("2026");
+    const agreed = resolvePreviewDate({ date: "2026-06-01", year: "2027", today: "2026-11-23" });
+    expect(agreed).toEqual({ ok: true, date: "2026-06-01", endingYear: 2027 });
+  });
 });
 
 describe("NZ_TAX_PREVIEW flag", () => {
   it("defaults off and is reported on the health flag list", () => {
     expect(nzTaxPreviewEnabled({})).toBe(false);
-    expect(nzTaxPreviewEnabled({ NZ_TAX_PREVIEW: "true" })).toBe(false);
-    expect(nzTaxPreviewEnabled({ NZ_TAX_PREVIEW: "1" })).toBe(true);
+    expect(nzTaxPreviewEnabled({ NZ_TAX_PREVIEW: "true", TAX_SALE_PREVIEW: "1" })).toBe(false);
+    expect(nzTaxPreviewEnabled({ NZ_TAX_PREVIEW: "1" })).toBe(false);
+    expect(nzTaxPreviewEnabled({ NZ_TAX_PREVIEW: "1", TAX_SALE_PREVIEW: "1", NODE_ENV: "test" })).toBe(true);
+    expect(nzTaxPreviewEnabled({ NZ_TAX_PREVIEW: "1", TAX_SALE_PREVIEW: "1", NODE_ENV: "production" })).toBe(false);
     expect(runtimeFlagState({}).NZ_TAX_PREVIEW).toBe(false);
-    expect(runtimeFlagState({ NZ_TAX_PREVIEW: "1" }).NZ_TAX_PREVIEW).toBe(true);
+    expect(runtimeFlagState({ NZ_TAX_PREVIEW: "1" }).NZ_TAX_PREVIEW).toBe(false);
     expect(healthFlags(null, {}).NZ_TAX_PREVIEW).toEqual({ runtime: false, edge: null });
-    expect(healthFlags("NZ_TAX_PREVIEW=1", { NZ_TAX_PREVIEW: "1" }).NZ_TAX_PREVIEW).toEqual({ runtime: true, edge: true });
+    expect(healthFlags("NZ_TAX_PREVIEW=1", { NZ_TAX_PREVIEW: "1" }).NZ_TAX_PREVIEW).toEqual({ runtime: false, edge: true });
     expect(healthFlags("NZ_TAX_PREVIEW=yes", {}).NZ_TAX_PREVIEW.edge).toBe(false);
+    expect(read("src/lib/feature-flags.ts")).toContain("NZ_TAX_K05_K06_SIGNED_OFF = false");
+  });
+  it("trims \" 1\" the same way in the feature and in health", () => {
+    const padded = { NZ_TAX_PREVIEW: " 1", TAX_SALE_PREVIEW: "1", NODE_ENV: "test" };
+    expect(nzTaxPreviewEnabled(padded)).toBe(true);
+    expect(runtimeFlagState(padded).NZ_TAX_PREVIEW).toBe(nzTaxPreviewEnabled(padded));
+    const production = { NZ_TAX_PREVIEW: " 1", TAX_SALE_PREVIEW: "1", NODE_ENV: "production" };
+    expect(nzTaxPreviewEnabled(production)).toBe(false);
+    expect(runtimeFlagState(production).NZ_TAX_PREVIEW).toBe(false);
+    expect(nzTaxPreviewEnabled({ NZ_TAX_PREVIEW: " 1", TAX_SALE_PREVIEW: " 1", NODE_ENV: "test" })).toBe(false);
   });
 
   it("is not set in deploy config", () => {
@@ -284,11 +367,15 @@ describe("NZ_TAX_PREVIEW flag", () => {
 describe("NZ tax preview route", () => {
   it("flag off is a 404 with no preview, and does not read the book", async () => {
     vi.stubEnv("NZ_TAX_PREVIEW", "");
+    vi.stubEnv("TAX_SALE_PREVIEW", "1");
     gate.user = { _id: "u1", name: "Ada", email: "ada@example.com", image: null, subscription_status: null, subscription_plan: null };
+    gate.rows = crossing;
     await expect(Page({ searchParams: Promise.resolve({ ticker: "MSFT" }) })).rejects.toThrow("NEXT_NOT_FOUND");
     expect(gate.calls).toBe(0);
+    expect(gate.reads).toBe(0);
     const res = await GET(new NextRequest("https://aetherforgeai.co.nz/api/tax/nz-preview?ticker=MSFT&qty=1&price=10"));
     expect(res.status).toBe(404);
+    expect(gate.reads).toBe(0);
     const body = await res.text();
     expect(body).not.toContain(NZ_TAX_PREVIEW_DISCLAIMER);
     expect(body).not.toContain("What if I sell");
@@ -297,7 +384,7 @@ describe("NZ tax preview route", () => {
   });
 
   it("flag on renders the preview and the disclaimer", async () => {
-    vi.stubEnv("NZ_TAX_PREVIEW", "1");
+    enablePreview();
     gate.user = { _id: "u1", name: "Ada", email: "ada@example.com", image: null, subscription_status: null, subscription_plan: null };
     gate.rows = crossing;
     gate.yields = [
@@ -327,9 +414,46 @@ describe("NZ tax preview route", () => {
   });
 
   it("flag on and signed out is a 404", async () => {
-    vi.stubEnv("NZ_TAX_PREVIEW", "1");
+    enablePreview();
     await expect(Page({ searchParams: Promise.resolve({}) })).rejects.toThrow("NEXT_NOT_FOUND");
     const res = await GET(new NextRequest("https://aetherforgeai.co.nz/api/tax/nz-preview"));
     expect(res.status).toBe(404);
+    expect(gate.reads).toBe(0);
+  });
+
+  it("returns 409 on an account mismatch and does not read the ledger", async () => {
+    enablePreview();
+    gate.user = { _id: "u1", name: "Ada", email: "ada@example.com", image: null, subscription_status: null, subscription_plan: null, identityConflict: true };
+    gate.rows = crossing;
+    const conflict = await GET(new NextRequest("https://aetherforgeai.co.nz/api/tax/nz-preview?ticker=MSFT&qty=1&price=10&date=2026-06-01"));
+    expect(conflict.status).toBe(409);
+    expect(gate.reads).toBe(0);
+    gate.user = { _id: "u1", name: "Ada", email: "ada@example.com", image: null, subscription_status: null, subscription_plan: null };
+    const claimed = await GET(
+      new NextRequest("https://aetherforgeai.co.nz/api/tax/nz-preview?ticker=MSFT&qty=1&price=10&date=2026-06-01", {
+        headers: { "x-af-user-id": "someone-else" },
+      }),
+    );
+    expect(claimed.status).toBe(409);
+    expect(gate.reads).toBe(0);
+  });
+
+  it("?year=2026&date=2026-06-01 is 400 and does not read the ledger", async () => {
+    enablePreview();
+    gate.user = { _id: "u1", name: "Ada", email: "ada@example.com", image: null, subscription_status: null, subscription_plan: null };
+    gate.rows = crossing;
+    gate.stocks = [{ id: "s1", ticker: "AAPL", notes: "[FIFMV:2027:o=20000;c=21000]", shares: 200, assetType: "stock" }];
+    const clash = await GET(new NextRequest("https://aetherforgeai.co.nz/api/tax/nz-preview?year=2026&date=2026-06-01&ticker=AAPL&qty=1&price=12"));
+    expect(clash.status).toBe(400);
+    const clashBody = (await clash.json()) as { error: string };
+    expect(clashBody.error).toContain("tax year ending 2027");
+    expect(clashBody.error).toContain("not 2026");
+    expect(gate.reads).toBe(0);
+
+    const ok = await GET(new NextRequest("https://aetherforgeai.co.nz/api/tax/nz-preview?date=2026-06-01&ticker=AAPL&qty=1&price=12"));
+    expect(ok.status).toBe(200);
+    const body = (await ok.json()) as { data: { endingYear: number; openingBeforeNzd: number | null } };
+    expect(body.data.endingYear).toBe(2027);
+    expect(body.data.openingBeforeNzd).toBe(20000);
   });
 });

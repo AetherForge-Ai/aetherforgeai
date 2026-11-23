@@ -8,10 +8,9 @@ import {
   defaultSalePrice,
   defaultSaleQuantity,
   previewNzTaxSale,
-  previewSaleDate,
+  resolvePreviewDate,
   type NzTaxPreview,
 } from "@/lib/nz-tax-preview";
-import { aucklandCivilToday, isNzTaxYearEnding, nzTaxYearEnding } from "@/lib/nz-tax-year";
 import { getCurrentUser } from "@/lib/session";
 import { loadStockNoteRows, loadTaxRows, loadYieldHoldings } from "@/lib/tax-book-server";
 import { previewableHoldings } from "@/lib/tax-sale-preview";
@@ -32,11 +31,8 @@ export default async function WhatIfSellPage({ searchParams }: { searchParams: P
   const user = await getCurrentUser();
   if (!user) notFound();
   const q = await searchParams;
-  const yearText = one(q.year);
-  const yearNumber = Number(yearText);
-  const endingYear = isNzTaxYearEnding(yearNumber) ? yearNumber : null;
-  const requestedDate = one(q.date);
-  const date = /^\d{4}-\d{2}-\d{2}$/.test(requestedDate) ? requestedDate : previewSaleDate(aucklandCivilToday(), endingYear);
+  const resolved = resolvePreviewDate({ date: one(q.date) || null, year: one(q.year) || null });
+  const date = resolved.ok ? resolved.date : one(q.date);
 
   let holdings: NzPreviewHolding[] = [];
   let readError = false;
@@ -59,12 +55,13 @@ export default async function WhatIfSellPage({ searchParams }: { searchParams: P
     const selected = holdings.find((holding) => holding.ticker === ticker) ?? null;
     const quantity = defaultSaleQuantity(selected?.quantity ?? null, one(q.qty) || null);
     const price = defaultSalePrice(selected?.currentPrice ?? null, one(q.price) || null);
-    const paperYear = nzTaxYearEnding(date);
-    if (ticker && quantity != null && price != null && paperYear != null) {
+    if (resolved.ok === false) {
+      result = { ok: false, error: resolved.error };
+    } else if (ticker && quantity != null && price != null) {
       result = previewNzTaxSale({
         rows,
-        markets: marketsFromNotes(stocks, paperYear),
-        sale: { ticker, quantity, price, date },
+        markets: marketsFromNotes(stocks, resolved.endingYear),
+        sale: { ticker, quantity, price, date: resolved.date },
         thresholdNzd,
       });
     }
@@ -99,7 +96,7 @@ export default async function WhatIfSellPage({ searchParams }: { searchParams: P
         ticker={ticker}
         quantity={quantity}
         price={price}
-        year={endingYear ? String(endingYear) : ""}
+        year={resolved.ok ? String(resolved.endingYear) : ""}
         date={date}
         priceNote={priceNote}
         readError={readError}

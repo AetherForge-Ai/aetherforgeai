@@ -17,7 +17,7 @@ import {
   type FifThreshold,
 } from "@/lib/fif-working-paper";
 import { buildIr3Helper, type Ir3Helper } from "@/lib/ir3/ir3-helper";
-import { aucklandCivilToday, nzTaxYearEnding, nzTaxYearLabel } from "@/lib/nz-tax-year";
+import { aucklandCivilToday, isNzTaxYearEnding, nzTaxYearEnding, nzTaxYearLabel } from "@/lib/nz-tax-year";
 import { fifoRemainingShareQty } from "@/lib/tax-realised";
 import { taxableIncome, type TaxLedgerRow } from "@/lib/taxable-income";
 
@@ -48,7 +48,10 @@ export interface NzTaxPreviewOk {
   /** Cost of attributing interests still open at 31 March, from fifTotals. */
   yearEndCostBeforeNzd: number | null;
   yearEndCostAfterNzd: number | null;
-  /** True only when that year-end cost was at or over the threshold and the sale leaves it under. */
+  /**
+   * True when this year's closing cost was over the threshold and the sale leaves it at or under.
+   * Exactly the threshold counts as under (exempt). That remaining cost is next year's test.
+   */
   dropsUnderDeMinimis: boolean | null;
   peakCostBeforeNzd: number | null;
   peakCostAfterNzd: number | null;
@@ -75,6 +78,50 @@ export function previewSaleDate(today: string, endingYear?: number | null): stri
   if (endingYear == null || nzTaxYearEnding(today) === endingYear) return today;
   if (!Number.isInteger(endingYear)) return today;
   return `${endingYear}-03-31`;
+}
+
+function isRealCivilDay(day: string): boolean {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day);
+  if (!match) return false;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const date = Number(match[3]);
+  const utc = new Date(Date.UTC(year, month - 1, date));
+  return utc.getUTCFullYear() === year && utc.getUTCMonth() === month - 1 && utc.getUTCDate() === date;
+}
+
+/** One tax year, taken from the sale date. A ?year that names a different year is refused. */
+export function resolvePreviewDate(input: {
+  date?: string | null;
+  year?: string | number | null;
+  today?: string;
+}): { ok: true; date: string; endingYear: number } | { ok: false; error: string } {
+  const today = input.today ?? aucklandCivilToday();
+  const dateRaw = String(input.date || "").trim();
+  const yearRaw = input.year == null || input.year === "" ? null : Number(input.year);
+  let requestedYear: number | null = null;
+  if (yearRaw != null) {
+    if (!isNzTaxYearEnding(yearRaw)) return { ok: false, error: "Enter a valid tax year." };
+    requestedYear = yearRaw;
+  }
+  const date = isRealCivilDay(dateRaw) ? dateRaw : previewSaleDate(today, requestedYear);
+  if (!isRealCivilDay(date)) return { ok: false, error: "Enter a valid sale date." };
+  const endingYear = nzTaxYearEnding(date);
+  if (endingYear == null || !isNzTaxYearEnding(endingYear)) return { ok: false, error: "Enter a valid sale date." };
+  if (requestedYear != null && requestedYear !== endingYear) {
+    return { ok: false, error: `The sale date ${date} is in the tax year ending ${endingYear}, not ${requestedYear}.` };
+  }
+  return { ok: true, date, endingYear };
+}
+
+function firstLedgerEndingYear(rows: readonly TaxLedgerRow[]): number | null {
+  let earliest: number | null = null;
+  for (const row of rows) {
+    const ending = nzTaxYearEnding(row.executed_at || row.trade_date || row.createdAt);
+    if (ending == null) continue;
+    if (earliest == null || ending < earliest) earliest = ending;
+  }
+  return earliest;
 }
 
 /** Blank request uses the stored current price. A non-positive entry is refused. */
@@ -133,17 +180,20 @@ function compared(label: string, before: number | null, after: number | null): s
 }
 
 function yearEndSentence(before: number | null, after: number | null, threshold: number, drops: boolean | null): string {
+  const nextYear = "That figure is the cost still open at 31 March, so it only affects next year's de minimis.";
   if (before == null || after == null || drops == null) {
-    return `Whether total offshore cost would drop under the de minimis is ${NOT_ESTIMATED}.`;
+    return `Whether total offshore cost would drop under the de minimis for next year is ${NOT_ESTIMATED}.`;
   }
   const limit = fifThresholdText(threshold);
   if (drops) {
-    return `Total attributing cost still open at 31 March would drop under ${limit}: from ${formatNzd(before)} to ${formatNzd(after)}.`;
+    const exempt = after === threshold ? " A cost exactly at the threshold counts as exempt." : "";
+    return `Total attributing cost still open at 31 March would drop under ${limit}: from ${formatNzd(before)} to ${formatNzd(after)}.${exempt} ${nextYear}`;
   }
-  if (after < threshold) {
-    return `Total attributing cost still open at 31 March would be ${formatNzd(after)}, under ${limit}. Before the sale it was ${formatNzd(before)}.`;
+  if (after <= threshold) {
+    const exempt = after === threshold ? " A cost exactly at the threshold counts as exempt." : "";
+    return `Total attributing cost still open at 31 March would be ${formatNzd(after)}, under ${limit}.${exempt} Before the sale it was ${formatNzd(before)}. ${nextYear}`;
   }
-  return `Total attributing cost still open at 31 March would be ${formatNzd(after)}, which is not under ${limit}. Before the sale it was ${formatNzd(before)}.`;
+  return `Total attributing cost still open at 31 March would be ${formatNzd(after)}, which is not under ${limit}. Before the sale it was ${formatNzd(before)}. ${nextYear}`;
 }
 
 export function previewNzTaxSale(input: {
@@ -165,10 +215,16 @@ export function previewNzTaxSale(input: {
 
   const meta = holdingMeta(input.rows, ticker);
   const today = input.today ?? aucklandCivilToday();
-  const requested = String(input.sale.date || "");
-  const date = /^\d{4}-\d{2}-\d{2}$/.test(requested) ? requested : today;
+  const requested = String(input.sale.date || "").trim();
+  const date = isRealCivilDay(requested) ? requested : today;
+  if (!isRealCivilDay(date)) return { ok: false, error: "Enter a valid sale date." };
+  if (date > today) return { ok: false, error: "The sale date cannot be in the future." };
   const endingYear = nzTaxYearEnding(date);
-  if (endingYear == null) return { ok: false, error: "Enter a valid sale date." };
+  if (endingYear == null || !isNzTaxYearEnding(endingYear)) return { ok: false, error: "Enter a valid sale date." };
+  const firstYear = firstLedgerEndingYear(input.rows);
+  if (firstYear != null && endingYear < firstYear) {
+    return { ok: false, error: "The sale date is before the first year on this ledger." };
+  }
 
   const fx = meta.currency === "NZD" ? 1 : meta.fx;
   const sell = {
@@ -194,7 +250,7 @@ export function previewNzTaxSale(input: {
   const yearEndBefore = yearEndAttributingCost(before);
   const yearEndAfter = yearEndAttributingCost(after);
   const dropsUnderDeMinimis =
-    yearEndBefore == null || yearEndAfter == null ? null : yearEndBefore >= threshold && yearEndAfter < threshold;
+    yearEndBefore == null || yearEndAfter == null ? null : yearEndBefore > threshold && yearEndAfter <= threshold;
   const openingBefore = fifClass(ticker, meta.assetType) === "attributable" ? openingOf(before, ticker) : null;
   const openingAfter = fifClass(ticker, meta.assetType) === "attributable" ? openingOf(after, ticker) : null;
   const fdrBefore = fifTotals(before.attributing).fdrNzd;

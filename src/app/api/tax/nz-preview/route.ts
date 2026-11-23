@@ -9,9 +9,8 @@ import {
   defaultSalePrice,
   defaultSaleQuantity,
   previewNzTaxSale,
-  previewSaleDate,
+  resolvePreviewDate,
 } from "@/lib/nz-tax-preview";
-import { aucklandCivilToday, isNzTaxYearEnding, nzTaxYearEnding } from "@/lib/nz-tax-year";
 import { getStableSessionUser } from "@/lib/session";
 import { loadStockNoteRows, loadTaxRows, loadYieldHoldings } from "@/lib/tax-book-server";
 import { previewableHoldings } from "@/lib/tax-sale-preview";
@@ -31,14 +30,11 @@ export async function GET(req: Request) {
     if (user.identityConflict || requestClaimsOtherUser(req, user._id)) return accountMismatchResponse(user._id);
 
     const url = new URL(req.url);
-    const yearNumber = Number(url.searchParams.get("year"));
-    const endingYear = isNzTaxYearEnding(yearNumber) ? yearNumber : null;
-    const requestedDate = url.searchParams.get("date") || "";
-    const date = /^\d{4}-\d{2}-\d{2}$/.test(requestedDate) ? requestedDate : previewSaleDate(aucklandCivilToday(), endingYear);
-    const saleYear = endingYear ?? nzTaxYearEnding(date);
-    if (saleYear == null) {
-      return privateJson({ ok: false, disclaimer: NZ_TAX_PREVIEW_DISCLAIMER, error: "Enter a valid sale date." }, 400);
+    const resolved = resolvePreviewDate({ date: url.searchParams.get("date"), year: url.searchParams.get("year") });
+    if (resolved.ok === false) {
+      return privateJson({ ok: false, disclaimer: NZ_TAX_PREVIEW_DISCLAIMER, error: resolved.error }, 400);
     }
+    const { date, endingYear } = resolved;
 
     const [rows, stocks, yields, thresholdNzd] = await Promise.all([
       loadTaxRows(user._id),
@@ -60,7 +56,7 @@ export async function GET(req: Request) {
     }
     const preview = previewNzTaxSale({
       rows,
-      markets: marketsFromNotes(stocks, saleYear),
+      markets: marketsFromNotes(stocks, endingYear),
       sale: { ticker, quantity, price, date },
       thresholdNzd,
     });
