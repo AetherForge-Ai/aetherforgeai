@@ -30,7 +30,7 @@ describe("GET /api/tax/accountant/export", () => {
         { _id: "own", user: "user-a", type: "buy", ticker: "FPH.NZ", asset_name: "Fisher", quantity: 2, price: 5, currency: "NZD", fx_rate: 1, trade_date: "2026-01-10", executed_at: "2026-01-10", cash_nzd: -10 },
         { _id: "other", user: "user-b", type: "buy", ticker: "ZZZZ.NZ", quantity: 99, price: 9, currency: "NZD", fx_rate: 1, trade_date: "2026-01-10", executed_at: "2026-01-10", cash_nzd: -891 },
       ],
-      total: 1,
+      truncated: false,
     });
     loadHoldingMarks.mockResolvedValue([{ ticker: "FPH.NZ", shares: 2, currentPrice: 6, currency: "NZD", updatedAt: "2026-03-31" }]);
   });
@@ -59,7 +59,7 @@ describe("GET /api/tax/accountant/export", () => {
     expect(res.headers.get("content-type")).toContain("application/zip");
     expect(res.headers.get("content-disposition")).toContain('filename="accountant-pack-2026.zip"');
     expect(res.headers.get("cache-control")).toBe("private, no-store");
-    expect(res.headers.get("x-export-truncated")).toBe("0; total=1; kept=1");
+    expect(res.headers.get("x-export-truncated")).toBe("0");
     expect(loadAccountantLedger).toHaveBeenCalledTimes(1);
     expect(loadAccountantLedger).toHaveBeenCalledWith("user-a");
     expect(loadHoldingMarks).toHaveBeenCalledWith("user-a");
@@ -70,7 +70,8 @@ describe("GET /api/tax/accountant/export", () => {
     expect(text).toContain("README.txt");
     expect(text).toContain(ACCOUNTANT_PACK_LABEL);
     expect(text).toContain("1 Apr 2025 to 31 Mar 2026");
-    expect(text).toContain("Ledger rows stored: 1. Rows in this pack: 1.");
+    expect(text).toContain("Ledger rows read: 2.");
+    expect(text).toContain("transactions.csv rows: 1.");
     expect(text).toContain("FPH.NZ");
     expect(text).toContain("10.00");
     expect(text).toContain("12.00");
@@ -118,31 +119,37 @@ describe("GET /api/tax/accountant/export", () => {
     expect(loadAccountantLedger).not.toHaveBeenCalled();
   });
 
-  it("states the real stored total when the pack keeps fewer rows than the account", async () => {
+  it("blanks holdings when the ledger read hit the ceiling", async () => {
     loadAccountantLedger.mockResolvedValue({
       rows: [
-        { _id: "new", user: "user-a", type: "fee", trade_date: "2026-03-01", executed_at: "2026-03-01", cash_nzd: -1 },
-        { _id: "older", user: "user-a", type: "fee", trade_date: "2026-01-01", executed_at: "2026-01-01", cash_nzd: -1 },
+        { _id: "fee", user: "user-a", type: "fee", trade_date: "2026-01-15", executed_at: "2026-01-15", cash_nzd: -1 },
+        { _id: "buy", user: "user-a", type: "buy", ticker: "FPH.NZ", quantity: 4, price: 5, currency: "NZD", fx_rate: 1, trade_date: "2026-02-01", executed_at: "2026-02-01" },
       ],
-      total: 8123,
+      truncated: true,
     });
-    loadHoldingMarks.mockResolvedValue([]);
+    loadHoldingMarks.mockResolvedValue([{ ticker: "FPH.NZ", shares: 4, currentPrice: 6, currency: "NZD", updatedAt: "2026-03-31" }]);
     const res = await call();
     expect(res.status).toBe(200);
-    expect(res.headers.get("x-export-truncated")).toBe("1; total=8123; kept=2");
+    expect(res.headers.get("x-export-truncated")).toBe("1");
     const text = new TextDecoder().decode(await res.arrayBuffer());
-    expect(text).toContain("Ledger rows stored: 8123. Rows in this pack: 2. Truncated: yes. The newest rows by execution time, then id, are the ones included.");
+    expect(text).toContain("This book is too large to rebuild holdings.");
+    expect(text).toContain("The files are incomplete.");
+    expect(text).toContain("holdings.csv rows: 0.");
+    expect(text).toContain("transactions.csv rows: 2.");
+    expect(text).toContain("fee");
   });
 
   it("returns a header-only pack when the book is empty", async () => {
-    loadAccountantLedger.mockResolvedValue({ rows: [], total: 0 });
+    loadAccountantLedger.mockResolvedValue({ rows: [], truncated: false });
     loadHoldingMarks.mockResolvedValue([]);
     const res = await call();
     expect(res.status).toBe(200);
     const text = new TextDecoder().decode(await res.arrayBuffer());
     expect(text).toContain("Cost basis NZD");
     expect(text).toContain(ACCOUNTANT_PACK_LABEL);
-    expect(text).toContain("Ledger rows stored: 0. Rows in this pack: 0.");
+    expect(text).toContain("Ledger rows read: 0.");
+    expect(text).toContain("holdings.csv rows: 0.");
+    expect(res.headers.get("x-export-truncated")).toBe("0");
     expect(text).toContain("only its header row");
     expect(text).not.toContain("FPH.NZ");
   });

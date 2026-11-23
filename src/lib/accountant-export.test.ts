@@ -273,14 +273,22 @@ describe("accountant export builders", () => {
     expect(edge.range.taxYearLabel).toBe("1 Apr 2025 to 31 Mar 2026; 1 Apr 2026 to 31 Mar 2027");
   });
 
-  it("states the stored total on a short book and on a truncated one", () => {
+  it("counts each file and leaves holdings blank when the book is too large", () => {
     const resolved = resolveAccountantRange({ asOf: "2026-06-30", from: "2026-01-01", to: "2026-06-30" }, "2026-11-23");
     if (!resolved.ok) throw new Error(resolved.error);
-    const short = buildAccountantPack({ rows: [], range: resolved.range, generatedAt: GENERATED, ledger: { total: 4, kept: 4 } });
-    expect(short.readme).toContain("Ledger rows stored: 4. Rows in this pack: 4.");
-    expect(short.readme).not.toContain("Truncated: yes");
-    const capped = buildAccountantPack({ rows: [], range: resolved.range, generatedAt: GENERATED, ledger: { total: 8000, kept: 5000 } });
-    expect(capped.readme).toContain("Ledger rows stored: 8000. Rows in this pack: 5000. Truncated: yes. The newest rows by execution time, then id, are the ones included.");
+    const rows: AccountantLedgerRow[] = [
+      { _id: "b", type: "buy", ticker: "FPH.NZ", quantity: 3, price: 2, currency: "NZD", fx_rate: 1, trade_date: "2026-02-01", executed_at: "2026-02-01" },
+      { _id: "d", type: "dividend", ticker: "FPH.NZ", trade_date: "2026-03-01", cash_nzd: 1.5 },
+    ];
+    const built = buildAccountantPack({ rows, range: resolved.range, generatedAt: GENERATED, rowsRead: 40, incomplete: true });
+    expect(built.readme).toContain("Ledger rows read: 40.");
+    expect(built.readme).toContain("transactions.csv rows: 2.");
+    expect(built.readme).toContain("dividends.csv rows: 1.");
+    expect(built.readme).toContain("holdings.csv rows: 0.");
+    expect(built.readme).toContain("This book is too large to rebuild holdings. Quantity, cost and market value are blank. The files are incomplete.");
+    expect(built.holdings.replace(/^\uFEFF/, "").trim().split("\n")).toHaveLength(1);
+    expect(built.transactions).toContain("b");
+    expect(built.dividends).toContain("2026-03-01");
   });
 
   it("uses the New Zealand daylight hour in summer and the standard hour in winter", () => {
@@ -290,7 +298,7 @@ describe("accountant export builders", () => {
     expect(formatNzGeneratedAt(winter)).toBe("2026-07-15 18:00:00 New Zealand time");
     const resolved = resolveAccountantRange({}, "2026-07-15");
     if (!resolved.ok) throw new Error(resolved.error);
-    const pack = buildAccountantPack({ rows: [], range: resolved.range, generatedAt: winter.toISOString(), ledger: { total: 0, kept: 0 } });
+    const pack = buildAccountantPack({ rows: [], range: resolved.range, generatedAt: winter.toISOString() });
     expect(pack.readme).toContain("Generated at: 2026-07-15 18:00:00 New Zealand time");
     const file = readStoredZip(buildAccountantZip(pack, winter))[0];
     expect(file.hour).toBe(18);

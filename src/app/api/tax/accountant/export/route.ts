@@ -59,8 +59,6 @@ export async function GET(req: Request) {
     if (resolved.ok === false) return friendlyDateError(resolved.error);
     const [ledger, marks] = await Promise.all([loadAccountantLedger(user._id), loadHoldingMarks(user._id)]);
     const rows = rowsOwnedBy(ledger.rows, user._id);
-    const kept = rows.length;
-    const total = ledger.total;
     const prices: StoredPrice[] = marks.map((mark) => ({
       ticker: mark.ticker,
       price: mark.currentPrice,
@@ -73,7 +71,8 @@ export async function GET(req: Request) {
       marks: prices,
       range: resolved.range,
       generatedAt: generatedAt.toISOString(),
-      ledger: { total, kept },
+      rowsRead: ledger.rows.length,
+      incomplete: ledger.truncated,
     });
     const zip = buildAccountantZip(pack, generatedAt);
     return new NextResponse(zip as unknown as BodyInit, {
@@ -82,7 +81,7 @@ export async function GET(req: Request) {
         "Content-Type": "application/zip",
         "Content-Disposition": `attachment; filename="${accountantPackFilename(resolved.range.endingYear)}"`,
         ...PRIVATE_CACHE,
-        "X-Export-Truncated": `${total > kept ? "1" : "0"}; total=${total}; kept=${kept}`,
+        "X-Export-Truncated": ledger.truncated ? "1" : "0",
       },
     });
   } catch (err) {

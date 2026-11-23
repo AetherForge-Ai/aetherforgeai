@@ -16,10 +16,14 @@ import { ACCOUNTANT_PACK_LABEL } from "@/lib/accountant-export-label";
 
 export { ACCOUNTANT_PACK_LABEL };
 
-/** Ledger rows kept in one pack. The query sorts newest execution time first, then id, and stops here. */
-export const ACCOUNTANT_ROW_CAP = 5000;
-/** Totalum sort for the ledger read. Newest `executed_at` survives the cap; `_id` breaks ties. */
-export const ACCOUNTANT_LEDGER_SORT = { executed_at: "desc", _id: "asc" } as const;
+/** Documented Totalum maximum page size. Every ledger read in this export uses it. */
+export const ACCOUNTANT_PAGE_SIZE = 1000;
+/** Stop paging here. Holdings cannot be rebuilt once the book is larger than this. */
+export const ACCOUNTANT_ROW_CEILING = 50_000;
+/** Single-key server sort. `_id` is applied in memory, not in this object. */
+export const ACCOUNTANT_LEDGER_SORT = { executed_at: "asc" } as const;
+export const HOLDINGS_INCOMPLETE_NOTE =
+  "This book is too large to rebuild holdings. Quantity, cost and market value are blank. The files are incomplete.";
 
 export const HOLDINGS_COLUMNS = [
   "Holding",
@@ -293,8 +297,43 @@ function csvDoc(headers: readonly string[], rows: readonly (readonly string[])[]
   return `\uFEFF${lines.join("\n")}\n`;
 }
 
-function rowDay(row: AccountantLedgerRow): string {
+/**
+ * CSV Date and the from/to/asOf window. A stored execution time wins.
+ * A row with no execution time uses trade_date, the same day the Date column shows.
+ */
+export function rowDay(row: AccountantLedgerRow): string {
+  const executed = String(row.executed_at ?? "").trim();
+  if (executed) {
+    const day = lotCivilDay(executed, "");
+    if (day) return day;
+  }
+  const trade = String(row.trade_date ?? "").trim();
+  if (trade) {
+    const day = lotCivilDay(trade, "");
+    if (day) return day;
+  }
   return buyLotDay(row);
+}
+
+/** Pages arrive in executed_at order. Same time, and a missing time, break on trade_date then id. */
+export function orderLedgerRows(rows: readonly AccountantLedgerRow[]): AccountantLedgerRow[] {
+  return rows
+    .map((row, index) => ({ row, index }))
+    .sort((a, b) => {
+      const ka = ledgerSortKey(a.row);
+      const kb = ledgerSortKey(b.row);
+      if (ka !== kb) return ka < kb ? -1 : 1;
+      const id = String(a.row._id || "").localeCompare(String(b.row._id || ""));
+      if (id) return id;
+      return a.index - b.index;
+    })
+    .map((item) => item.row);
+}
+
+function ledgerSortKey(row: AccountantLedgerRow): string {
+  const executed = String(row.executed_at ?? "").trim();
+  if (executed) return executed;
+  return String(row.trade_date ?? "").trim();
 }
 
 /** NZD per 1 unit, read the same way the book reads a stored rate. */
@@ -387,7 +426,8 @@ function holdingCells(pos: SnapshotPosition, mark: StoredPrice | null, asOf: str
   ];
 }
 
-export function holdingsCsv(rows: readonly AccountantLedgerRow[], marks: readonly StoredPrice[], asOf: string): string {
+export function holdingsCsv(rows: readonly AccountantLedgerRow[], marks: readonly StoredPrice[], asOf: string, incomplete = false): string {
+  if (incomplete) return csvDoc(HOLDINGS_COLUMNS, []);
   const byTicker = new Map<string, StoredPrice>();
   for (const mark of marks) {
     const ticker = String(mark.ticker || "").trim().toUpperCase();
@@ -462,7 +502,7 @@ export function dividendsCsv(rows: readonly AccountantLedgerRow[], from: string,
   for (const row of rows) {
     if (String(row.type || "").toLowerCase() !== "dividend") continue;
     const view = dividendViewFromRow(row as DividendSourceRow);
-    const day = lotCivilDay(view.when, "") || rowDay(row);
+    const day = rowDay(row);
     if (!day || day < from || day > to) continue;
     const parts = view.parts;
     const nzdDividend = parts?.currency === "NZD";
@@ -489,18 +529,16 @@ function columnBlock(file: string, columns: readonly string[], definitions: Reco
   return [`${file}`, ...columns.map((column) => `${file} | ${column}: ${definitions[column]}`)];
 }
 
-export function ledgerCountLine(ledger: { total: number; kept: number }): string {
-  const base = `Ledger rows stored: ${ledger.total}. Rows in this pack: ${ledger.kept}.`;
-  if (ledger.total > ledger.kept) {
-    return `${base} Truncated: yes. The newest rows by execution time, then id, are the ones included.`;
-  }
-  return base;
+function csvDataCount(csv: string): number {
+  const body = csv.replace(/^\uFEFF/, "").trim();
+  if (!body) return 0;
+  return Math.max(0, body.split("\n").length - 1);
 }
 
 export function accountantReadme(
   range: AccountantRange,
   generatedAt: string,
-  ledger?: { total: number; kept: number } | null
+  counts?: { rowsRead: number; transactions: number; dividends: number; holdings: number; incomplete?: boolean } | null
 ): string {
   const yearHeading = range.taxYearLabel.includes(";") ? "NZ tax years" : "NZ tax year";
   const lines = [
@@ -513,12 +551,20 @@ export function accountantReadme(
     `Holdings as at: ${range.asOf}`,
     `Transactions from: ${range.from}`,
     `Transactions to: ${range.to}`,
-    ...(ledger ? [ledgerCountLine(ledger)] : []),
+    ...(counts
+      ? [
+          `Ledger rows read: ${counts.rowsRead}.`,
+          `transactions.csv rows: ${counts.transactions}.`,
+          `dividends.csv rows: ${counts.dividends}.`,
+          `holdings.csv rows: ${counts.holdings}.`,
+        ]
+      : []),
+    ...(counts?.incomplete ? [HOLDINGS_INCOMPLETE_NOTE] : []),
     "",
     "Share with accountant: future work. This download is the pack itself.",
     "",
     "Data sources",
-    "- Ledger rows saved on your account (buys, sells, dividends, fees, tax and opening balances). The read is newest execution time first, then id, and keeps at most 5,000 rows.",
+    "- Ledger rows saved on your account (buys, sells, dividends, fees, tax and opening balances). The read pages oldest execution time first, 1,000 rows at a time, and stops at 50,000.",
     "- Holding prices stored on the holding record (the current price and the time it was saved). Market value uses that price only when its date is on or before the holdings date and the holding is in NZD.",
     "- Dividend imputation, RWT and foreign tax are the amounts already stored on the dividend. Nothing is calculated from a tax rate.",
     "- This pack does not include FIF or IR3 calculations.",
@@ -548,14 +594,26 @@ export function buildAccountantPack(input: {
   marks?: readonly StoredPrice[];
   range: AccountantRange;
   generatedAt: string;
-  ledger?: { total: number; kept: number } | null;
+  /** Ledger rows fetched before the date window. Defaults to the rows passed in. */
+  rowsRead?: number;
+  incomplete?: boolean;
 }): AccountantPack {
+  const incomplete = input.incomplete === true;
+  const holdings = holdingsCsv(input.rows, input.marks ?? [], input.range.asOf, incomplete);
+  const transactions = transactionsCsv(input.rows, input.range.from, input.range.to);
+  const dividends = dividendsCsv(input.rows, input.range.from, input.range.to);
   return {
     range: input.range,
-    holdings: holdingsCsv(input.rows, input.marks ?? [], input.range.asOf),
-    transactions: transactionsCsv(input.rows, input.range.from, input.range.to),
-    dividends: dividendsCsv(input.rows, input.range.from, input.range.to),
-    readme: accountantReadme(input.range, input.generatedAt, input.ledger),
+    holdings,
+    transactions,
+    dividends,
+    readme: accountantReadme(input.range, input.generatedAt, {
+      rowsRead: input.rowsRead ?? input.rows.length,
+      transactions: csvDataCount(transactions),
+      dividends: csvDataCount(dividends),
+      holdings: csvDataCount(holdings),
+      incomplete,
+    }),
   };
 }
 
