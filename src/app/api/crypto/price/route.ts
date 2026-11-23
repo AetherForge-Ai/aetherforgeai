@@ -9,6 +9,7 @@
 import { NextResponse } from "next/server";
 import { formatPublicCryptoPrice, sourceLabel, type ChainPrint } from "@/lib/crypto-price-chain";
 import { acceptCryptoPrint, coverMissingCrypto, staleCryptoPrint } from "@/lib/crypto-price-feed";
+import { pickSnapshotCoin } from "@/lib/crypto-board";
 import { getTop500 } from "@/lib/crypto-source";
 import { gatePublicPrint, publicSourceAllowed } from "@/lib/swyftx-display";
 
@@ -49,7 +50,8 @@ export async function GET(req: Request) {
 
     try {
       const coins = await getTop500();
-      const hit = coins.find((c) => c.symbol.toUpperCase() === symbol && c.price > 0);
+      const picked = pickSnapshotCoin(coins, { symbol });
+      const hit = picked && picked.price > 0 ? picked : null;
       const source = hit?.source && publicSourceAllowed(hit.source) ? hit.source : "";
       if (hit && source) {
         const accepted = gatePublicPrint(

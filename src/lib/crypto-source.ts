@@ -14,7 +14,7 @@ import { keepAlive } from "@/lib/keep-alive.server";
 import { flushCryptoAttempt, recordCryptoAttempt } from "@/lib/crypto-attempts";
 import { ensureCoinDepth } from "@/lib/crypto-depth.server";
 import { mergeCoinDepth, pageDepthComplete } from "@/lib/crypto-depth-record";
-import { tickerForCoingeckoId } from "@/lib/crypto-ids";
+import { findListedCoin } from "@/lib/crypto-listed-match";
 import { withTimeout } from "@/lib/with-timeout";
 import "server-only";
 import * as swyftx from "@/lib/crypto-swyftx";
@@ -467,8 +467,7 @@ async function listedCoinForDetail(id: string, code: string): Promise<CoinMarket
     const { readCryptoSnapshot } = await import("@/lib/crypto-snapshot");
     const saved = await withTimeout(() => readCryptoSnapshot(), 1_200, null);
     const slug = id.trim().toLowerCase();
-    const symbol = (tickerForCoingeckoId(slug) || code).toUpperCase();
-    const coin = saved?.coins.find((row) => row.id === slug || row.symbol.toUpperCase() === symbol) ?? null;
+    const coin = findListedCoin(saved?.coins, slug) ?? findListedCoin(saved?.coins, code);
     if (!coin) return null;
     const [enriched] = await withTimeout(() => enrichListedCoins([coin]), 800, [coin]);
     return enriched ?? coin;
@@ -566,7 +565,7 @@ export async function getCoinChart(id: string, days: string): Promise<CoinChart>
     const { readSharedCryptoBoard } = await import("@/lib/crypto-board-store");
     const board = await readSharedCryptoBoard({ seed: false });
     const slug = id.trim().toLowerCase();
-    const listed = board.coins.find((row) => row.id === slug || row.symbol.toUpperCase() === code.toUpperCase());
+    const listed = findListedCoin(board.coins, slug) ?? findListedCoin(board.coins, code);
     listedSource = (listed?.source || "").toLowerCase();
     if (listedSource === "coinpaprika") {
       const chart = await paprikaChart(listed?.paprikaId || id, listed?.symbol || code, days);

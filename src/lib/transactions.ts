@@ -37,6 +37,7 @@ import {
 } from "@/lib/fill-integrity";
 import { chainForTicker } from "@/lib/crypto-board";
 import { canonicalCryptoId } from "@/lib/crypto-ids";
+import { guardTradeQuote, quantityFromQuotedAmount } from "@/lib/quote-sanity";
 import { venueForTicker, fifoApplySell, type FifoLot } from "@/lib/ledger-schema";
 import { fifoRemainingCostFx, fifoRemainingQtyFx, fifoStoredForSell, sumRealisedFxNzd } from "@/lib/tax-realised";
 import type { TaxLedgerRow } from "@/lib/taxable-income";
@@ -798,7 +799,8 @@ async function applyTransactionUnlocked(
   let quantity = Number(input.quantity) || 0;
   let price = Number(input.price) || 0;
   const fees = Math.max(0, Number(input.fees) || 0);
-  if (quantity <= 0) throw new Error("Quantity must be greater than 0");
+  const sizedFromAmount = input.order_sizing === "notional" && Number(input.notional_native) > 0;
+  if (quantity <= 0 && !sizedFromAmount) throw new Error("Quantity must be greater than 0");
   if (price <= 0) throw new Error("Price must be greater than 0");
 
   // Opening balance and corrections adjust the holding through the ledger.
@@ -1013,6 +1015,30 @@ async function applyTransactionUnlocked(
   // metal quote fetched above. quote_origin is client-controlled, so the fill
   // is never written as live=.
   const liveSpot = snapped != null && snapped > 0 ? snapped : null;
+  // A quote used to price the fill, or to turn a cash amount into units, must
+  // stay near the last good price. A wild print is not recorded.
+  if (
+    assetType === "crypto" &&
+    (input.order_sizing === "notional" || input.price_source === "live_quote" || input.quote_origin === "snapshot")
+  ) {
+    let reference: number | null = null;
+    try {
+      const { lastGoodCryptoPrice } = await import("@/lib/crypto-price-feed");
+      reference = lastGoodCryptoPrice(ticker);
+    } catch {
+      reference = null;
+    }
+    if (input.order_sizing === "notional" && Number(input.notional_native) > 0) {
+      const sized = quantityFromQuotedAmount(Number(input.notional_native), price, reference);
+      if (sized.ok === false) throw new Error(sized.message);
+      quantity = sized.quantity;
+      price = sized.price;
+    } else if (reference) {
+      const guarded = guardTradeQuote(price, reference);
+      if (!guarded.ok) throw new Error(guarded.message || "Price unavailable, enter price manually.");
+    }
+  }
+  if (!(quantity > 0)) throw new Error("Quantity must be greater than 0");
   const auditSpot = liveSpot;
   const auditLive = auditLivePrice(auditSpot);
   const liveAuditText = auditLive == null ? "live=n/a" : `live=${formatCleanNumber(auditLive)}`;
