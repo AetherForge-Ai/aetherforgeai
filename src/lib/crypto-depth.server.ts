@@ -10,6 +10,7 @@ import "server-only";
 import { coinGeckoEndpoint, redactSecrets } from "@/lib/coingecko-auth";
 import { tickerForCoingeckoId } from "@/lib/crypto-ids";
 import { peekTop400 } from "@/lib/crypto-coingecko";
+import { findListedCoin } from "@/lib/crypto-listed-match";
 import { CROSS_PROVIDER_IDS } from "@/lib/crypto-provider-ids";
 
 export { CROSS_PROVIDER_IDS };
@@ -40,12 +41,11 @@ const YAHOO_TICKER_BY_SLUG: Record<string, string> = {
   dai: "DAI",
 };
 
+/**
+ * Id match only. A missing or ambiguous id does not take another coin that prints the same ticker.
+ */
 function findListed(coins: CoinMarket[] | undefined, slug: string): CoinMarket | null {
-  if (!coins?.length) return null;
-  const mapped = CROSS_PROVIDER_IDS[slug];
-  const symbol = (mapped?.symbol || tickerForCoingeckoId(slug) || "").toUpperCase();
-  const ids = new Set([slug, mapped?.gecko, mapped?.paprika].filter(Boolean) as string[]);
-  return coins.find((coin) => ids.has(coin.id)) ?? coins.find((coin) => !!symbol && coin.symbol.toUpperCase() === symbol) ?? null;
+  return findListedCoin(coins, slug);
 }
 
 async function readListed(slug: string): Promise<CoinMarket | null> {
@@ -61,36 +61,8 @@ export async function snapshotCoinFor(slug: string): Promise<{ coin: CoinMarket;
   return coin && saved && coin.price > 0 ? { coin, at: saved.at, version: saved.version } : null;
 }
 
-/**
- * Ids that are this slug or its mapped CoinGecko / CoinPaprika id.
- * A shared ticker is not an id. NEAR must not claim a different coin that also prints "NEAR".
- */
-function exactListedIds(slug: string): Set<string> {
-  const ids = new Set<string>();
-  const add = (value: string | null | undefined) => {
-    const key = (value || "").trim().toLowerCase();
-    if (key) ids.add(key);
-  };
-  add(slug);
-  const direct = CROSS_PROVIDER_IDS[slug];
-  if (direct) {
-    add(direct.gecko);
-    add(direct.paprika);
-  }
-  for (const [key, row] of Object.entries(CROSS_PROVIDER_IDS)) {
-    if (key === slug || row.gecko === slug || row.paprika === slug) {
-      add(key);
-      add(row.gecko);
-      add(row.paprika);
-    }
-  }
-  return ids;
-}
-
 function findListedById(coins: CoinMarket[] | undefined, slug: string): CoinMarket | null {
-  if (!coins?.length) return null;
-  const ids = exactListedIds(slug);
-  return coins.find((coin) => ids.has((coin.id || "").trim().toLowerCase())) ?? null;
+  return findListedCoin(coins, slug);
 }
 
 /**
@@ -151,20 +123,22 @@ async function searchPaprikaId(slug: string, ms: number): Promise<string> {
   const currencies = body && typeof body === "object" && Array.isArray((body as { currencies?: unknown }).currencies)
     ? ((body as { currencies: Array<{ id?: string; symbol?: string }> }).currencies)
     : [];
-  const match = currencies.find((row) => {
-    const id = String(row.id || "").toLowerCase();
-    const code = String(row.symbol || "").toUpperCase();
-    return id === slug || id.endsWith(`-${slug}`) || (symbol && code === symbol);
-  });
-  return String(match?.id || "").trim();
+  const rows = currencies.map((row) => ({
+    id: String(row.id || "").trim().toLowerCase(),
+    symbol: String(row.symbol || "").toUpperCase(),
+  })).filter((row) => row.id);
+  const idHits = rows.filter((row) => row.id === slug || row.id.endsWith(`-${slug}`));
+  if (idHits.length === 1) return idHits[0].id;
+  if (idHits.length > 1) return "";
+  if (!symbol) return "";
+  const symbolHits = rows.filter((row) => row.symbol === symbol);
+  return symbolHits.length === 1 ? symbolHits[0].id : "";
 }
 
 async function loadPaprika(slug: string, ms: number): Promise<CoinDetail | null> {
   const known = PAPRIKA_ID_BY_SLUG[slug];
-  if (known) {
-    const direct = await loadPaprikaTicker(known, slug, ms);
-    if (direct) return direct;
-  }
+  // A pinned id that does not answer is no price. Do not search by ticker and take another coin.
+  if (known) return loadPaprikaTicker(known, slug, ms);
   const id = await searchPaprikaId(slug, ms);
   if (!id) return null;
   return loadPaprikaTicker(id, slug, ms);
