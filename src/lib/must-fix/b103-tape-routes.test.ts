@@ -80,12 +80,13 @@ import LandingPage, { HomeTickerBand } from "@/app/page";
 import MarketsPage from "@/app/markets/page";
 import DailyPricesPage from "@/app/markets/daily-prices/page";
 import TaxPage from "@/app/tax/page";
+import ChatPage from "@/app/chat/page";
 import { AppShell } from "@/components/AppShell";
 import { MarketTicker } from "@/components/MarketTicker";
 import { ServerTape } from "@/components/ServerTape";
 import { formatUnitPrice } from "@/lib/currency";
 import { closeLabelFor } from "@/lib/market-freshness";
-import { resetTapeCloseMemoryForTests } from "@/lib/tape-ssr";
+import { __test } from "@/lib/tape-ssr";
 import type { TickerTapeFeed } from "@/lib/ticker-feed";
 
 /** Tue 24 Nov 2026, 7:08am NZDT. The shut session is Monday 23 Nov. */
@@ -95,7 +96,7 @@ const NEW_CLOSE = "2026-11-23T04:00:08.000Z";
 const STALE_PRICE = 0.385;
 const FRESH_PRICE = 0.412;
 
-const ROUTES = ["/", "/markets", "/markets/daily-prices", "/tax"] as const;
+const ROUTES = ["/", "/markets", "/markets/daily-prices", "/tax", "/chat"] as const;
 
 function quotes() {
   return [
@@ -200,14 +201,14 @@ describe("TAPE-STALE-CLOSE route tapes", () => {
     tickerEquityQuotes.mockResolvedValue(quotes());
     loadPublicTickerBounded.mockReset();
     loadPublicTickerBounded.mockResolvedValue(null);
-    resetTapeCloseMemoryForTests();
+    __test?.resetTapeCloseMemory();
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(TUESDAY_MORNING);
   });
 
   afterEach(() => {
     vi.useRealTimers();
-    resetTapeCloseMemoryForTests();
+    __test?.resetTapeCloseMemory();
   });
 
   it("the build snapshot has one runtime consumer, tape-ssr, and the refresh script", () => {
@@ -219,7 +220,7 @@ describe("TAPE-STALE-CLOSE route tapes", () => {
     expect(readFileSync("src/app/page.tsx", "utf8")).toContain("loadRequestTape()");
     expect(readFileSync("src/components/ServerTape.tsx", "utf8")).toContain("loadRequestTape()");
     expect(readFileSync("src/components/AppShell.tsx", "utf8")).toContain("<ServerTape />");
-    for (const file of ["src/app/markets/page.tsx", "src/app/markets/daily-prices/page.tsx", "src/app/tax/page.tsx"]) {
+    for (const file of ["src/app/markets/page.tsx", "src/app/markets/daily-prices/page.tsx", "src/app/tax/page.tsx", "src/app/chat/page.tsx"]) {
       expect(readFileSync(file, "utf8")).toContain("AppShell");
     }
   });
@@ -264,6 +265,7 @@ describe("TAPE-STALE-CLOSE route tapes", () => {
     { route: "/markets" as const, load: () => MarketsPage({ searchParams: Promise.resolve({}) }) },
     { route: "/markets/daily-prices" as const, load: () => DailyPricesPage() },
     { route: "/tax" as const, load: () => TaxPage() },
+    { route: "/chat" as const, load: () => ChatPage() },
   ])("$route header tape matches the ticker close with and without ?cb= and no-store", async ({ route, load }) => {
     for (const opts of [
       { cb: false, noStore: false },

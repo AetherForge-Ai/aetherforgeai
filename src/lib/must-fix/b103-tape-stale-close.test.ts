@@ -50,8 +50,8 @@ import { middleware } from "@/middleware";
 import { HomeTickerBand } from "@/app/page";
 import { ServerTape } from "@/components/ServerTape";
 import { formatUnitPrice } from "@/lib/currency";
-import { closeLabelFor, tapeCloseIso, tapeCloseIsPreviousSession } from "@/lib/market-freshness";
-import { loadRequestTape, requestTapeMustBeFresh, resetTapeCloseMemoryForTests, SSR_LIVE_WAIT_MS } from "@/lib/tape-ssr";
+import { closeLabelFor, equitySessionOpen, expectedEquityCloseIso, lastCompletedEquitySession, tapeCloseIso, tapeCloseIsPreviousSession } from "@/lib/market-freshness";
+import { __test, loadRequestTape, requestTapeMustBeFresh, SSR_LIVE_WAIT_MS } from "@/lib/tape-ssr";
 import type { TickerTapeFeed } from "@/lib/ticker-feed";
 
 /** Sat 14 Nov 2026, 11:00 NZDT. The shut session is Friday 13 Nov. */
@@ -117,14 +117,14 @@ describe("TAPE-STALE-CLOSE", () => {
     tickerEquityQuotes.mockResolvedValue([]);
     loadPublicTickerBounded.mockReset();
     loadPublicTickerBounded.mockResolvedValue(null);
-    resetTapeCloseMemoryForTests();
+    __test?.resetTapeCloseMemory();
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(MONDAY_OPEN);
   });
 
   afterEach(() => {
     vi.useRealTimers();
-    resetTapeCloseMemoryForTests();
+    __test?.resetTapeCloseMemory();
   });
 
   it("treats a close before the shut session as the previous session", () => {
@@ -236,6 +236,68 @@ describe("TAPE-STALE-CLOSE", () => {
     expect(performance.now() - started).toBeLessThan(SSR_LIVE_WAIT_MS);
     expect(tape?.rows.nzx.find((row) => row.symbol === "AIR.NZ")?.price).toBe(FRESH_PRICE);
     expect(tapeCloseIso(tape?.rows ?? {}, MONDAY_OPEN)).toBe("2026-11-20");
+  });
+
+  it("a stale equity quote is not authority to print the same stale colo close", async () => {
+    tickerEquityQuotes.mockResolvedValue(quotes(OLD_CLOSE, STALE_PRICE));
+    edgeJsonGet.mockImplementation(async (key: string) => (key === "body" ? storedBody(OLD_CLOSE, STALE_PRICE) : null));
+    loadPublicTickerBounded.mockResolvedValue(null);
+    expect(expectedEquityCloseIso(MONDAY_OPEN)).toBe("2026-11-20");
+    const tape = await loadRequestTape({ fresh: true });
+    expect(tape).toBeNull();
+    const html = renderToString(await ServerTape());
+    expect(html).not.toContain("Close 13 Nov 2026");
+    expect(html).not.toContain(formatUnitPrice(STALE_PRICE, "NZD"));
+    expect(prefix(html)).toBe("");
+  });
+
+  it("an open session does not return a week-old colo body before the 250ms wait", async () => {
+    /** Wed 18 Nov 2026, 1:00pm NZDT / 11:00am Sydney. NZX and ASX are both open. */
+    const OPEN = new Date("2026-11-18T00:00:00.000Z");
+    vi.setSystemTime(OPEN);
+    expect(equitySessionOpen("NZX", OPEN)).toBe(true);
+    expect(equitySessionOpen("ASX", OPEN)).toBe(true);
+    expect(lastCompletedEquitySession("NZX", OPEN)).toBe("2026-11-17");
+    expect(lastCompletedEquitySession("ASX", OPEN)).toBe("2026-11-17");
+    tickerEquityQuotes.mockImplementation(() => new Promise(() => undefined));
+    loadPublicTickerBounded.mockImplementation(() => new Promise(() => undefined));
+    edgeJsonGet.mockImplementation(async (key: string) => (key === "body" ? storedBody(OLD_CLOSE, STALE_PRICE) : null));
+    const started = performance.now();
+    const tape = await loadRequestTape({ fresh: true });
+    const elapsed = performance.now() - started;
+    expect(tape).toBeNull();
+    expect(elapsed).toBeGreaterThanOrEqual(SSR_LIVE_WAIT_MS - 40);
+    expect(elapsed).toBeLessThan(SSR_LIVE_WAIT_MS + 400);
+    const html = renderToString(await ServerTape());
+    expect(html).not.toContain("Close 13 Nov 2026");
+    expect(html).not.toContain(formatUnitPrice(STALE_PRICE, "NZD"));
+  });
+
+  it("an open session still serves the previous completed close without waiting", async () => {
+    const OPEN = new Date("2026-11-18T00:00:00.000Z");
+    vi.setSystemTime(OPEN);
+    const previous = "2026-11-17T04:00:08.000Z";
+    tickerEquityQuotes.mockImplementation(() => new Promise(() => undefined));
+    loadPublicTickerBounded.mockImplementation(() => new Promise(() => undefined));
+    edgeJsonGet.mockImplementation(async (key: string) => (key === "body" ? storedBody(previous, FRESH_PRICE) : null));
+    const started = performance.now();
+    const tape = await loadRequestTape();
+    expect(performance.now() - started).toBeLessThan(SSR_LIVE_WAIT_MS);
+    expect(tape?.rows.nzx.find((row) => row.symbol === "AIR.NZ")?.price).toBe(FRESH_PRICE);
+    expect(tapeCloseIso(tape?.rows ?? {}, OPEN)).toBe("2026-11-17");
+  });
+
+  it("a rejected ticker quote read settles the wait instead of spinning", async () => {
+    tickerEquityQuotes.mockRejectedValue(new Error("colo equity unread"));
+    loadPublicTickerBounded.mockImplementation(() => new Promise(() => undefined));
+    edgeJsonGet.mockResolvedValue(null);
+    const started = performance.now();
+    const tape = await loadRequestTape({ fresh: true });
+    const elapsed = performance.now() - started;
+    expect(tape).toBeNull();
+    expect(elapsed).toBeGreaterThanOrEqual(SSR_LIVE_WAIT_MS - 40);
+    expect(elapsed).toBeLessThan(1_000);
+    expect(prefix(renderToString(await ServerTape()))).toBe("");
   });
 
   it("marks cache-busted and no-store documents, and leaves a shared marketing document unmarked", async () => {

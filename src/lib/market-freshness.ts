@@ -102,6 +102,30 @@ export function equitySessionDate(venue: EquityVenue, now = new Date()): string 
   return wall.iso;
 }
 
+/**
+ * Last completed NZX or ASX session (YYYY-MM-DD).
+ * Weekends are skipped. There is no public-holiday calendar: a holiday
+ * weekday is still treated as a session until the ticker close moves.
+ * An open session has not completed, so the previous weekday is the close
+ * the tape is measured against. A shut session's equitySessionDate is already
+ * that day.
+ */
+export function lastCompletedEquitySession(venue: "NZX" | "ASX", now = new Date()): string {
+  const session = equitySessionDate(venue, now);
+  if (equitySessionOpen(venue, now)) return previousWeekday(session);
+  return session;
+}
+
+/**
+ * Newest last-completed session across NZX and ASX.
+ * Same weekend-only calendar as lastCompletedEquitySession: holidays are not listed.
+ */
+export function expectedEquityCloseIso(now = new Date()): string {
+  const nzx = lastCompletedEquitySession("NZX", now);
+  const asx = lastCompletedEquitySession("ASX", now);
+  return nzx > asx ? nzx : asx;
+}
+
 export function formatSessionDate(iso: string): string {
   return formatDisplayDate(iso);
 }

@@ -1,5 +1,5 @@
 import buildSnapshot from "@/data/tape-build-snapshot.json";
-import { equitySessionDate, equitySessionOpen, parseQuoteTime, tapeCloseIso, tapeCloseIsPreviousSession } from "@/lib/market-freshness";
+import { equitySessionDate, expectedEquityCloseIso, parseQuoteTime, tapeCloseIso } from "@/lib/market-freshness";
 import { keepAlive } from "@/lib/keep-alive.server";
 import { loadPublicTickerBounded, tickerEquityQuotes } from "@/lib/public-ticker";
 import { edgeJsonGet, edgeJsonPut } from "@/lib/ticker-serve";
@@ -121,33 +121,43 @@ function noteTickerClose(iso: string | null | undefined): void {
   if (!latestTickerCloseIso || iso > latestTickerCloseIso) latestTickerCloseIso = iso;
 }
 
-/** Tests move the clock backwards. A remembered close must not follow them. */
-export function resetTapeCloseMemoryForTests(): void {
-  latestTickerCloseIso = null;
-}
+/** Vitest only. Undefined in production so the reset is not a runtime API. */
+export const __test =
+  process.env.NODE_ENV === "test"
+    ? {
+        resetTapeCloseMemory() {
+          latestTickerCloseIso = null;
+        },
+      }
+    : undefined;
 
 function closeIsoOf(feed: TickerTapeFeed | null | undefined, now = new Date()): string | null {
   if (!feed?.rows) return null;
   return tapeCloseIso(feed.rows, now);
 }
 
+/**
+ * A close remembered on this isolate. Judged against both NZX and ASX.
+ * Weekends only: there is no holiday calendar, so a holiday weekday can still
+ * look like a session until the ticker close moves. A close from a later clock
+ * (tests moving time backwards) is dropped for either venue.
+ */
 function rememberedClose(now: Date): string | null {
   if (!latestTickerCloseIso) return null;
-  // A close remembered under a later clock is not applied when time moves backwards.
-  if (!equitySessionOpen("NZX", now) && latestTickerCloseIso > equitySessionDate("NZX", now)) return null;
+  if (latestTickerCloseIso > equitySessionDate("NZX", now)) return null;
+  if (latestTickerCloseIso > equitySessionDate("ASX", now)) return null;
   return latestTickerCloseIso;
 }
 
 /**
- * A close observed from the ticker this request. A remembered close from an
- * earlier session is not authority to keep printing that old date.
+ * Newest of the ticker/last-good close and the expected last completed
+ * NZX/ASX session. A stale quote is not authority to print that older date.
  */
-function authorityIso(observed: string | null, now: Date): string | null {
-  if (observed) return observed;
-  const remembered = rememberedClose(now);
-  if (!remembered) return null;
-  if (!equitySessionOpen("NZX", now) && remembered < equitySessionDate("NZX", now)) return null;
-  return remembered;
+function authorityIso(observed: string | null, now: Date): string {
+  const floor = expectedEquityCloseIso(now);
+  const seen = newestClose([observed, rememberedClose(now)]);
+  if (seen && seen > floor) return seen;
+  return floor;
 }
 
 function newestClose(values: Array<string | null | undefined>): string | null {
@@ -259,7 +269,12 @@ export async function loadRequestTape(opts?: { fresh?: boolean }): Promise<Ticke
       noteTickerClose(closeIsoOf(feedFromEquityQuotes(rows)));
       return rows;
     })
-    .catch(() => [] as EquityQuote[]);
+    .catch(() => {
+      // A rejection must settle the wait. Leaving quoteRows unset makes the
+      // loop re-await an already-finished promise and busy-spin until the cap.
+      quoteRows = [];
+      return [] as EquityQuote[];
+    });
   // Start the colo read before the first await. A live result that resolves
   // during that read must not take the body lock the colo read is holding.
   const storedPromise = loadServerTape();
@@ -278,10 +293,10 @@ export async function loadRequestTape(opts?: { fresh?: boolean }): Promise<Ticke
     if (!quoted) return null;
     const iso = closeIsoOf(quoted, now());
     const auth = authorityIso(observed(), now());
-    if (auth && iso && iso < auth) return null;
-    // No ticker close yet, and this snapshot is a previous shut session.
-    if (!observed() && tapeCloseIsPreviousSession(quoted.rows, now())) return null;
-    if (fresh && auth && iso && iso < auth) return null;
+    // Older than the expected last completed session, or older than a newer
+    // ticker close. cb / no-store (fresh) uses the same floor: never print it.
+    if (iso && iso < auth) return null;
+    if (fresh && iso && iso < auth) return null;
     return quoted;
   };
 
@@ -299,8 +314,9 @@ export async function loadRequestTape(opts?: { fresh?: boolean }): Promise<Ticke
     }
   }
 
-  // Current colo snapshot. A previous session does not take this path.
-  if (storedOk && !tapeCloseIsPreviousSession(storedOk.rows, now())) return storedOk;
+  // Current colo snapshot, including while the cash session is open.
+  // A body older than the previous completed session is already rejected above.
+  if (storedOk) return storedOk;
 
   if (settled !== undefined) {
     const liveOk = accept(settled);
@@ -308,7 +324,7 @@ export async function loadRequestTape(opts?: { fresh?: boolean }): Promise<Ticke
   }
 
   const builtOk = accept(bundledTape());
-  if (builtOk && !tapeCloseIsPreviousSession(builtOk.rows, now())) return builtOk;
+  if (builtOk) return builtOk;
 
   if (settled === undefined || quoteRows === undefined) {
     const pending = new Promise<never>(() => undefined);
@@ -336,7 +352,6 @@ export async function loadRequestTape(opts?: { fresh?: boolean }): Promise<Ticke
     if (liveOk) return liveOk;
   }
   // Fresh close was not available within the cap. Never print an older date.
-  if (fresh) return null;
   return null;
 }
 
