@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { WhatIfSellLink } from "@/components/tax/WhatIfSellLink";
 import { healthFlags, runtimeFlagState } from "@/lib/diag-flags";
-import { nzTaxPreviewEnabled, setNzTaxPreviewSignOffForTests } from "@/lib/feature-flags";
+import { nzTaxPreviewAllowed, nzTaxPreviewEnabled } from "@/lib/feature-flags";
 import { buildFifPaper, fifTotals } from "@/lib/fif-working-paper";
 import { buildIr3Helper } from "@/lib/ir3/ir3-helper";
 import {
@@ -35,8 +35,17 @@ const gate = vi.hoisted(() => ({
   stocks: [] as { id: string; ticker: string; notes: string; shares: number; assetType: string }[],
   threshold: 50_000,
   reads: 0,
+  /** Route tests only. The real sign-off constant stays false; this mock does not live in src. */
+  signedOff: false,
 }));
 
+vi.mock("@/lib/feature-flags", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/feature-flags")>();
+  return {
+    ...actual,
+    nzTaxPreviewEnabled: (env?: Record<string, string | undefined>) => actual.nzTaxPreviewAllowed(env ?? process.env, gate.signedOff),
+  };
+});
 vi.mock("server-only", () => ({}));
 vi.mock("next/navigation", () => ({
   notFound: () => {
@@ -114,8 +123,8 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers();
-  setNzTaxPreviewSignOffForTests(null);
   vi.unstubAllEnvs();
+  gate.signedOff = false;
   gate.calls = 0;
   gate.user = null;
   gate.rows = [];
@@ -126,7 +135,7 @@ afterEach(() => {
 });
 
 function enablePreview(flag = "1") {
-  setNzTaxPreviewSignOffForTests(true);
+  gate.signedOff = true;
   vi.stubEnv("NZ_TAX_PREVIEW", flag);
   vi.stubEnv("TAX_SALE_PREVIEW", "1");
 }
@@ -343,33 +352,16 @@ describe("NZ_TAX_PREVIEW flag", () => {
     expect(healthFlags("NZ_TAX_PREVIEW=yes", {}).NZ_TAX_PREVIEW.edge).toBe(false);
     expect(read("src/lib/feature-flags.ts")).toContain("NZ_TAX_K05_K06_SIGNED_OFF = false");
   });
-  it("stays off with NODE_ENV unset, development and preview while both flags are 1", () => {
-    const flags = { NZ_TAX_PREVIEW: "1", TAX_SALE_PREVIEW: "1" };
-    expect(nzTaxPreviewEnabled(flags)).toBe(false);
-    expect(runtimeFlagState(flags).NZ_TAX_PREVIEW).toBe(false);
-    for (const nodeEnv of ["development", "preview", "production", "test"]) {
-      const env = { ...flags, NODE_ENV: nodeEnv };
-      expect(nzTaxPreviewEnabled(env), nodeEnv).toBe(false);
-      expect(runtimeFlagState(env).NZ_TAX_PREVIEW, nodeEnv).toBe(false);
-    }
-    for (const file of [
-      "src/app/tax/what-if-sell/page.tsx",
-      "src/app/api/tax/nz-preview/route.ts",
-      "src/lib/diag-flags.ts",
-      "src/lib/dashboard-page.tsx",
-      "src/app/tax/fif/page.tsx",
-    ]) {
-      expect(read(file), file).not.toContain("setNzTaxPreviewSignOffForTests");
-    }
-  });
   it("trims \" 1\" the same way in the feature and in health", () => {
     const padded = { NZ_TAX_PREVIEW: " 1", TAX_SALE_PREVIEW: "1", NODE_ENV: "development" };
+    expect(nzTaxPreviewAllowed(padded, true)).toBe(true);
+    expect(nzTaxPreviewAllowed(padded, false)).toBe(false);
     expect(nzTaxPreviewEnabled(padded)).toBe(false);
     expect(runtimeFlagState(padded).NZ_TAX_PREVIEW).toBe(false);
-    setNzTaxPreviewSignOffForTests(true);
+    gate.signedOff = true;
     expect(nzTaxPreviewEnabled(padded)).toBe(true);
     expect(runtimeFlagState(padded).NZ_TAX_PREVIEW).toBe(nzTaxPreviewEnabled(padded));
-    expect(nzTaxPreviewEnabled({ NZ_TAX_PREVIEW: " 1", TAX_SALE_PREVIEW: " 1" })).toBe(false);
+    expect(nzTaxPreviewAllowed({ NZ_TAX_PREVIEW: " 1", TAX_SALE_PREVIEW: " 1" }, true)).toBe(false);
   });
 
   it("is not set in deploy config", () => {

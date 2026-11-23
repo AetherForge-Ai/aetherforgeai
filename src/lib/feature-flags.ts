@@ -30,29 +30,29 @@ export const IN_APP_ALERTS_V1 = on("IN_APP_ALERTS_V1");
 export const taxSalePreviewEnabled = (env: Record<string, string | undefined> = process.env) => env.TAX_SALE_PREVIEW === "1";
 /**
  * K-05 (lawyer) and K-06 (accountant) sign-off for the holding sale preview.
- * False until Lukas changes it. The same on every environment, including development and preview.
+ * False until Lukas changes this constant. There is no setter and no environment fallback.
  */
 export const NZ_TAX_K05_K06_SIGNED_OFF = false;
 
-/** Tests only. Pages, routes and /api/health do not call this. Null uses the constant. */
-let nzTaxPreviewSignOffForTests: boolean | null = null;
-
-export function setNzTaxPreviewSignOffForTests(value: boolean | null): void {
-  nzTaxPreviewSignOffForTests = value;
+/** The sign-off constant only. */
+export function nzTaxPreviewSignOff(): boolean {
+  return NZ_TAX_K05_K06_SIGNED_OFF;
 }
 
-/** The sign-off constant only. NODE_ENV is not a fallback. */
-export function nzTaxPreviewSignOff(): boolean {
-  return nzTaxPreviewSignOffForTests ?? NZ_TAX_K05_K06_SIGNED_OFF;
+/**
+ * Pure flag check. Tests pass `signedOff`. Runtime uses nzTaxPreviewEnabled, which passes the constant.
+ */
+export function nzTaxPreviewAllowed(env: Record<string, string | undefined>, signedOff: boolean): boolean {
+  const flagged = String(env["NZ_TAX_PREVIEW"] ?? "").trim() === "1";
+  return flagged && taxSalePreviewEnabled(env) && signedOff;
 }
 
 /**
  * NZ-TAX-PREVIEW-1. On only when the flag trims to exactly "1", the K-05 sale-preview gate
- * passes, and the K-05/K-06 sign-off passes. Bracket access so the value is read per request.
+ * passes, and nzTaxPreviewSignOff() is true. Bracket access so the value is read per request.
  */
 export function nzTaxPreviewEnabled(env: Record<string, string | undefined> = process.env): boolean {
-  const flagged = String(env["NZ_TAX_PREVIEW"] ?? "").trim() === "1";
-  return flagged && taxSalePreviewEnabled(env) && nzTaxPreviewSignOff();
+  return nzTaxPreviewAllowed(env, nzTaxPreviewSignOff());
 }
 export { CSP_ALLOW_TOTALUM_TEST } from "@/lib/security-headers";
 /**
