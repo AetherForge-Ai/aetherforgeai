@@ -28,11 +28,14 @@ export function DashboardSessionShell({
   view,
   guestDocument,
   initialQuota = null,
+  nzTaxPreview = false,
 }: {
   view: DashboardView;
   guestDocument: boolean;
   /** Goal b13 H-4: server-read report allowance, so Plan usage paints with the dashboard. */
   initialQuota?: { used: number; limit: number } | null;
+  /** NZ-TAX-PREVIEW-1. Off hides the holding link. The page still 404s if the flag is off. */
+  nzTaxPreview?: boolean;
 }) {
   const [phase, setPhase] = useState<"pending" | "guest" | "ready" | "slow">(
     guestDocument ? "guest" : "pending",
@@ -118,6 +121,7 @@ export function DashboardSessionShell({
       userName={session.name && !session.name.includes("@") ? session.name : session.greetingName}
       subscription={session.subscription}
       metalsEntitled={session.metalsEntitled}
+      nzTaxPreview={nzTaxPreview}
     />
   );
 }

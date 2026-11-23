@@ -123,6 +123,7 @@ import {
   writeCachedCashNZD,
 } from "@/lib/client-user-state";
 import { AnalysisPanel } from "@/components/dashboard/AnalysisPanel";
+import { WhatIfSellLink } from "@/components/tax/WhatIfSellLink";
 import { PriceAlerts } from "@/components/dashboard/PriceAlerts";
 import WatchAlerts from "@/components/dashboard/WatchAlerts";
 import { PreciousMetals } from "@/components/dashboard/PreciousMetals";
@@ -589,6 +590,7 @@ export function PortfolioDashboard({
   preview = false,
   view = "home",
   initialQuota = null,
+  nzTaxPreview = false,
 }: {
   /** Goal b13 H-4: report allowance read on the server. */
   initialQuota?: { used: number; limit: number } | null;
@@ -602,6 +604,8 @@ export function PortfolioDashboard({
   preview?: boolean;
   /** Which dashboard window/page to render. */
   view?: DashboardView;
+  /** NZ-TAX-PREVIEW-1. Off by default, so the holding link stays hidden. */
+  nzTaxPreview?: boolean;
 }) {
   // Active bot (Stock or Crypto). Defaults to the only bot the plan unlocks.
   const defaultBot: AssetClass = subscription.botAccess === "crypto" ? "crypto" : "stock";
@@ -3484,6 +3488,11 @@ export function PortfolioDashboard({
                       {/* Actions */}
                       <td className="sticky right-0 bg-card px-2 py-3.5">
                         <div className="flex items-center justify-end gap-1">
+                          <WhatIfSellLink
+                            enabled={nzTaxPreview}
+                            ticker={h.ticker}
+                            className="rounded-md px-1.5 py-1 text-[0.65rem] font-semibold text-primary hover:bg-primary/10"
+                          />
                           <button
                             type="button"
                             onClick={() => recordHolding(h, "buy")}

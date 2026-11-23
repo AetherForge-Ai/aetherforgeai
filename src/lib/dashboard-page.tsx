@@ -3,6 +3,7 @@ import { AppShell } from "@/components/AppShell";
 import { serverReportQuota } from "@/lib/dashboard-quota.server";
 import { DashboardSessionShell } from "@/components/dashboard/DashboardSessionShell";
 import type { DashboardView } from "@/components/dashboard/PortfolioDashboard";
+import { nzTaxPreviewEnabled } from "@/lib/feature-flags";
 
 /**
  * Private dashboard HTML never includes a member book.
@@ -17,7 +18,12 @@ export async function renderDashboardView(view: DashboardView) {
   const initialQuota = guestDocument ? null : await serverReportQuota();
   return (
     <AppShell>
-      <DashboardSessionShell view={view} guestDocument={guestDocument} initialQuota={initialQuota} />
+      <DashboardSessionShell
+        view={view}
+        guestDocument={guestDocument}
+        initialQuota={initialQuota}
+        nzTaxPreview={nzTaxPreviewEnabled()}
+      />
     </AppShell>
   );
 }

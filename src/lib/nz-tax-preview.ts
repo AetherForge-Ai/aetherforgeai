@@ -1,0 +1,267 @@
+/**
+ * NZ-TAX-PREVIEW-1: "What if I sell?" on one holding.
+ * Read-only. The figures come from the existing FIF paper and IR3 helper:
+ * buildFifPaper, fifTotals, fifThresholdSentence, taxableIncome, buildIr3Helper.
+ * A figure those functions do not return is "not estimated". Nothing is written.
+ */
+import { formatNzd } from "@/lib/currency";
+import {
+  buildFifPaper,
+  fifClass,
+  fifThresholdSentence,
+  fifThresholdText,
+  fifTotals,
+  FIF_COST_THRESHOLD_NZD,
+  type FifMarketInput,
+  type FifPaper,
+  type FifThreshold,
+} from "@/lib/fif-working-paper";
+import { buildIr3Helper, type Ir3Helper } from "@/lib/ir3/ir3-helper";
+import { aucklandCivilToday, nzTaxYearEnding, nzTaxYearLabel } from "@/lib/nz-tax-year";
+import { fifoRemainingShareQty } from "@/lib/tax-realised";
+import { taxableIncome, type TaxLedgerRow } from "@/lib/taxable-income";
+
+export const NZ_TAX_PREVIEW_DISCLAIMER =
+  "Estimate only, not tax advice. These figures have not been reviewed by an accountant.";
+
+export const NOT_ESTIMATED = "not estimated";
+
+export interface NzSaleInput {
+  ticker: string;
+  quantity: number;
+  /** Sale price per unit in the holding's own currency. */
+  price: number;
+  /** Civil date. Defaults to today. */
+  date?: string | null;
+}
+
+export interface NzTaxPreviewOk {
+  ok: true;
+  ticker: string;
+  quantity: number;
+  price: number;
+  currency: string;
+  date: string;
+  taxYear: string;
+  endingYear: number;
+  thresholdNzd: number;
+  /** Cost of attributing interests still open at 31 March, from fifTotals. */
+  yearEndCostBeforeNzd: number | null;
+  yearEndCostAfterNzd: number | null;
+  /** True only when that year-end cost was at or over the threshold and the sale leaves it under. */
+  dropsUnderDeMinimis: boolean | null;
+  peakCostBeforeNzd: number | null;
+  peakCostAfterNzd: number | null;
+  peakThresholdBefore: FifThreshold;
+  peakThresholdAfter: FifThreshold;
+  /** Opening market value the working paper stores for this holding. Unchanged by a sale in the year. */
+  openingBeforeNzd: number | null;
+  openingAfterNzd: number | null;
+  /** Portfolio FDR and CV from fifTotals. Null when the paper cannot total them. */
+  fdrBeforeNzd: number | null;
+  fdrAfterNzd: number | null;
+  cvBeforeNzd: number | null;
+  cvAfterNzd: number | null;
+  ir3IncomeBeforeNzd: number | null;
+  ir3IncomeAfterNzd: number | null;
+  ir3TaxBeforeNzd: number | null;
+  ir3TaxAfterNzd: number | null;
+  lines: string[];
+}
+
+export type NzTaxPreview = NzTaxPreviewOk | { ok: false; error: string };
+
+export function previewSaleDate(today: string, endingYear?: number | null): string {
+  if (endingYear == null || nzTaxYearEnding(today) === endingYear) return today;
+  if (!Number.isInteger(endingYear)) return today;
+  return `${endingYear}-03-31`;
+}
+
+/** Blank request uses the stored current price. A non-positive entry is refused. */
+export function defaultSalePrice(currentPrice: number | null | undefined, requested: string | null | undefined): number | null {
+  if (requested != null && requested.trim() !== "") {
+    const n = Number(requested);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }
+  const current = Number(currentPrice);
+  return Number.isFinite(current) && current > 0 ? current : null;
+}
+
+/** Blank request uses the open quantity. */
+export function defaultSaleQuantity(openQuantity: number | null | undefined, requested: string | null | undefined): number | null {
+  if (requested != null && requested.trim() !== "") {
+    const n = Number(requested);
+    return Number.isFinite(n) ? n : null;
+  }
+  const open = Number(openQuantity);
+  return Number.isFinite(open) && open > 0 ? open : null;
+}
+
+function holdingMeta(rows: readonly TaxLedgerRow[], ticker: string): { assetType: string; currency: string; fx: number | null } {
+  let last: TaxLedgerRow | null = null;
+  for (const row of rows) {
+    if ((row.type === "buy" || row.type === "opening_balance") && String(row.ticker || "").trim().toUpperCase() === ticker) last = row;
+  }
+  const fx = Number(last?.fx_rate);
+  return {
+    assetType: String(last?.asset_type || "stock"),
+    currency: String(last?.currency || "NZD").toUpperCase(),
+    fx: fx > 0 ? fx : null,
+  };
+}
+
+function yearEndAttributingCost(paper: FifPaper): number | null {
+  if (paper.threshold === "unknown" || paper.peakCostNzd == null) return null;
+  if (paper.attributing.length === 0) return 0;
+  return fifTotals(paper.attributing).costNzd;
+}
+
+function openingOf(paper: FifPaper, ticker: string): number | null {
+  const position = paper.attributing.find((row) => row.ticker === ticker);
+  return position?.openingNzd ?? null;
+}
+
+function ir3Value(helper: Ir3Helper, key: Ir3Helper["totals"][number]["key"]): number | null {
+  const row = helper.totals.find((total) => total.key === key);
+  return row ? row.valueNzd : null;
+}
+
+function compared(label: string, before: number | null, after: number | null): string {
+  if (before == null || after == null) return `${label} is ${NOT_ESTIMATED}.`;
+  if (before === after) return `${label} stays ${formatNzd(after)}.`;
+  return `${label} would be ${formatNzd(after)}, compared with ${formatNzd(before)}.`;
+}
+
+function yearEndSentence(before: number | null, after: number | null, threshold: number, drops: boolean | null): string {
+  if (before == null || after == null || drops == null) {
+    return `Whether total offshore cost would drop under the de minimis is ${NOT_ESTIMATED}.`;
+  }
+  const limit = fifThresholdText(threshold);
+  if (drops) {
+    return `Total attributing cost still open at 31 March would drop under ${limit}: from ${formatNzd(before)} to ${formatNzd(after)}.`;
+  }
+  if (after < threshold) {
+    return `Total attributing cost still open at 31 March would be ${formatNzd(after)}, under ${limit}. Before the sale it was ${formatNzd(before)}.`;
+  }
+  return `Total attributing cost still open at 31 March would be ${formatNzd(after)}, which is not under ${limit}. Before the sale it was ${formatNzd(before)}.`;
+}
+
+export function previewNzTaxSale(input: {
+  rows: readonly TaxLedgerRow[];
+  markets: readonly FifMarketInput[];
+  sale: NzSaleInput;
+  /** Portfolio threshold. The working paper's own default applies when this is omitted. */
+  thresholdNzd?: number;
+  today?: string;
+}): NzTaxPreview {
+  const ticker = String(input.sale.ticker || "").trim().toUpperCase();
+  const quantity = Number(input.sale.quantity);
+  const price = Number(input.sale.price);
+  if (!ticker) return { ok: false, error: "Choose a holding." };
+  if (!(quantity > 0)) return { ok: false, error: "Enter a quantity above 0." };
+  if (!(price > 0)) return { ok: false, error: "Enter a sale price above 0." };
+  const open = fifoRemainingShareQty(input.rows).get(ticker) ?? 0;
+  if (quantity - open > 1e-9) return { ok: false, error: `You hold ${open} ${ticker}. A preview cannot sell more than that.` };
+
+  const meta = holdingMeta(input.rows, ticker);
+  const today = input.today ?? aucklandCivilToday();
+  const requested = String(input.sale.date || "");
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(requested) ? requested : today;
+  const endingYear = nzTaxYearEnding(date);
+  if (endingYear == null) return { ok: false, error: "Enter a valid sale date." };
+
+  const fx = meta.currency === "NZD" ? 1 : meta.fx;
+  const sell = {
+    type: "sell",
+    ticker,
+    asset_type: meta.assetType,
+    executed_at: date,
+    quantity,
+    price,
+    currency: meta.currency,
+    ...(fx != null ? { fx_rate: fx } : {}),
+  } as TaxLedgerRow;
+  const afterRows = [...input.rows, sell];
+  const paperInput = { markets: input.markets, endingYear, thresholdNzd: input.thresholdNzd };
+  const before = buildFifPaper({ rows: input.rows, ...paperInput });
+  const after = buildFifPaper({ rows: afterRows, ...paperInput });
+  const incomeBefore = taxableIncome(input.rows, endingYear);
+  const incomeAfter = taxableIncome(afterRows, endingYear);
+  const ir3Before = buildIr3Helper({ income: incomeBefore, fif: before });
+  const ir3After = buildIr3Helper({ income: incomeAfter, fif: after });
+
+  const threshold = before.thresholdNzd ?? after.thresholdNzd ?? FIF_COST_THRESHOLD_NZD;
+  const yearEndBefore = yearEndAttributingCost(before);
+  const yearEndAfter = yearEndAttributingCost(after);
+  const dropsUnderDeMinimis =
+    yearEndBefore == null || yearEndAfter == null ? null : yearEndBefore >= threshold && yearEndAfter < threshold;
+  const openingBefore = fifClass(ticker, meta.assetType) === "attributable" ? openingOf(before, ticker) : null;
+  const openingAfter = fifClass(ticker, meta.assetType) === "attributable" ? openingOf(after, ticker) : null;
+  const fdrBefore = fifTotals(before.attributing).fdrNzd;
+  const fdrAfter = fifTotals(after.attributing).fdrNzd;
+  const cvBefore = fifTotals(before.attributing).cvNzd;
+  const cvAfter = fifTotals(after.attributing).cvNzd;
+  const ir3IncomeBefore = ir3Value(ir3Before, "overseas-income");
+  const ir3IncomeAfter = ir3Value(ir3After, "overseas-income");
+  const ir3TaxBefore = ir3Value(ir3Before, "overseas-tax");
+  const ir3TaxAfter = ir3Value(ir3After, "overseas-tax");
+  const incomeItem = ir3After.totals.find((row) => row.key === "overseas-income")?.item ?? "Total overseas income";
+  const taxItem = ir3After.totals.find((row) => row.key === "overseas-tax")?.item ?? "Total overseas tax paid";
+
+  const lines = [
+    `Selling ${quantity} ${ticker} at ${price} ${meta.currency} on ${date} (${nzTaxYearLabel(endingYear)}). Nothing is recorded.`,
+    yearEndSentence(yearEndBefore, yearEndAfter, threshold, dropsUnderDeMinimis),
+  ];
+  if (yearEndBefore != null && yearEndAfter != null && before.peakCostNzd != null && before.peakCostNzd === after.peakCostNzd && dropsUnderDeMinimis) {
+    lines.push("This sale does not change the highest cost at any time in the income year. The de minimis test still uses that highest cost.");
+  } else if (before.peakCostNzd != null && after.peakCostNzd != null && before.peakCostNzd !== after.peakCostNzd) {
+    lines.push(`Before this sale the highest cost was ${formatNzd(before.peakCostNzd)}.`);
+  }
+  lines.push(fifThresholdSentence(after));
+  if (fifClass(ticker, meta.assetType) !== "attributable") {
+    lines.push(`The effect on the FDR opening value for this holding is ${NOT_ESTIMATED}.`);
+  } else {
+    lines.push(compared("The FDR opening value", openingBefore, openingAfter));
+  }
+  lines.push(compared("Fair dividend rate income", fdrBefore, fdrAfter));
+  if (cvBefore == null || cvAfter == null) lines.push(`Comparative value is ${NOT_ESTIMATED}.`);
+  else if (cvBefore === cvAfter) {
+    lines.push(`Comparative value stays ${formatNzd(cvAfter)}. Closing market value stays the figure entered on the working paper.`);
+  } else {
+    lines.push(
+      `Comparative value would be ${formatNzd(cvAfter)}, compared with ${formatNzd(cvBefore)}. Closing market value stays the figure entered on the working paper.`,
+    );
+  }
+  lines.push(compared(incomeItem, ir3IncomeBefore, ir3IncomeAfter));
+  lines.push(compared(taxItem, ir3TaxBefore, ir3TaxAfter));
+
+  return {
+    ok: true,
+    ticker,
+    quantity,
+    price,
+    currency: meta.currency,
+    date,
+    taxYear: nzTaxYearLabel(endingYear),
+    endingYear,
+    thresholdNzd: threshold,
+    yearEndCostBeforeNzd: yearEndBefore,
+    yearEndCostAfterNzd: yearEndAfter,
+    dropsUnderDeMinimis,
+    peakCostBeforeNzd: before.peakCostNzd,
+    peakCostAfterNzd: after.peakCostNzd,
+    peakThresholdBefore: before.threshold,
+    peakThresholdAfter: after.threshold,
+    openingBeforeNzd: openingBefore,
+    openingAfterNzd: openingAfter,
+    fdrBeforeNzd: fdrBefore,
+    fdrAfterNzd: fdrAfter,
+    cvBeforeNzd: cvBefore,
+    cvAfterNzd: cvAfter,
+    ir3IncomeBeforeNzd: ir3IncomeBefore,
+    ir3IncomeAfterNzd: ir3IncomeAfter,
+    ir3TaxBeforeNzd: ir3TaxBefore,
+    ir3TaxAfterNzd: ir3TaxAfter,
+    lines,
+  };
+}

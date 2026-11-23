@@ -34,6 +34,7 @@ function stubFlags(extra: Record<string, string> = {}) {
   vi.stubEnv("HEADMASTER_GOALS", "");
   vi.stubEnv("NEW_PRICE_STRUCTURE", "");
   vi.stubEnv("AI_SHOW_WORKING", "");
+  vi.stubEnv("NZ_TAX_PREVIEW", "");
   vi.stubEnv("GOAL_TEST_HOOK_USER_IDS", SECRET_IDS);
   for (const [key, value] of Object.entries(extra)) vi.stubEnv(key, value);
 }
@@ -81,7 +82,7 @@ describe("DIAG-FLAGS-1 /api/health", () => {
     );
     const expected = encodeEdgeFlags(edgeFlagState());
     expect(expected).toBe(
-      "GOAL_TEST_HOOKS=0,PORTFOLIO_SHARING=0,HEADMASTER_GOALS=0,NEW_PRICE_STRUCTURE=0,AI_SHOW_WORKING=0",
+      "GOAL_TEST_HOOKS=0,PORTFOLIO_SHARING=0,HEADMASTER_GOALS=0,NEW_PRICE_STRUCTURE=0,AI_SHOW_WORKING=0,NZ_TAX_PREVIEW=0",
     );
     expect(expected).not.toBe(spoof);
     expect(res.headers.get(EDGE_FLAGS_HEADER)).toBe(expected);
@@ -124,6 +125,7 @@ describe("DIAG-FLAGS-1 /api/health", () => {
         HEADMASTER_GOALS: { runtime: false, edge: true },
         NEW_PRICE_STRUCTURE: { runtime: true, edge: false },
         AI_SHOW_WORKING: { runtime: true, edge: false },
+        NZ_TAX_PREVIEW: { runtime: false, edge: false },
       },
     });
     for (const name of DIAG_FLAG_NAMES) {
@@ -169,7 +171,7 @@ describe("DIAG-FLAGS-1 /api/health", () => {
     const health = await middleware(new NextRequest("https://aetherforgeai.co.nz/api/health"));
     const expected = encodeEdgeFlags(edgeFlagState());
     expect(expected).toBe(
-      "GOAL_TEST_HOOKS=1,PORTFOLIO_SHARING=1,HEADMASTER_GOALS=0,NEW_PRICE_STRUCTURE=0,AI_SHOW_WORKING=1",
+      "GOAL_TEST_HOOKS=1,PORTFOLIO_SHARING=1,HEADMASTER_GOALS=0,NEW_PRICE_STRUCTURE=0,AI_SHOW_WORKING=1,NZ_TAX_PREVIEW=0",
     );
     expect(health.headers.get(EDGE_FLAGS_HEADER)).toBe(expected);
     expect(health.headers.get("x-middleware-request-x-af-edge-flags")).toBe(expected);

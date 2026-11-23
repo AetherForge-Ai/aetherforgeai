@@ -1,5 +1,6 @@
 import { readFifThreshold } from "@/lib/fif-setting.server";
 import { FifThresholdSetting } from "@/components/tax/FifThresholdSetting";
+import { WhatIfSellLink } from "@/components/tax/WhatIfSellLink";
 import Link from "next/link";
 import { AppShell } from "@/components/AppShell";
 import { CsvExportButton } from "@/components/tax/CsvExportButton";
@@ -9,6 +10,7 @@ import { TaxCompletenessList } from "@/components/tax/TaxCompletenessList";
 import { TaxSectionNav } from "@/components/tax/TaxSectionNav";
 import { canExportCsv } from "@/lib/entitlements";
 import { formatNzd } from "@/lib/currency";
+import { nzTaxPreviewEnabled } from "@/lib/feature-flags";
 
 import { COST_METHOD_LABEL } from "@/lib/lot-day";
 import {
@@ -172,12 +174,14 @@ export default async function FifPage({
               </p>
             ) : (
               paper.attributing.map((position) => (
-                <FifPositionCard
-                  key={position.ticker}
-                  position={position}
-                  year={endingYear}
-                  canSave={saveable.has(position.ticker)}
-                />
+                <div key={position.ticker}>
+                  <WhatIfSellLink enabled={nzTaxPreviewEnabled()} ticker={position.ticker} year={endingYear} className="mt-4 inline-block text-sm font-semibold text-primary underline-offset-4 hover:underline" />
+                  <FifPositionCard
+                    position={position}
+                    year={endingYear}
+                    canSave={saveable.has(position.ticker)}
+                  />
+                </div>
               ))
             )}
             {paper.attributing.length > 0 ? (

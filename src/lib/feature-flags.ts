@@ -10,6 +10,8 @@
  *   no-card trial at checkout. OFF until Lukas decides K-14/K-21; prices never change with it.
  * - TAX_SALE_PREVIEW (G-18, b79): "what if I sell" NZ tax preview at /tax/sale-preview. OFF in prod
  *   until the K-05 lawyer review (Lukas approved behind the flag, 27 Oct 2026). Set TAX_SALE_PREVIEW=1 to show.
+ * - NZ_TAX_PREVIEW (NZ-TAX-PREVIEW-1): FIF "What if I sell?" on a holding at /tax/what-if-sell.
+ *   OFF unless NZ_TAX_PREVIEW=1. Not set in deploy config. Reported on GET /api/health.
  * - IN_APP_BRIEFS (G-03) and IN_APP_ALERTS_V1 (G-04): in app only, off until K-05/K-12.
  */
 const on = (name: string) => process.env[name] === "1";
@@ -23,6 +25,11 @@ export const IN_APP_BRIEFS = on("IN_APP_BRIEFS");
 export const IN_APP_ALERTS_V1 = on("IN_APP_ALERTS_V1");
 /** Read per request so tests and preview deploys can switch it without a rebuild. */
 export const taxSalePreviewEnabled = (env: Record<string, string | undefined> = process.env) => env.TAX_SALE_PREVIEW === "1";
+/**
+ * NZ-TAX-PREVIEW-1. Bracket access so the value is read per request, the same way /api/health
+ * reads runtime flags. OFF unless the value is exactly "1".
+ */
+export const nzTaxPreviewEnabled = (env: Record<string, string | undefined> = process.env) => env["NZ_TAX_PREVIEW"] === "1";
 export { CSP_ALLOW_TOTALUM_TEST } from "@/lib/security-headers";
 /**
  * b89 START-3: the "dip your toes in" offer on /start-here. OFF by default. Even when on, nothing shows

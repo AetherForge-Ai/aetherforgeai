@@ -16,6 +16,8 @@ export const DIAG_FLAG_NAMES = [
   "HEADMASTER_GOALS",
   "NEW_PRICE_STRUCTURE",
   "AI_SHOW_WORKING",
+  // NZ-TAX-PREVIEW-1: holding sale estimate. Off unless the value is 1.
+  "NZ_TAX_PREVIEW",
 ] as const;
 
 export type DiagFlagName = (typeof DIAG_FLAG_NAMES)[number];
@@ -31,6 +33,7 @@ export function flagEnabled(name: DiagFlagName, raw: string | undefined): boolea
   if (name === "PORTFOLIO_SHARING") return value.toLowerCase() === "on";
   // No call site reads this flag yet. Accept the two switches used by the others.
   if (name === "NEW_PRICE_STRUCTURE") return value === "1" || value.toLowerCase() === "on";
+  // NZ_TAX_PREVIEW uses the same "1" switch as nzTaxPreviewEnabled.
   return value === "1";
 }
 
@@ -47,6 +50,7 @@ export function edgeFlagState(): Record<DiagFlagName, boolean> {
       process.env.NEW_PRICE_STRUCTURE === "1" ||
       (process.env.NEW_PRICE_STRUCTURE || "").trim().toLowerCase() === "on",
     AI_SHOW_WORKING: process.env.AI_SHOW_WORKING === "1",
+    NZ_TAX_PREVIEW: process.env.NZ_TAX_PREVIEW === "1",
   };
 }
 
