@@ -68,6 +68,7 @@ import {
   dexSourceSummary,
   lastCryptoSeedReport,
 } from "@/lib/crypto-keyless-seed";
+import { collisionIdsForTicker, paprikaIdForSymbol } from "@/lib/crypto-listed-match";
 import { coinDisplayName } from "@/lib/crypto-names";
 import { dedupeCoinsById, renamedCoinSymbol, resolvableCoinId, type CoinMarket } from "@/lib/crypto-market";
 import { persistCryptoSnapshot, persistDexReport, persistDexSnapshot, readCryptoSnapshot, readDexSnapshot } from "@/lib/crypto-snapshot";
@@ -839,10 +840,15 @@ export async function priceFromSnapshot(input: {
   if (coin && coin.price > 0) {
     return { price: coin.price, quotedAt: crypto?.at ?? null, source: "snapshot", stale: snapshotIsStale(crypto?.at) };
   }
+  const pinnedIds = symbol ? collisionIdsForTicker(symbol) : null;
   const dexRow = (dex?.rows ?? []).find((row) => {
     const rowAddress = (row.address || "").toLowerCase();
     if (address && rowAddress && (rowAddress === address || rowAddress.endsWith(address))) return true;
-    if (coinId && (row.detailId === coinId || row.id === coinId)) return true;
+    if (!pinnedIds && coinId && (row.detailId === coinId || row.id === coinId)) return true;
+    if (pinnedIds) {
+      const rowId = String(row.detailId || row.id || "").trim().toLowerCase();
+      return !!rowId && pinnedIds.has(rowId);
+    }
     return symbol ? row.symbol.toUpperCase() === symbol : false;
   });
   if (dexRow?.price && dexRow.price > 0) {
@@ -851,15 +857,21 @@ export async function priceFromSnapshot(input: {
   return null;
 }
 
-async function paprikaQuote(symbol: string): Promise<SnapshotPrice | null> {
+async function paprikaIdFromSearch(symbol: string): Promise<string> {
   const searchRes = await fetch(
-    `https://api.coinpaprika.com/v1/search?q=${encodeURIComponent(symbol)}&c=currencies&modifier=symbol&limit=5`,
+    `https://api.coinpaprika.com/v1/search/?q=${encodeURIComponent(symbol)}&c=currencies&limit=8`,
     { headers: { accept: "application/json" }, signal: AbortSignal.timeout(800) }
   );
-  if (!searchRes.ok) return null;
+  if (!searchRes.ok) return "";
   const searchBody = (await searchRes.json()) as { currencies?: Array<{ id?: string; symbol?: string }> };
-  const match = (searchBody.currencies || []).find((row) => String(row.symbol || "").toUpperCase() === symbol);
-  const id = String(match?.id || "").trim();
+  const matches = (searchBody.currencies || []).filter((row) => String(row.symbol || "").toUpperCase() === symbol);
+  if (matches.length !== 1) return "";
+  return String(matches[0]?.id || "").trim();
+}
+
+async function paprikaQuote(symbol: string): Promise<SnapshotPrice | null> {
+  const pinned = paprikaIdForSymbol(symbol);
+  const id = pinned || (await paprikaIdFromSearch(symbol));
   if (!id) return null;
   const tickerRes = await fetch(`https://api.coinpaprika.com/v1/tickers/${encodeURIComponent(id)}?quotes=USD`, {
     headers: { accept: "application/json" },
@@ -930,7 +942,7 @@ export function quotesFromCoins(
   const out: Record<string, { price: number; changePct?: number; source: string; quotedAt: string | null }> = {};
   for (const raw of symbols) {
     const symbol = raw.trim().toUpperCase();
-    const coin = board.coins.find((row) => row.symbol.toUpperCase() === symbol);
+    const coin = pickSnapshotCoin(board.coins, { symbol });
     if (!coin || !(coin.price > 0)) continue;
     const change = snapshotTapeChange(coin);
     out[symbol] = {

@@ -439,7 +439,16 @@ export async function POST(req: Request) {
         liveQuote(),
         new Promise<null>((resolve) => setTimeout(() => resolve(null), 700)),
       ]);
-      if (live) current_price = live;
+      if (live) {
+        if (assetType === "crypto") {
+          const { lastGoodCryptoPrice } = await import("@/lib/crypto-price-feed");
+          const { guardTradeQuote } = await import("@/lib/quote-sanity");
+          const guarded = guardTradeQuote(live, lastGoodCryptoPrice(ticker));
+          if (guarded.ok && guarded.price) current_price = guarded.price;
+        } else {
+          current_price = live;
+        }
+      }
     } catch (err) {
       console.error(`[api/stocks] Live price lookup failed for ${ticker} (non-fatal):`, err);
     }

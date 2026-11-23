@@ -162,6 +162,7 @@ export function RecordTransactionPanel({
   const [feeDirty, setFeeDirty] = useState(false);
   const [priceDirty, setPriceDirty] = useState(false);
   const [quoteOrigin, setQuoteOrigin] = useState<"" | "snapshot">("");
+  const [filledFromQuote, setFilledFromQuote] = useState(false);
   const [priceAsAt, setPriceAsAt] = useState("");
   const [priceSession, setPriceSession] = useState<TradePriceSession>("");
   const [quoteChain, setQuoteChain] = useState("");
@@ -412,12 +413,19 @@ export function RecordTransactionPanel({
           quotedAt?: string | null;
           session?: "open" | "closed" | null;
           chain?: string | null;
+          quoteRejected?: boolean;
         }>(
           `/api/tickers/quote?symbol=${encodeURIComponent(sym)}&type=${type}${id}${market}`
         );
         if (cancel || priceDirty) return;
-        if (res.ok && res.data?.price && res.data.price > 0) {
+        if (res.data?.quoteRejected) {
+          setPrice("");
+          setFilledFromQuote(false);
+          setQuoteOrigin("");
+          setHint(res.data.label || "Price unavailable, enter price manually.");
+        } else if (res.ok && res.data?.price && res.data.price > 0) {
           setPrice(formatPriceInput(res.data.price));
+          setFilledFromQuote(true);
           const session: TradePriceSession = res.data.session === "open" || res.data.session === "closed" ? res.data.session : "";
           setPriceSession(session);
           setPriceAsAt(res.data.quotedAt || "");
@@ -436,6 +444,7 @@ export function RecordTransactionPanel({
           }
         } else if (asset.price && asset.price > 0) {
           setPrice(formatPriceInput(asset.price));
+          setFilledFromQuote(true);
           setHint(res.data?.label || "Live price was unavailable. A recent print is filled in. You can type over it.");
         } else if (res.data?.label) {
           setHint(res.data.label);
@@ -467,6 +476,7 @@ export function RecordTransactionPanel({
 
   function chooseAsset(hit: AssetHit) {
     setAsset(hit);
+    setFilledFromQuote(false);
     setQuery("");
     setPriceDirty(false);
     setQuoteOrigin("");
@@ -672,6 +682,7 @@ export function RecordTransactionPanel({
         payload.confirm = true;
         if (reviewKey.current) payload.idempotency_key = reviewKey.current;
         if (asset.id && asset.assetType === "crypto") payload.coingecko_id = asset.id;
+        if (!priceDirty && filledFromQuote) payload.price_source = "live_quote";
         if (quoteOrigin === "snapshot" && !priceDirty) {
           payload.price_source = "live_quote";
           payload.quote_origin = "snapshot";
@@ -1075,6 +1086,7 @@ export function RecordTransactionPanel({
                     setPriceSession("");
                     setHint("");
                     setQuoteOrigin("");
+                    setFilledFromQuote(false);
                     setQuoteChain("");
                     setFxDirty(false);
                   }}
@@ -1112,6 +1124,7 @@ export function RecordTransactionPanel({
                     setPriceAsAt("");
                     setPriceSession("");
                     setHint("");
+                    setFilledFromQuote(false);
                     setQuoteChain("");
                     setProblems([]);
                   }}
@@ -1134,6 +1147,7 @@ export function RecordTransactionPanel({
                     setPriceAsAt("");
                     setPriceSession("");
                     setHint("");
+                    setFilledFromQuote(false);
                     setQuoteChain("");
                     setProblems([]);
                   }}

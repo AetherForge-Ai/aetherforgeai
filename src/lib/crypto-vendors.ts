@@ -1,8 +1,9 @@
 /**
  * One vendor-id map for crypto. CoinGecko ids and Yahoo symbols live here.
  *
- * ARB, TON and JUP do not use a guessed TICKER-USD symbol. Those Yahoo symbols
- * are different assets (JUP-USD is a micro-price token, not Jupiter).
+ * ARB, TON, JUP, UNI and APT do not use a guessed TICKER-USD symbol.
+ * Those Yahoo symbols are different assets: ARB-USD is ARbit (~0.000629),
+ * JUP-USD is a micro-price Jupiter, and UNI-USD / APT-USD are not Uniswap / Aptos.
  *
  * Owner hand-check before crypto projections are un-paused. Compare each live
  * USD print with CoinGecko, in this order:
@@ -43,10 +44,10 @@ const ROWS: CryptoVendor[] = [
   // b68 P3: polygon-ecosystem-token is POL. MATIC is only an alias (TICKER_ALIASES), so a slug lookup never returns MATIC.
   { ticker: "POL", name: "Polygon (POL, was MATIC)", coingecko: "polygon-ecosystem-token", yahoo: "POL28321-USD" },
   { ticker: "LTC", name: "Litecoin", coingecko: "litecoin", yahoo: "LTC-USD" },
-  { ticker: "UNI", name: "Uniswap", coingecko: "uniswap", yahoo: "UNI-USD" },
+  { ticker: "UNI", name: "Uniswap", coingecko: "uniswap", yahoo: "UNI7083-USD" },
   { ticker: "ATOM", name: "Cosmos", coingecko: "cosmos", yahoo: "ATOM-USD" },
   { ticker: "NEAR", name: "NEAR Protocol", coingecko: "near", yahoo: "NEAR-USD" },
-  { ticker: "APT", name: "Aptos", coingecko: "aptos", yahoo: "APT-USD" },
+  { ticker: "APT", name: "Aptos", coingecko: "aptos", yahoo: "APT21794-USD" },
   { ticker: "ARB", name: "Arbitrum", coingecko: "arbitrum", yahoo: "ARB11841-USD" },
   { ticker: "OP", name: "Optimism", coingecko: "optimism", yahoo: "OP-USD" },
   // b70 P3: CoinGecko renamed the-open-network to GRAM ("Gram (prev. Toncoin)"); TON is an alias.
@@ -112,11 +113,21 @@ export function coingeckoIdFor(ticker: string): string | null {
 
 /**
  * Yahoo symbol. Configured names use the mapped symbol.
+ * Collision-prone tickers outside the projection list use YAHOO_PINNED.
  * Anything else is a guessed TICKER-USD fallback and must not be published alone.
  */
+const YAHOO_PINNED: Record<string, string> = {
+  PEPE: "PEPE24478-USD",
+  SUI: "SUI20947-USD",
+  IMX: "IMX10603-USD",
+  STX: "STX4847-USD",
+};
+
 export function yahooSymbolFor(ticker: string): { symbol: string; mapped: boolean } {
   const code = normalizeCryptoTicker(ticker);
   const row = CRYPTO_VENDORS[code];
   if (row) return { symbol: row.yahoo, mapped: true };
+  const pinned = YAHOO_PINNED[code];
+  if (pinned) return { symbol: pinned, mapped: true };
   return { symbol: `${code}-USD`, mapped: false };
 }

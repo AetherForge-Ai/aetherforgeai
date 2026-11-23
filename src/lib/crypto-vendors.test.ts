@@ -16,6 +16,8 @@ describe("crypto vendor ids", () => {
     expect(vendorFor("JUP")).toMatchObject({ coingecko: "jupiter-exchange-solana", yahoo: "JUP29210-USD" });
     expect(canonicalCryptoId("TON")).toBe("the-open-network");
     expect(yahooSymbolFor("jup").symbol).toBe("JUP29210-USD");
+    expect(yahooSymbolFor("UNI").symbol).toBe("UNI7083-USD");
+    expect(yahooSymbolFor("APT").symbol).toBe("APT21794-USD");
     expect(yahooSymbolFor("ARB").mapped).toBe(true);
     expect(yahooSymbolFor("NOTACOIN")).toEqual({ symbol: "NOTACOIN-USD", mapped: false });
     expect(coingeckoIdFor("NOTACOIN")).toBeNull();
