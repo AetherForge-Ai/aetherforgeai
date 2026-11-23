@@ -58,6 +58,9 @@ const ENTRIES: SitemapEntry[] = [
   { path: "/chat", changeFrequency: "monthly", priority: 0.5, lastModified: "2026-10-13" },
   { path: "/cookies", changeFrequency: "yearly", priority: 0.3 },
   { path: "/how-to-maximize-results", changeFrequency: "monthly", priority: 0.5, lastModified: "2026-10-13" },
+  { path: "/tools", changeFrequency: "monthly", priority: 0.6, lastModified: "2026-11-23" },
+  { path: "/tools/fif-threshold", changeFrequency: "monthly", priority: 0.6, lastModified: "2026-11-23" },
+  { path: "/tools/dividend-imputation", changeFrequency: "monthly", priority: 0.6, lastModified: "2026-11-23" },
 ];
 
 function legalKeyFor(path: string): LegalPageKey | undefined {
