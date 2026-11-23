@@ -185,13 +185,15 @@ function yearEndSentence(before: number | null, after: number | null, threshold:
     return `Whether total offshore cost would drop under the de minimis for next year is ${NOT_ESTIMATED}.`;
   }
   const limit = fifThresholdText(threshold);
-  if (drops) {
-    const exempt = after === threshold ? " A cost exactly at the threshold counts as exempt." : "";
-    return `Total attributing cost still open at 31 March would drop under ${limit}: from ${formatNzd(before)} to ${formatNzd(after)}.${exempt} ${nextYear}`;
+  if (after === threshold) {
+    const atOrUnder = threshold === FIF_COST_THRESHOLD_NZD ? "at or under NZ$50,000" : `at or under ${limit}`;
+    return `Total attributing cost still open at 31 March would be ${formatNzd(after)}, ${atOrUnder}. If your cost is exactly ${formatNzd(threshold)}, check with your tax adviser before relying on the exemption. Before the sale it was ${formatNzd(before)}. ${nextYear}`;
   }
-  if (after <= threshold) {
-    const exempt = after === threshold ? " A cost exactly at the threshold counts as exempt." : "";
-    return `Total attributing cost still open at 31 March would be ${formatNzd(after)}, under ${limit}.${exempt} Before the sale it was ${formatNzd(before)}. ${nextYear}`;
+  if (drops) {
+    return `Total attributing cost still open at 31 March would drop under ${limit}: from ${formatNzd(before)} to ${formatNzd(after)}. ${nextYear}`;
+  }
+  if (after < threshold) {
+    return `Total attributing cost still open at 31 March would be ${formatNzd(after)}, under ${limit}. Before the sale it was ${formatNzd(before)}. ${nextYear}`;
   }
   return `Total attributing cost still open at 31 March would be ${formatNzd(after)}, which is not under ${limit}. Before the sale it was ${formatNzd(before)}. ${nextYear}`;
 }

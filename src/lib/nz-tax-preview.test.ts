@@ -1,11 +1,11 @@
 import { createElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { existsSync, readFileSync } from "node:fs";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { WhatIfSellLink } from "@/components/tax/WhatIfSellLink";
 import { healthFlags, runtimeFlagState } from "@/lib/diag-flags";
-import { nzTaxPreviewEnabled } from "@/lib/feature-flags";
+import { nzTaxPreviewEnabled, setNzTaxPreviewSignOffForTests } from "@/lib/feature-flags";
 import { buildFifPaper, fifTotals } from "@/lib/fif-working-paper";
 import { buildIr3Helper } from "@/lib/ir3/ir3-helper";
 import {
@@ -107,7 +107,14 @@ function sellRow(ticker: string, quantity: number, price: number, date: string, 
   } as TaxLedgerRow;
 }
 
+beforeEach(() => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2026-11-23T00:00:00Z"));
+});
+
 afterEach(() => {
+  vi.useRealTimers();
+  setNzTaxPreviewSignOffForTests(null);
   vi.unstubAllEnvs();
   gate.calls = 0;
   gate.user = null;
@@ -119,6 +126,7 @@ afterEach(() => {
 });
 
 function enablePreview(flag = "1") {
+  setNzTaxPreviewSignOffForTests(true);
   vi.stubEnv("NZ_TAX_PREVIEW", flag);
   vi.stubEnv("TAX_SALE_PREVIEW", "1");
 }
@@ -203,8 +211,10 @@ describe("NZ tax preview math uses the FIF paper", () => {
     expect(preview.yearEndCostBeforeNzd).toBe(60_000);
     expect(preview.yearEndCostAfterNzd).toBe(50_000);
     expect(preview.dropsUnderDeMinimis).toBe(true);
-    expect(preview.lines.join("\n")).toContain("counts as exempt");
+    expect(preview.lines.join("\n")).toContain("at or under NZ$50,000");
+    expect(preview.lines.join("\n")).toContain("check with your tax adviser before relying on the exemption");
     expect(preview.lines.join("\n")).toContain("only affects next year");
+    expect(preview.lines.join("\n")).not.toContain("counts as exempt");
   });
 
   it("FDR, CV and IR3 match the existing helper when opening and closing values are stored", () => {
@@ -324,7 +334,7 @@ describe("NZ_TAX_PREVIEW flag", () => {
     expect(nzTaxPreviewEnabled({})).toBe(false);
     expect(nzTaxPreviewEnabled({ NZ_TAX_PREVIEW: "true", TAX_SALE_PREVIEW: "1" })).toBe(false);
     expect(nzTaxPreviewEnabled({ NZ_TAX_PREVIEW: "1" })).toBe(false);
-    expect(nzTaxPreviewEnabled({ NZ_TAX_PREVIEW: "1", TAX_SALE_PREVIEW: "1", NODE_ENV: "test" })).toBe(true);
+    expect(nzTaxPreviewEnabled({ NZ_TAX_PREVIEW: "1", TAX_SALE_PREVIEW: "1", NODE_ENV: "test" })).toBe(false);
     expect(nzTaxPreviewEnabled({ NZ_TAX_PREVIEW: "1", TAX_SALE_PREVIEW: "1", NODE_ENV: "production" })).toBe(false);
     expect(runtimeFlagState({}).NZ_TAX_PREVIEW).toBe(false);
     expect(runtimeFlagState({ NZ_TAX_PREVIEW: "1" }).NZ_TAX_PREVIEW).toBe(false);
@@ -333,14 +343,33 @@ describe("NZ_TAX_PREVIEW flag", () => {
     expect(healthFlags("NZ_TAX_PREVIEW=yes", {}).NZ_TAX_PREVIEW.edge).toBe(false);
     expect(read("src/lib/feature-flags.ts")).toContain("NZ_TAX_K05_K06_SIGNED_OFF = false");
   });
+  it("stays off with NODE_ENV unset, development and preview while both flags are 1", () => {
+    const flags = { NZ_TAX_PREVIEW: "1", TAX_SALE_PREVIEW: "1" };
+    expect(nzTaxPreviewEnabled(flags)).toBe(false);
+    expect(runtimeFlagState(flags).NZ_TAX_PREVIEW).toBe(false);
+    for (const nodeEnv of ["development", "preview", "production", "test"]) {
+      const env = { ...flags, NODE_ENV: nodeEnv };
+      expect(nzTaxPreviewEnabled(env), nodeEnv).toBe(false);
+      expect(runtimeFlagState(env).NZ_TAX_PREVIEW, nodeEnv).toBe(false);
+    }
+    for (const file of [
+      "src/app/tax/what-if-sell/page.tsx",
+      "src/app/api/tax/nz-preview/route.ts",
+      "src/lib/diag-flags.ts",
+      "src/lib/dashboard-page.tsx",
+      "src/app/tax/fif/page.tsx",
+    ]) {
+      expect(read(file), file).not.toContain("setNzTaxPreviewSignOffForTests");
+    }
+  });
   it("trims \" 1\" the same way in the feature and in health", () => {
-    const padded = { NZ_TAX_PREVIEW: " 1", TAX_SALE_PREVIEW: "1", NODE_ENV: "test" };
+    const padded = { NZ_TAX_PREVIEW: " 1", TAX_SALE_PREVIEW: "1", NODE_ENV: "development" };
+    expect(nzTaxPreviewEnabled(padded)).toBe(false);
+    expect(runtimeFlagState(padded).NZ_TAX_PREVIEW).toBe(false);
+    setNzTaxPreviewSignOffForTests(true);
     expect(nzTaxPreviewEnabled(padded)).toBe(true);
     expect(runtimeFlagState(padded).NZ_TAX_PREVIEW).toBe(nzTaxPreviewEnabled(padded));
-    const production = { NZ_TAX_PREVIEW: " 1", TAX_SALE_PREVIEW: "1", NODE_ENV: "production" };
-    expect(nzTaxPreviewEnabled(production)).toBe(false);
-    expect(runtimeFlagState(production).NZ_TAX_PREVIEW).toBe(false);
-    expect(nzTaxPreviewEnabled({ NZ_TAX_PREVIEW: " 1", TAX_SALE_PREVIEW: " 1", NODE_ENV: "test" })).toBe(false);
+    expect(nzTaxPreviewEnabled({ NZ_TAX_PREVIEW: " 1", TAX_SALE_PREVIEW: " 1" })).toBe(false);
   });
 
   it("is not set in deploy config", () => {
