@@ -8,10 +8,13 @@ import { DisclaimerNotice } from "@/components/legal/DisclaimerNotice";
 
 import Link from "next/link";
 import { TaxSectionNav } from "@/components/tax/TaxSectionNav";
+import { ACCOUNTANT_PACK_LABEL } from "@/lib/accountant-export-label";
+import { accountantExportDefaults } from "@/lib/accountant-export";
 import { formatNzd, formatSignedMoney } from "@/lib/currency";
 import { fifThresholdText } from "@/lib/fif-working-paper";
 import { taxGrossDividendSentence } from "@/lib/tax-book";
 import { COST_METHOD_LABEL } from "@/lib/lot-day";
+import { aucklandCivilToday } from "@/lib/nz-tax-year";
 import { TAX_INDICATIVE_LABEL } from "@/lib/tax-disclaimer";
 import { TAX_PACK_NOTE } from "@/lib/tax-pack";
 import { TAX_PAGE_EXAMPLE, TAX_PAGE_SUMMARIES } from "@/lib/tax-public-summary";
@@ -50,6 +53,7 @@ const SOURCES = [
 ] as const;
 
 export function TaxPageContent({ book = null, xero = "guest" }: { book?: TaxBookFigures | null; xero?: "paid" | "free" | "guest" }) {
+  const accountantRange = accountantExportDefaults(aucklandCivilToday());
   return (
     <article className="mx-auto w-full max-w-3xl px-4 py-10 sm:px-6">
       <p className="text-xs font-semibold uppercase tracking-wide text-primary">New Zealand</p>
@@ -82,6 +86,39 @@ export function TaxPageContent({ book = null, xero = "guest" }: { book?: TaxBook
           </span>
         ) : (
           <Link href="/login?redirect=/tax" className="mt-2 inline-flex min-h-11 items-center rounded-md border px-4 font-medium">Sign in to download</Link>
+        )}
+      </section>
+      {/* Book figures already stored. Share with accountant is future work. */}
+      <section className="mt-4 rounded-md border p-3 text-sm" data-accountant-export>
+        <h2 className="font-semibold">Export for my accountant</h2>
+        <p className="mt-1 text-muted-foreground">
+          A ZIP of your book: holdings at a date (cost basis and market value in NZD, with the exchange rate and date),
+          transactions for a date range, and dividends with the imputation, RWT and foreign tax amounts already stored.{" "}
+          {ACCOUNTANT_PACK_LABEL}
+        </p>
+        <p className="mt-1 text-muted-foreground">Sharing this pack with your accountant from AetherForge is future work.</p>
+        {xero === "guest" ? (
+          <Link href="/login?redirect=/tax" className="mt-2 inline-flex min-h-11 items-center rounded-md border px-4 font-medium">
+            Sign in to export
+          </Link>
+        ) : (
+          <form action="/api/tax/accountant/export" method="get" className="mt-2 flex flex-wrap items-end gap-2">
+            <label className="flex flex-col gap-1 text-xs">
+              Holdings as at
+              <input type="date" name="asOf" defaultValue={accountantRange?.asOf} className="min-h-11 rounded-md border bg-transparent px-2" />
+            </label>
+            <label className="flex flex-col gap-1 text-xs">
+              Transactions from
+              <input type="date" name="from" defaultValue={accountantRange?.from} className="min-h-11 rounded-md border bg-transparent px-2" />
+            </label>
+            <label className="flex flex-col gap-1 text-xs">
+              Transactions to
+              <input type="date" name="to" defaultValue={accountantRange?.to} className="min-h-11 rounded-md border bg-transparent px-2" />
+            </label>
+            <button type="submit" className="inline-flex min-h-11 items-center rounded-md border px-4 font-medium" data-accountant-export-download>
+              Export for my accountant
+            </button>
+          </form>
         )}
       </section>
       {/* Goal b20 G-29: the Xero export where accountants look; Free sees the lock. */}
