@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import { PUBLIC_EQUITY_SOURCE, publicCryptoSourcesLabel } from "@/lib/data-sources";
 import { cryptoVenueForLabel } from "@/lib/crypto-price-chain";
 import { cryptoReadOutcome, readCryptoSnapshot, snapshotHeaders } from "@/lib/crypto-snapshot";
+import { tapeCloseIso } from "@/lib/market-freshness";
 import { loadPublicTicker, startEquityFetch } from "@/lib/public-ticker";
 import { COLD_START_READ_MS, type EdgeDiag, edgeJsonGet, edgeJsonPut, edgeSnapshotGet, edgeSnapshotGetVersion, edgeSnapshotPut, pickServedSnapshot, withDeadline } from "@/lib/ticker-serve";
 import { snapshotFloorCookie, snapshotFloorFrom } from "@/lib/snapshot-floor";
@@ -288,6 +289,11 @@ function rememberServed(snap: CryptoSnap) {
   }
 }
 
+function rowsFromTickerBody(body: unknown): { nzx?: Array<{ quotedAt?: string | null }>; asx?: Array<{ quotedAt?: string | null }> } {
+  const rows = (body as { data?: { rows?: { nzx?: Array<{ quotedAt?: string | null }>; asx?: Array<{ quotedAt?: string | null }> } } } | null)?.data?.rows;
+  return rows ?? {};
+}
+
 /** b50 P1: true when a reply body has NZX or ASX rows. */
 function bodyHasEquities(body: unknown): boolean {
   const rows = (body as { data?: { rows?: { nzx?: unknown[]; asx?: unknown[] } } } | null)?.data?.rows;
@@ -442,8 +448,14 @@ async function buildTicker(floor: number, cookie: string | null, hooksAllowed: b
   const equitiesOk = bodyHasEquities(body) || !(lastGoodResponse && bodyHasEquities(lastGoodResponse.body));
   if (!stale && !testFeedForce && equitiesOk) {
     const prevVersion = lastGoodResponse?.version ?? 0;
+    const prevClose = tapeCloseIso(rowsFromTickerBody(lastGoodResponse?.body));
+    const nextClose = tapeCloseIso(feed.rows);
+    // Crypto snapshot version does not move when the NZX/ASX close date does.
+    // A newer equity close still replaces the colo body the SSR tape reads.
+    const closeAdvanced = !!nextClose && (!prevClose || nextClose > prevClose);
     lastGoodResponse = { body, headers, version: snap.version };
     if (snap.version > prevVersion && bodyHasEquities(body)) void keepAlive(edgeJsonPut("body", lastGoodResponse)); // b47: waitUntil
+    else if (closeAdvanced && bodyHasEquities(body)) void keepAlive(edgeJsonPut("body", lastGoodResponse));
   }
   return stampTicker(
     NextResponse.json(body, {
