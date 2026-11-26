@@ -10,6 +10,11 @@
  *   no-card trial at checkout. OFF until Lukas decides K-14/K-21; prices never change with it.
  * - TAX_SALE_PREVIEW (G-18, b79): "what if I sell" NZ tax preview at /tax/sale-preview. OFF in prod
  *   until the K-05 lawyer review (Lukas approved behind the flag, 27 Oct 2026). Set TAX_SALE_PREVIEW=1 to show.
+ * - NZ_TAX_PREVIEW (NZ-TAX-PREVIEW-1): FIF "What if I sell?" on a holding at /tax/what-if-sell.
+ *   Off unless the value trims to "1", TAX_SALE_PREVIEW is exactly "1" (the K-05 gate), and
+ *   NZ_TAX_K05_K06_SIGNED_OFF is true. That constant stays false on every environment until Lukas
+ *   signs off K-05 and K-06. NODE_ENV does not turn it on.
+ *   Not set in deploy config. Reported on GET /api/health through the same check.
  * - IN_APP_BRIEFS (G-03) and IN_APP_ALERTS_V1 (G-04): in app only, off until K-05/K-12.
  */
 const on = (name: string) => process.env[name] === "1";
@@ -23,6 +28,32 @@ export const IN_APP_BRIEFS = on("IN_APP_BRIEFS");
 export const IN_APP_ALERTS_V1 = on("IN_APP_ALERTS_V1");
 /** Read per request so tests and preview deploys can switch it without a rebuild. */
 export const taxSalePreviewEnabled = (env: Record<string, string | undefined> = process.env) => env.TAX_SALE_PREVIEW === "1";
+/**
+ * K-05 (lawyer) and K-06 (accountant) sign-off for the holding sale preview.
+ * False until Lukas changes this constant. There is no setter and no environment fallback.
+ */
+export const NZ_TAX_K05_K06_SIGNED_OFF = false;
+
+/** The sign-off constant only. */
+export function nzTaxPreviewSignOff(): boolean {
+  return NZ_TAX_K05_K06_SIGNED_OFF;
+}
+
+/**
+ * Pure flag check. Tests pass `signedOff`. Runtime uses nzTaxPreviewEnabled, which passes the constant.
+ */
+export function nzTaxPreviewAllowed(env: Record<string, string | undefined>, signedOff: boolean): boolean {
+  const flagged = String(env["NZ_TAX_PREVIEW"] ?? "").trim() === "1";
+  return flagged && taxSalePreviewEnabled(env) && signedOff;
+}
+
+/**
+ * NZ-TAX-PREVIEW-1. On only when the flag trims to exactly "1", the K-05 sale-preview gate
+ * passes, and nzTaxPreviewSignOff() is true. Bracket access so the value is read per request.
+ */
+export function nzTaxPreviewEnabled(env: Record<string, string | undefined> = process.env): boolean {
+  return nzTaxPreviewAllowed(env, nzTaxPreviewSignOff());
+}
 export { CSP_ALLOW_TOTALUM_TEST } from "@/lib/security-headers";
 /**
  * b89 START-3: the "dip your toes in" offer on /start-here. OFF by default. Even when on, nothing shows
