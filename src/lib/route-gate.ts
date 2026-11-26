@@ -57,6 +57,8 @@ const PUBLIC_DOCUMENT_ROUTES = [
   // Goal b20 G-23: the learn hub and the comparison pages.
   "/learn",
   "/compare",
+  // Public FIF and imputation illustrations. No session, no stored input.
+  "/tools",
   "/stripe/demo",
   "/stripe/success",
   "/stripe/cancel",
