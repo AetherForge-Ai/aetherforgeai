@@ -112,4 +112,17 @@ describe("SEC-NAME-1 write paths", () => {
     expect(country.status).toBe(200);
     expect(edit).toHaveBeenCalledWith("user", "u1", { country: "New Zealand" });
   });
+
+  it("does not store a host that only appears after the 40-character cut", async () => {
+    const res = await PUT(new Request("http://localhost/api/profile", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: `${"A".repeat(31)} evil.comXYZ` }),
+    }));
+    expect(res.status).toBe(200);
+    const patch = edit.mock.calls.at(-1)?.[2] as { name?: string };
+    expect(patch.name).not.toMatch(/evil\.com/i);
+    expect(patch.name).not.toContain(".");
+    expect(Array.from(patch.name || "").length).toBeLessThanOrEqual(40);
+  });
 });

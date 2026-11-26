@@ -3,82 +3,251 @@
  * Used on every server write that stores a name, and again wherever a name is rendered,
  * so a name already saved cannot be shown as a phishing lure.
  * Pure (no I/O) so client code can call it as an extra check. The server write is the protection.
+ *
+ * A domain or email is any label.label or local@host token. There is no TLD list.
+ * The 40-character cap runs first, then lure removal, and that repeats until the
+ * string stops changing, so a cut cannot reveal a new host.
  */
 
 export const DISPLAY_NAME_MAX = 40;
 export const DISPLAY_NAME_FALLBACK = "Member";
 
-/** Common TLDs, including the ones used to hide a host in a display name. Longer first. */
-const SIMPLE_TLDS = [
-  "online", "store", "cloud", "email", "click", "download", "website", "digital", "agency",
-  "info", "shop", "blog", "tech", "site", "live", "link", "name", "mobi", "asia", "club",
-  "app", "dev", "xyz", "top", "vip", "pro", "biz", "edu", "gov", "mil", "int", "com", "net",
-  "org", "io", "ai", "co", "me", "tv", "cc", "pw", "ru", "cn", "de", "uk", "us", "nz", "au",
-  "ca", "eu", "fr", "jp", "kr", "in", "br", "za", "sg", "hk", "ie", "se", "no", "fi", "ch",
-  "at", "be", "pt", "mx", "id", "ph", "th", "my", "ae", "tr", "ua", "pl", "nl", "es", "it",
-  "dk", "cz", "gr", "ro", "hu", "il", "sa", "ng", "ke", "to", "ws", "ly", "gl", "fm", "am",
-  "sh", "ac", "nu", "gg", "tw", "vn", "pk", "bd", "qa", "kw",
-].sort((a, b) => b.length - a.length);
-
-const TLD_SET = new Set(SIMPLE_TLDS);
-const TLD = `(?:xn--[a-z0-9-]{2,}|${SIMPLE_TLDS.join("|")})`;
-
-const LURE =
-  /\b(?:(?:the\s+)?site\s+has\s+moved|has\s+moved\s+to|moved\s+to|(?:please\s+)?(?:visit|log\s*-?\s*in|login|sign\s*-?\s*in)\s+(?:us\s+)?(?:at|here|there))\b/gi;
-
-const SCHEME = /\b(?:(?:[a-z][a-z0-9+.-]{0,20}|hxxps?):\/\/|www\.)\S+/gi;
-const SCRIPT_SCHEME = /\b(?:javascript|data|vbscript)\s*:\S*/gi;
-const AT_EMAIL = new RegExp(
-  String.raw`\b[a-z0-9._%+-]+\s*(?:@|\(at\)|\[at\])\s*[a-z0-9.-]+\.${TLD}\b`,
-  "gi",
-);
-const AT_WORD = new RegExp(
-  String.raw`\b[a-z0-9._%+-]+\s+at\s+[a-z0-9-]+(?:\.[a-z0-9-]+)*\.${TLD}\b`,
-  "gi",
-);
-const DOMAIN = new RegExp(
-  String.raw`\b(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+${TLD}\b`,
-  "gi",
-);
-const PUNYCODE = /\bxn--[a-z0-9-]{2,}\b/gi;
-const IPV4 = /\b(?:\d{1,3}\.){3}\d{1,3}\b/g;
-const DOT_BEFORE_TLD = new RegExp(String.raw`([A-Za-z0-9])\s*\.\s*(?=${TLD}\b)`, "gi");
-const SPELLED_DOT = /\b[a-z0-9-]+(?:\s+dot\s+[a-z0-9-]+)+\b/gi;
-
 const NAME_KEYS = ["name", "first_name", "last_name", "firstName", "lastName"] as const;
 
-function reset(re: RegExp) {
-  re.lastIndex = 0;
+/** ZWNJ and ZWJ stay. Persian and Devanagari use them; they are not lures. */
+const KEEP_FORMAT = new Set([0x200c, 0x200d]);
+
+/**
+ * One-to-one confusable fold (UTS #39 skeletons that stay a single character).
+ * Applied only to the string we match against. The stored name keeps its own letters.
+ */
+const CONFUSABLES: Record<string, string> = {
+  "\u0430": "a", "\u0435": "e", "\u043e": "o", "\u0440": "p", "\u0441": "c", "\u0443": "y", "\u0445": "x",
+  "\u0456": "i", "\u0455": "s", "\u0458": "j", "\u04bb": "h", "\u0501": "d", "\u051b": "q", "\u051d": "w",
+  "\u0454": "e", "\u04cf": "l", "\u0473": "f", "\u0432": "b",
+  "\u03b1": "a", "\u03b5": "e", "\u03bf": "o", "\u03c1": "p", "\u03b9": "i", "\u03ba": "k", "\u03bd": "n",
+  "\u03c4": "t", "\u03c5": "u", "\u03b7": "n",
+};
+
+/** Characters that read as a dot. ASCII "." is already a dot. */
+const DOT_LIKE = new Set(["\u3002", "\uff0e", "\uff61", "\u2024", "\ufe52", "\u2027", "\u00b7"]);
+
+const PHRASES = [
+  "site has moved",
+  "has moved to",
+  "moved to",
+  "moved:",
+  "please log in at",
+  "please login at",
+  "please sign in at",
+  "log in there",
+  "log in here",
+  "log in at",
+  "login there",
+  "login here",
+  "login at",
+  "sign in there",
+  "sign in here",
+  "sign in at",
+  "sign-in at",
+  "visit us at",
+  "visit there",
+  "visit here",
+  "visit at",
+];
+
+function codePoints(value: string): string[] {
+  return Array.from(value);
+}
+
+function isKeptFormat(cp: number): boolean {
+  return KEEP_FORMAT.has(cp);
+}
+
+/** U+034F, variation selectors, Hangul fillers, other default-ignorables, and controls. */
+function isStrippedFormat(ch: string): boolean {
+  const cp = ch.codePointAt(0) ?? 0;
+  if (isKeptFormat(cp)) return false;
+  if (cp === 0x034f || cp === 0x115f || cp === 0x1160 || cp === 0x3164 || cp === 0xffa0) return true;
+  if (cp === 0x2028 || cp === 0x2029) return true;
+  return /\p{Default_Ignorable_Code_Point}|\p{Variation_Selector}|\p{Cc}/u.test(ch);
+}
+
+function caseFold(ch: string): string {
+  const lower = ch.toLowerCase();
+  return Array.from(lower).length === 1 ? lower : ch;
+}
+
+function viewChar(ch: string): string {
+  if (ch === "." || DOT_LIKE.has(ch)) return ".";
+  const folded = caseFold(ch);
+  if (DOT_LIKE.has(folded)) return ".";
+  return CONFUSABLES[folded] ?? CONFUSABLES[ch] ?? folded;
+}
+
+function isLabelChar(ch: string): boolean {
+  return /[\p{L}\p{N}]/u.test(ch) || ch === "-" ;
+}
+
+function isLabelEdge(ch: string): boolean {
+  return /[\p{L}\p{N}]/u.test(ch);
+}
+
+/** label(.label)+ with the dot tight against both labels. "K. Ng" does not match. */
+function matchDomainAt(view: string[], start: number): number {
+  const n = view.length;
+  if (start >= n || !isLabelEdge(view[start])) return -1;
+  if (start > 0 && isLabelChar(view[start - 1])) return -1;
+  let i = start;
+  let labels = 0;
+  while (i < n) {
+    if (!isLabelEdge(view[i])) return -1;
+    let j = i + 1;
+    while (j < n && isLabelChar(view[j])) j++;
+    if (!isLabelEdge(view[j - 1])) return -1;
+    labels += 1;
+    if (j < n && view[j] === "." && j + 1 < n && isLabelEdge(view[j + 1])) {
+      i = j + 1;
+      continue;
+    }
+    return labels >= 2 ? j : -1;
+  }
+  return -1;
+}
+
+function findDomains(view: string[]): Array<[number, number]> {
+  const spans: Array<[number, number]> = [];
+  for (let i = 0; i < view.length; i++) {
+    const end = matchDomainAt(view, i);
+    if (end > i) {
+      spans.push([i, end]);
+      i = end - 1;
+    }
+  }
+  return spans;
+}
+
+function findEmails(view: string[]): Array<[number, number]> {
+  const spans: Array<[number, number]> = [];
+  for (let i = 0; i < view.length; i++) {
+    if (view[i] !== "@") continue;
+    let left = i - 1;
+    while (left >= 0 && view[left] === " ") left--;
+    const localEnd = left;
+    while (left >= 0 && /[\p{L}\p{N}._%+\-]/u.test(view[left])) left--;
+    const localStart = left + 1;
+    if (localStart > localEnd) continue;
+    let right = i + 1;
+    while (right < view.length && view[right] === " ") right++;
+    const domainEnd = matchDomainAt(view, right);
+    if (domainEnd < 0) continue;
+    spans.push([localStart, domainEnd]);
+    i = domainEnd - 1;
+  }
+  return spans;
+}
+
+function findSequence(view: string[], needle: string, from: number): number {
+  const parts = Array.from(needle);
+  for (let i = from; i + parts.length <= view.length; i++) {
+    let same = true;
+    for (let j = 0; j < parts.length; j++) {
+      if (view[i + j] !== parts[j]) {
+        same = false;
+        break;
+      }
+    }
+    if (same) return i;
+  }
+  return -1;
+}
+
+function findSchemes(view: string[]): Array<[number, number]> {
+  const spans: Array<[number, number]> = [];
+  const needles = ["javascript:", "vbscript:", "data:", "https://", "http://", "www."];
+  for (const needle of needles) {
+    let from = 0;
+    while (from < view.length) {
+      const at = findSequence(view, needle, from);
+      if (at < 0) break;
+      let end = at + Array.from(needle).length;
+      while (end < view.length && view[end] !== " " && view[end] !== "\t") end++;
+      spans.push([at, end]);
+      from = end;
+    }
+  }
+  return spans;
+}
+
+function findPhrases(view: string[]): Array<[number, number]> {
+  const spans: Array<[number, number]> = [];
+  for (const phrase of PHRASES) {
+    const size = Array.from(phrase).length;
+    let from = 0;
+    while (from < view.length) {
+      const at = findSequence(view, phrase, from);
+      if (at < 0) break;
+      const before = at === 0 ? "" : view[at - 1];
+      const after = view[at + size] ?? "";
+      const boundaryBefore = !before || !/[\p{L}\p{N}]/u.test(before);
+      const boundaryAfter = !after || !/[\p{L}\p{N}]/u.test(after);
+      if (boundaryBefore && boundaryAfter) spans.push([at, at + size]);
+      from = at + size;
+    }
+  }
+  return spans;
+}
+
+function findPunycode(view: string[]): Array<[number, number]> {
+  const spans: Array<[number, number]> = [];
+  let from = 0;
+  while (from < view.length) {
+    const at = findSequence(view, "xn--", from);
+    if (at < 0) break;
+    let end = at + 4;
+    while (end < view.length && /[\p{L}\p{N}-]/u.test(view[end])) end++;
+    spans.push([at, end]);
+    from = end;
+  }
+  return spans;
+}
+
+function blank(chars: string[], spans: Array<[number, number]>): string {
+  if (spans.length === 0) return chars.join("");
+  const drop = new Array(chars.length).fill(false);
+  for (const [start, end] of spans) {
+    for (let i = Math.max(0, start); i < end && i < chars.length; i++) drop[i] = true;
+  }
+  return chars.filter((_, i) => !drop[i]).join("");
 }
 
 function deobfuscate(value: string): string {
   return value
-    .replace(/\[\s*(?:\.|dot)\s*\]/gi, ".")
-    .replace(/\(\s*(?:\.|dot)\s*\)/gi, ".")
-    .replace(/\{\s*(?:\.|dot)\s*\}/gi, ".")
-    .replace(/([A-Za-z0-9])[。｡](?=[A-Za-z0-9])/g, "$1.")
-    .replace(/hxxp(s?):\/\//gi, "http$1://")
-    .replace(/\[\s*:\s*\]/g, ":");
+    .replace(/\s*\[\s*(?:\.|dot)\s*\]\s*/gi, ".")
+    .replace(/\s*\(\s*(?:\.|dot)\s*\)\s*/gi, ".")
+    .replace(/\s*\{\s*(?:\.|dot)\s*\}\s*/gi, ".")
+    .replace(/\(\s*at\s*\)/gi, "@")
+    .replace(/\[\s*at\s*\]/gi, "@")
+    .replace(/\[\s*:\s*\]/g, ":")
+    .replace(/hxxp(s?):\/\//gi, "http$1://");
 }
 
+/** "evil dot com" is a host. "Mary dot Ngata" keeps the capitalised name word. */
 function stripSpelledDots(value: string): string {
-  return value.replace(SPELLED_DOT, (match) => {
-    const parts = match.split(/\s+dot\s+/i).map((part) => part.toLowerCase());
-    const last = parts[parts.length - 1] || "";
-    if (TLD_SET.has(last) || last.startsWith("xn--")) return " ";
-    return match;
+  return value.replace(/\b[\p{L}\p{N}-]+(?:\s+dot\s+[\p{L}\p{N}-]+)+\b/giu, (match) => {
+    const parts = match.split(/\s+dot\s+/i);
+    const last = parts[parts.length - 1] ?? "";
+    const mixedCase = /\p{Ll}/u.test(last) && /\p{Lu}/u.test(last);
+    return mixedCase ? match : " ";
   });
 }
 
-function stripUrls(value: string): string {
-  let s = value.replace(DOT_BEFORE_TLD, "$1.");
-  reset(DOT_BEFORE_TLD);
-  s = stripSpelledDots(s);
-  for (const re of [SCHEME, SCRIPT_SCHEME, AT_EMAIL, AT_WORD, DOMAIN, PUNYCODE, IPV4]) {
-    s = s.replace(re, " ");
-    reset(re);
-  }
-  return s;
+function rewriteProse(value: string): string {
+  const dotted = stripSpelledDots(deobfuscate(value));
+  return dotted.replace(
+    /([\p{L}\p{N}._%+\-]+)\s+at\s+(?=[\p{L}\p{N}][\p{L}\p{N}-]*\.)/giu,
+    "$1@",
+  );
 }
 
 function tidy(value: string): string {
@@ -92,25 +261,39 @@ function tidy(value: string): string {
     .trim();
 }
 
+function removeLures(value: string): string {
+  const chars = codePoints(value);
+  const view = chars.map(viewChar);
+  const spans = [
+    ...findSchemes(view),
+    ...findEmails(view),
+    ...findDomains(view),
+    ...findPunycode(view),
+    ...findPhrases(view),
+  ];
+  return blank(chars, spans);
+}
+
+function prepare(value: string): string {
+  const stripped = codePoints(value).filter((ch) => !isStrippedFormat(ch)).join("");
+  const normalised = stripped.normalize("NFKC");
+  return codePoints(normalised).filter((ch) => !isStrippedFormat(ch)).join("");
+}
+
 /**
- * NFKC, strip controls / zero-width / bidi overrides, remove URL-like text and
- * lure phrases, collapse whitespace, cap at 40 characters.
- * Empty results become "Member". Safe to call twice.
+ * Strip invisibles, NFKC, confusable-fold for matching, then cut to 40 and
+ * remove lures until a fixpoint. Empty results become "Member".
  */
 export function sanitizeDisplayName(input: unknown): string {
   if (typeof input !== "string") return DISPLAY_NAME_FALLBACK;
-  const bounded = input.length > 500 ? input.slice(0, 500) : input;
-  let s = bounded.normalize("NFKC");
-  s = s.replace(/\p{Cc}|\p{Cf}|[\u2028\u2029]/gu, "");
-  s = deobfuscate(s);
-  s = s.replace(LURE, " ");
-  reset(LURE);
-  s = stripUrls(s);
-  s = tidy(s);
-  if (!/\p{L}|\p{N}/u.test(s)) return DISPLAY_NAME_FALLBACK;
-  const chars = Array.from(s);
-  if (chars.length > DISPLAY_NAME_MAX) {
-    s = tidy(chars.slice(0, DISPLAY_NAME_MAX).join(""));
+  const bounded = codePoints(input).slice(0, 500).join("");
+  let s = prepare(bounded);
+  for (let pass = 0; pass < 8; pass++) {
+    const chars = codePoints(s);
+    const capped = chars.length > DISPLAY_NAME_MAX ? chars.slice(0, DISPLAY_NAME_MAX).join("") : s;
+    const next = tidy(removeLures(rewriteProse(capped)));
+    if (next === s) break;
+    s = next;
   }
   if (!s || !/\p{L}|\p{N}/u.test(s)) return DISPLAY_NAME_FALLBACK;
   return s;
