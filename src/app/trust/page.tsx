@@ -20,6 +20,7 @@ import {
   SECURITY_LINE,
 } from "@/lib/public-copy";
 import { AI_DISCLAIMER_DATA_SENTENCE, AI_PROVIDER_API_SENTENCE, nameAiProvider } from "@/lib/ai-provider-disclosure";
+import { YourMoneySection } from "@/components/trust/YourMoneySection";
 import {
   TRUST_HOSTING_LINE,
   TRUST_PAGE_LOG,
@@ -73,6 +74,8 @@ export default function TrustPage() {
               does not pay you.
             </p>
           </section>
+
+          <YourMoneySection />
 
           <section className="mt-8 space-y-2">
             <h2 className="font-display text-lg font-bold">Where prices come from</h2>
