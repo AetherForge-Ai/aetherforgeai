@@ -114,6 +114,65 @@ describe("sanitizeDisplayName", () => {
     }
   });
 
+  it("blocks spaced dots, dot-like characters and mixed-case 'dot' hosts", () => {
+    for (const lure of [
+      "aetherforge-nz . help",
+      "evil .com",
+      "evil. com",
+      "aetherforge-nz\u2219help",
+      "evil\u22C5com",
+      "evil\uA4F8com",
+      "evil\u0660com",
+      "evil\u06F0com",
+      "evil\u2024com",
+      "Evil dot Com",
+      "AetherForge-NZ dot Help",
+    ]) {
+      const cleaned = sanitizeDisplayName(lure);
+      expect(cleaned, lure).not.toMatch(/help|evil\.?\s*com|aetherforge/i);
+      expect(cleaned, lure).not.toContain(".");
+      expect(sanitizeDisplayName(cleaned), lure).toBe(cleaned);
+    }
+    expect(sanitizeDisplayName("aetherforge-nz . help")).toBe(DISPLAY_NAME_FALLBACK);
+    expect(sanitizeDisplayName("evil .com")).toBe(DISPLAY_NAME_FALLBACK);
+    expect(sanitizeDisplayName("evil. com")).toBe(DISPLAY_NAME_FALLBACK);
+  });
+
+  it("keeps initials, titles, middle-dot names and 'at' that is not an email", () => {
+    for (const name of [
+      "J.R. Smith",
+      "J.R.R. Tolkien",
+      "J.R.",
+      "Dr.Smith",
+      "Dr. Smith",
+      "Mr. Smith",
+      "Mrs. Smith",
+      "Ms. Ng",
+      "St. John",
+      "Jr.",
+      "Sr.",
+      "Prof. Ngata",
+      "Ng.Wei",
+      "约翰·史密斯",
+      "Marcel·la Puig",
+      "Kim at St. John",
+    ]) {
+      expect(sanitizeDisplayName(name), name).toBe(name);
+      expect(sanitizeDisplayName(sanitizeDisplayName(name)), name).toBe(name);
+    }
+    expect(sanitizeDisplayName("Kim at St. John")).not.toContain("@");
+  });
+
+  it("strips annotation and Arabic sign characters, and combining marks inside a host", () => {
+    expect(sanitizeDisplayName("Tāne\uFFF9")).toBe("Tāne");
+    expect(sanitizeDisplayName("Hōne\uFFFAWiremu")).toBe("HōneWiremu");
+    expect(sanitizeDisplayName("Ana\uFFFB Lee")).toBe("Ana Lee");
+    expect(sanitizeDisplayName("evil\u0600.com")).toBe(DISPLAY_NAME_FALLBACK);
+    expect(sanitizeDisplayName("evil\u0605.com")).toBe(DISPLAY_NAME_FALLBACK);
+    expect(sanitizeDisplayName("evil\u0307.com")).toBe(DISPLAY_NAME_FALLBACK);
+    expect(sanitizeDisplayName(sanitizeDisplayName("evil\u0307.com"))).toBe(DISPLAY_NAME_FALLBACK);
+  });
+
   it("is idempotent and only rewrites name fields that are present", () => {
     const row = sanitizeNameFields({ name: "evil.com", first_name: CLEAN, email: "a@b.co", country: "NZ" });
     expect(row).toEqual({ name: DISPLAY_NAME_FALLBACK, first_name: CLEAN, email: "a@b.co", country: "NZ" });

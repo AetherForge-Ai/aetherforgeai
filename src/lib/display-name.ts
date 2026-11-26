@@ -4,7 +4,9 @@
  * so a name already saved cannot be shown as a phishing lure.
  * Pure (no I/O) so client code can call it as an extra check. The server write is the protection.
  *
- * A domain or email is any label.label or local@host token. There is no TLD list.
+ * A tight lowercase label.label is a host with no TLD list. Spaced dots, the word
+ * "dot", and middle dots count only when the word after them is TLD-shaped.
+ * Single-letter initials and titles (Dr, Mr, Mrs, Ms, St, Jr, Sr, Prof) are not hosts.
  * The 40-character cap runs first, then lure removal, and that repeats until the
  * string stops changing, so a cut cannot reveal a new host.
  */
@@ -29,8 +31,47 @@ const CONFUSABLES: Record<string, string> = {
   "\u03c4": "t", "\u03c5": "u", "\u03b7": "n",
 };
 
-/** Characters that read as a dot. ASCII "." is already a dot. */
-const DOT_LIKE = new Set(["\u3002", "\uff0e", "\uff61", "\u2024", "\ufe52", "\u2027", "\u00b7"]);
+/**
+ * Dot-like characters folded to "." before matching.
+ * U+00B7 MIDDLE DOT and U+30FB KATAKANA MIDDLE DOT are not in this set:
+ * they are name separators (约翰·史密斯, Marcel·la) unless both sides are a Latin label and a TLD.
+ */
+const ALWAYS_DOT = new Set([
+  ".",
+  "\u2219", // ∙ bullet operator
+  "\u22c5", // ⋅ dot operator
+  "\ua4f8", // ꓸ lisu tone mya ti
+  "\u0660", // ٠ arabic-indic zero
+  "\u06f0", // ۰ extended arabic-indic zero
+  "\u2024", // one dot leader
+  "\uff0e", // ． fullwidth full stop
+  "\u3002", // 。 ideographic full stop
+  "\uff61", // ｡ halfwidth ideographic full stop
+  "\ufe52", // small full stop
+  "\u2027", // hyphenation point
+  "\u02d9", // ˙ dot above
+  "\u0387", // greek ano teleia
+]);
+
+/** Name-internal middle dots. Folded only for a Latin label plus a TLD-shaped word. */
+const MIDDLE_DOT = new Set(["\u00b7", "\u30fb", "\uff65"]);
+
+/**
+ * Used for spaced dots, the word "dot", and middle dots.
+ * Tight lowercase label.label still matches with no list, so an unknown TLD cannot hide.
+ * Two-letter name particles such as "la" are omitted on purpose.
+ */
+const TLD = new Set([
+  "com", "net", "org", "edu", "gov", "mil", "int", "info", "biz", "name", "pro", "mobi", "asia",
+  "app", "dev", "io", "ai", "co", "me", "tv", "cc", "xyz", "online", "site", "tech", "store",
+  "shop", "blog", "cloud", "email", "live", "link", "click", "top", "vip", "help", "zip", "mov",
+  "page", "support", "club", "pw", "nz", "uk", "au", "us", "ca", "eu", "de", "fr", "jp", "kr",
+  "in", "br", "ru", "cn", "sg", "hk", "ie", "se", "no", "fi", "ch", "at", "be", "pt", "mx", "id",
+  "ph", "th", "my", "ae", "tr", "ua", "pl", "nl", "es", "it", "dk", "cz", "ws", "ly", "to",
+  "рф",
+]);
+
+const TITLES = new Set(["dr", "mr", "mrs", "ms", "st", "jr", "sr", "prof"]);
 
 const PHRASES = [
   "site has moved",
@@ -69,6 +110,8 @@ function isStrippedFormat(ch: string): boolean {
   const cp = ch.codePointAt(0) ?? 0;
   if (isKeptFormat(cp)) return false;
   if (cp === 0x034f || cp === 0x115f || cp === 0x1160 || cp === 0x3164 || cp === 0xffa0) return true;
+  if (cp >= 0xfff9 && cp <= 0xfffb) return true;
+  if (cp >= 0x0600 && cp <= 0x0605) return true;
   if (cp === 0x2028 || cp === 0x2029) return true;
   return /\p{Default_Ignorable_Code_Point}|\p{Variation_Selector}|\p{Cc}/u.test(ch);
 }
@@ -79,10 +122,23 @@ function caseFold(ch: string): string {
 }
 
 function viewChar(ch: string): string {
-  if (ch === "." || DOT_LIKE.has(ch)) return ".";
+  if (!ch) return "";
+  if (ALWAYS_DOT.has(ch)) return ".";
   const folded = caseFold(ch);
-  if (DOT_LIKE.has(folded)) return ".";
+  if (ALWAYS_DOT.has(folded)) return ".";
   return CONFUSABLES[folded] ?? CONFUSABLES[ch] ?? folded;
+}
+
+function isMark(ch: string): boolean {
+  return /\p{M}/u.test(ch);
+}
+
+function isTld(folded: string): boolean {
+  return TLD.has(folded) || folded.startsWith("xn--");
+}
+
+function isLatinLabel(folded: string): boolean {
+  return /^[a-z0-9-]+$/.test(folded);
 }
 
 function isLabelChar(ch: string): boolean {
@@ -93,32 +149,143 @@ function isLabelEdge(ch: string): boolean {
   return /[\p{L}\p{N}]/u.test(ch);
 }
 
-/** label(.label)+ with the dot tight against both labels. "K. Ng" does not match. */
-function matchDomainAt(view: string[], start: number): number {
-  const n = view.length;
-  if (start >= n || !isLabelEdge(view[start])) return -1;
-  if (start > 0 && isLabelChar(view[start - 1])) return -1;
-  let i = start;
-  let labels = 0;
-  while (i < n) {
-    if (!isLabelEdge(view[i])) return -1;
-    let j = i + 1;
-    while (j < n && isLabelChar(view[j])) j++;
-    if (!isLabelEdge(view[j - 1])) return -1;
-    labels += 1;
-    if (j < n && view[j] === "." && j + 1 < n && isLabelEdge(view[j + 1])) {
-      i = j + 1;
+type Label = { start: number; end: number; folded: string; original: string };
+type Sep = { end: number; kind: "tight" | "spaced" | "spelled" | "middle" | "obfuscated" };
+
+function readLabel(chars: string[], i: number): Label | null {
+  if (i >= chars.length || isMark(chars[i])) return null;
+  if (!isLabelEdge(viewChar(chars[i]))) return null;
+  let j = i;
+  let folded = "";
+  while (j < chars.length) {
+    if (isMark(chars[j])) {
+      j++;
       continue;
     }
-    return labels >= 2 ? j : -1;
+    if (ALWAYS_DOT.has(chars[j]) || MIDDLE_DOT.has(chars[j])) break;
+    const v = viewChar(chars[j]);
+    if (!isLabelChar(v) || v === ".") break;
+    folded += v;
+    j++;
   }
-  return -1;
+  if (!folded || !isLabelEdge(folded[folded.length - 1])) return null;
+  return { start: i, end: j, folded, original: chars.slice(i, j).join("") };
 }
 
-function findDomains(view: string[]): Array<[number, number]> {
+function readBracketDot(chars: string[], i: number): number {
+  let j = i;
+  while (j < chars.length && chars[j] === " ") j++;
+  const open = chars[j];
+  const close = open === "(" ? ")" : open === "[" ? "]" : open === "{" ? "}" : "";
+  if (!close) return -1;
+  j++;
+  while (j < chars.length && chars[j] === " ") j++;
+  if (j < chars.length && (ALWAYS_DOT.has(chars[j]) || chars[j] === ".")) j++;
+  else if (
+    j + 2 < chars.length &&
+    viewChar(chars[j]) === "d" &&
+    viewChar(chars[j + 1]) === "o" &&
+    viewChar(chars[j + 2]) === "t"
+  ) {
+    j += 3;
+  } else return -1;
+  while (j < chars.length && chars[j] === " ") j++;
+  if (chars[j] !== close) return -1;
+  j++;
+  while (j < chars.length && chars[j] === " ") j++;
+  return j;
+}
+
+function readSpelledDot(chars: string[], i: number): number {
+  if (chars[i] !== " ") return -1;
+  let j = i;
+  while (j < chars.length && chars[j] === " ") j++;
+  if (viewChar(chars[j]) !== "d" || viewChar(chars[j + 1]) !== "o" || viewChar(chars[j + 2]) !== "t") return -1;
+  const after = chars[j + 3] ?? "";
+  if (after && isLabelChar(viewChar(after)) && viewChar(after) !== ".") return -1;
+  j += 3;
+  if (chars[j] !== " ") return -1;
+  while (j < chars.length && chars[j] === " ") j++;
+  return j;
+}
+
+function readSeparator(chars: string[], i: number): Sep | null {
+  const bracket = readBracketDot(chars, i);
+  if (bracket > i) return { end: bracket, kind: "obfuscated" };
+  const spelled = readSpelledDot(chars, i);
+  if (spelled > i) return { end: spelled, kind: "spelled" };
+  if (MIDDLE_DOT.has(chars[i])) return { end: i + 1, kind: "middle" };
+  let j = i;
+  let spaced = false;
+  while (j < chars.length && chars[j] === " ") {
+    spaced = true;
+    j++;
+  }
+  if (j < chars.length && ALWAYS_DOT.has(chars[j])) {
+    j++;
+    while (j < chars.length && chars[j] === " ") {
+      spaced = true;
+      j++;
+    }
+    return { end: j, kind: spaced ? "spaced" : "tight" };
+  }
+  return null;
+}
+
+function isInitials(labels: Label[]): boolean {
+  return labels.every((label) => label.folded.length === 1);
+}
+
+function isIpv4(labels: Label[]): boolean {
+  return labels.length === 4 && labels.every((label) => /^\d{1,3}$/.test(label.folded));
+}
+
+function isGenericHost(labels: Label[]): boolean {
+  return labels.every((label) => label.folded.length >= 2 && !/\p{Lu}/u.test(label.original));
+}
+
+/** True when these labels are a host, not initials, a title, or a name like Ng.Wei. */
+function hostCounts(labels: Label[]): boolean {
+  if (labels.length < 2) return false;
+  if (isIpv4(labels)) return true;
+  if (isInitials(labels)) return false;
+  const last = labels[labels.length - 1].folded;
+  if (labels.length === 2 && TITLES.has(labels[0].folded) && !isTld(last)) return false;
+  if (isTld(last)) return true;
+  return isGenericHost(labels);
+}
+
+function separatorKeeps(kind: Sep["kind"], prev: Label, next: Label): boolean {
+  if (kind === "tight" || kind === "obfuscated") return true;
+  if (kind === "middle") return isLatinLabel(prev.folded) && isLatinLabel(next.folded) && isTld(next.folded);
+  return isTld(next.folded);
+}
+
+function readHost(chars: string[], start: number): number {
+  if (start > 0 && !isMark(chars[start - 1]) && isLabelChar(viewChar(chars[start - 1])) && viewChar(chars[start - 1]) !== ".") {
+    return -1;
+  }
+  const first = readLabel(chars, start);
+  if (!first) return -1;
+  const labels = [first];
+  let pos = first.end;
+  while (pos < chars.length) {
+    const sep = readSeparator(chars, pos);
+    if (!sep || sep.end <= pos) break;
+    const next = readLabel(chars, sep.end);
+    if (!next) break;
+    if (!separatorKeeps(sep.kind, labels[labels.length - 1], next)) break;
+    labels.push(next);
+    pos = next.end;
+  }
+  if (!hostCounts(labels)) return -1;
+  return labels[labels.length - 1].end;
+}
+
+function findDomains(chars: string[]): Array<[number, number]> {
   const spans: Array<[number, number]> = [];
-  for (let i = 0; i < view.length; i++) {
-    const end = matchDomainAt(view, i);
+  for (let i = 0; i < chars.length; i++) {
+    const end = readHost(chars, i);
     if (end > i) {
       spans.push([i, end]);
       i = end - 1;
@@ -127,22 +294,49 @@ function findDomains(view: string[]): Array<[number, number]> {
   return spans;
 }
 
-function findEmails(view: string[]): Array<[number, number]> {
+function readAtToken(chars: string[], i: number): { start: number; end: number } | null {
+  if (chars[i] === "@") return { start: i, end: i + 1 };
+  const open = chars[i];
+  if (open === "(" || open === "[") {
+    const close = open === "(" ? ")" : "]";
+    let j = i + 1;
+    while (chars[j] === " ") j++;
+    if (viewChar(chars[j]) === "a" && viewChar(chars[j + 1]) === "t") {
+      let k = j + 2;
+      while (chars[k] === " ") k++;
+      if (chars[k] === close) return { start: i, end: k + 1 };
+    }
+    return null;
+  }
+  if (viewChar(chars[i]) !== "a" || viewChar(chars[i + 1]) !== "t") return null;
+  const before = i === 0 ? "" : chars[i - 1];
+  if (before && before !== " ") return null;
+  if (chars[i + 2] !== " ") return null;
+  return { start: i, end: i + 2 };
+}
+
+function readLocalStart(chars: string[], atStart: number): number {
+  let j = atStart - 1;
+  while (j >= 0 && chars[j] === " ") j--;
+  const localEnd = j;
+  while (j >= 0 && /[\p{L}\p{N}._%+\-]/u.test(viewChar(chars[j]))) j--;
+  if (localEnd < j + 1) return -1;
+  return j + 1;
+}
+
+function findEmails(chars: string[]): Array<[number, number]> {
   const spans: Array<[number, number]> = [];
-  for (let i = 0; i < view.length; i++) {
-    if (view[i] !== "@") continue;
-    let left = i - 1;
-    while (left >= 0 && view[left] === " ") left--;
-    const localEnd = left;
-    while (left >= 0 && /[\p{L}\p{N}._%+\-]/u.test(view[left])) left--;
-    const localStart = left + 1;
-    if (localStart > localEnd) continue;
-    let right = i + 1;
-    while (right < view.length && view[right] === " ") right++;
-    const domainEnd = matchDomainAt(view, right);
-    if (domainEnd < 0) continue;
-    spans.push([localStart, domainEnd]);
-    i = domainEnd - 1;
+  for (let i = 0; i < chars.length; i++) {
+    const at = readAtToken(chars, i);
+    if (!at) continue;
+    const localStart = readLocalStart(chars, at.start);
+    if (localStart < 0) continue;
+    let hostAt = at.end;
+    while (hostAt < chars.length && chars[hostAt] === " ") hostAt++;
+    const hostEnd = readHost(chars, hostAt);
+    if (hostEnd < 0) continue;
+    spans.push([localStart, hostEnd]);
+    i = hostEnd - 1;
   }
   return spans;
 }
@@ -164,7 +358,7 @@ function findSequence(view: string[], needle: string, from: number): number {
 
 function findSchemes(view: string[]): Array<[number, number]> {
   const spans: Array<[number, number]> = [];
-  const needles = ["javascript:", "vbscript:", "data:", "https://", "http://", "www."];
+  const needles = ["javascript:", "vbscript:", "data:", "https://", "http://", "hxxps://", "hxxp://", "www."];
   for (const needle of needles) {
     let from = 0;
     while (from < view.length) {
@@ -221,35 +415,6 @@ function blank(chars: string[], spans: Array<[number, number]>): string {
   return chars.filter((_, i) => !drop[i]).join("");
 }
 
-function deobfuscate(value: string): string {
-  return value
-    .replace(/\s*\[\s*(?:\.|dot)\s*\]\s*/gi, ".")
-    .replace(/\s*\(\s*(?:\.|dot)\s*\)\s*/gi, ".")
-    .replace(/\s*\{\s*(?:\.|dot)\s*\}\s*/gi, ".")
-    .replace(/\(\s*at\s*\)/gi, "@")
-    .replace(/\[\s*at\s*\]/gi, "@")
-    .replace(/\[\s*:\s*\]/g, ":")
-    .replace(/hxxp(s?):\/\//gi, "http$1://");
-}
-
-/** "evil dot com" is a host. "Mary dot Ngata" keeps the capitalised name word. */
-function stripSpelledDots(value: string): string {
-  return value.replace(/\b[\p{L}\p{N}-]+(?:\s+dot\s+[\p{L}\p{N}-]+)+\b/giu, (match) => {
-    const parts = match.split(/\s+dot\s+/i);
-    const last = parts[parts.length - 1] ?? "";
-    const mixedCase = /\p{Ll}/u.test(last) && /\p{Lu}/u.test(last);
-    return mixedCase ? match : " ";
-  });
-}
-
-function rewriteProse(value: string): string {
-  const dotted = stripSpelledDots(deobfuscate(value));
-  return dotted.replace(
-    /([\p{L}\p{N}._%+\-]+)\s+at\s+(?=[\p{L}\p{N}][\p{L}\p{N}-]*\.)/giu,
-    "$1@",
-  );
-}
-
 function tidy(value: string): string {
   return value
     .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ")
@@ -266,8 +431,8 @@ function removeLures(value: string): string {
   const view = chars.map(viewChar);
   const spans = [
     ...findSchemes(view),
-    ...findEmails(view),
-    ...findDomains(view),
+    ...findEmails(chars),
+    ...findDomains(chars),
     ...findPunycode(view),
     ...findPhrases(view),
   ];
@@ -291,7 +456,7 @@ export function sanitizeDisplayName(input: unknown): string {
   for (let pass = 0; pass < 8; pass++) {
     const chars = codePoints(s);
     const capped = chars.length > DISPLAY_NAME_MAX ? chars.slice(0, DISPLAY_NAME_MAX).join("") : s;
-    const next = tidy(removeLures(rewriteProse(capped)));
+    const next = tidy(removeLures(capped));
     if (next === s) break;
     s = next;
   }
