@@ -102,6 +102,30 @@ export function equitySessionDate(venue: EquityVenue, now = new Date()): string 
   return wall.iso;
 }
 
+/**
+ * Last completed NZX or ASX session (YYYY-MM-DD).
+ * Weekends are skipped. There is no public-holiday calendar: a holiday
+ * weekday is still treated as a session until the ticker close moves.
+ * An open session has not completed, so the previous weekday is the close
+ * the tape is measured against. A shut session's equitySessionDate is already
+ * that day.
+ */
+export function lastCompletedEquitySession(venue: "NZX" | "ASX", now = new Date()): string {
+  const session = equitySessionDate(venue, now);
+  if (equitySessionOpen(venue, now)) return previousWeekday(session);
+  return session;
+}
+
+/**
+ * Newest last-completed session across NZX and ASX.
+ * Same weekend-only calendar as lastCompletedEquitySession: holidays are not listed.
+ */
+export function expectedEquityCloseIso(now = new Date()): string {
+  const nzx = lastCompletedEquitySession("NZX", now);
+  const asx = lastCompletedEquitySession("ASX", now);
+  return nzx > asx ? nzx : asx;
+}
+
 export function formatSessionDate(iso: string): string {
   return formatDisplayDate(iso);
 }
@@ -302,15 +326,61 @@ export function tapeEquityPrefix(
   return exchangeFreshnessLabel(venue, now, latestQuoteTime(rows.map((row) => row.quotedAt))).label;
 }
 
-/** Compact MARKETS prefix: newest NZX or ASX quotedAt, then tapeEquityPrefix. */
-export function tapeMarketsPrefix(
-  rows: { nzx?: ReadonlyArray<TapeQuoteStamp>; asx?: ReadonlyArray<TapeQuoteStamp> },
-  now = new Date(),
-): string {
+type TapeRows = { nzx?: ReadonlyArray<TapeQuoteStamp>; asx?: ReadonlyArray<TapeQuoteStamp> };
+
+function tapeVenue(rows: TapeRows): "NZX" | "ASX" {
   const nzxAt = latestQuoteTime((rows.nzx ?? []).map((row) => row.quotedAt));
   const asxAt = latestQuoteTime((rows.asx ?? []).map((row) => row.quotedAt));
-  const venue: "NZX" | "ASX" = asxAt && (!nzxAt || asxAt.getTime() > nzxAt.getTime()) ? "ASX" : "NZX";
+  return asxAt && (!nzxAt || asxAt.getTime() > nzxAt.getTime()) ? "ASX" : "NZX";
+}
+
+/** Compact MARKETS prefix: newest NZX or ASX quotedAt, then tapeEquityPrefix. */
+export function tapeMarketsPrefix(rows: TapeRows, now = new Date()): string {
+  const venue = tapeVenue(rows);
   return tapeEquityPrefix(venue === "ASX" ? (rows.asx ?? []) : (rows.nzx ?? []), venue, now);
+}
+
+/** Calendar day of a quote in that venue's zone, YYYY-MM-DD. */
+export function quoteCalendarIso(
+  quotedAt: string | number | Date | null | undefined,
+  venue: "NZX" | "ASX",
+): string | null {
+  const quoted = parseQuoteTime(quotedAt ?? null);
+  if (!quoted) return null;
+  const iso = new Intl.DateTimeFormat("en-CA", {
+    timeZone: ZONE[venue],
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(quoted);
+  return /^\d{4}-\d{2}-\d{2}$/.test(iso) ? iso : null;
+}
+
+/**
+ * Close date the tape would print, as YYYY-MM-DD.
+ * Same venue and same clamp as tapeMarketsPrefix / closeLabelFor.
+ * Null when no equity row has a quote time.
+ */
+export function tapeCloseIso(rows: TapeRows, now = new Date()): string | null {
+  const venue = tapeVenue(rows);
+  const quoted = latestQuoteTime((venue === "ASX" ? rows.asx ?? [] : rows.nzx ?? []).map((row) => row.quotedAt));
+  const quotedIso = quoteCalendarIso(quoted, venue);
+  if (!quotedIso) return null;
+  const session = equitySessionDate(venue, now);
+  return quotedIso < session ? quotedIso : session;
+}
+
+/**
+ * True when the cash session is shut and the tape's close date is an earlier
+ * session. An open session is never "previous": the prefix is the delay line,
+ * and yesterday's print is still the latest until a new one arrives.
+ */
+export function tapeCloseIsPreviousSession(rows: TapeRows, now = new Date()): boolean {
+  const venue = tapeVenue(rows);
+  if (equitySessionOpen(venue, now)) return false;
+  const iso = tapeCloseIso(rows, now);
+  if (!iso) return false;
+  return iso < equitySessionDate(venue, now);
 }
 
 /** API `live` is true only while that equity session is open and a quote arrived. */

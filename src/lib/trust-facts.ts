@@ -50,6 +50,11 @@ export const TRUST_PAGE_LOG = [
     change:
       "Added the data sources and delay table, where the site runs, and a retention statement for AI requests.",
   },
+  {
+    date: "23 Nov 2026",
+    change:
+      "Added a plain-language section on the paper book, orders, custody, logins and file upload.",
+  },
 ] as const;
 
 /** H-15: where the site runs. Cloudflare serves pages; Totalum (Google Cloud) stores the book. */

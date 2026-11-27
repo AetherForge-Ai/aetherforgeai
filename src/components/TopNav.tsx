@@ -43,6 +43,7 @@ import {
   ChevronDown,
   Plus,
   BookOpen,
+  Calculator,
   Shield,
   FileUp,
   Footprints,
@@ -71,6 +72,7 @@ const MORE_LINKS: NavLink[] = [
   { href: "/start-here", label: "Start here", icon: Footprints },
   { href: "/performance", label: "Example results", icon: Trophy },
   { href: "/tax", label: "Tax", icon: Scale },
+  { href: "/tools", label: "Calculators", icon: Calculator },
   // b29 G-29: the Xero CSV from the desktop "More" menu and the mobile menu. It opens the /tax
   // Xero section: paid plans download there, Free sees the lock label.
   { href: "/tax#xero", label: "Xero CSV", icon: FileUp },

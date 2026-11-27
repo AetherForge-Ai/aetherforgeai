@@ -156,15 +156,18 @@ export function StockDialog({ open, onOpenChange, editing, onSaved, defaultAsset
     sym: string,
     type: AssetType,
     carried?: number
-  ): Promise<{ price: number; stale: boolean; label: string | null } | null> {
-    if (type === "crypto" && carried && carried > 0) return { price: carried, stale: false, label: null };
-    const res = await api.get<{ price: number | null; stale?: boolean; label?: string | null }>(
+  ): Promise<{ price: number; stale: boolean; label: string | null; rejected?: boolean } | null> {
+    const res = await api.get<{ price: number | null; stale?: boolean; label?: string | null; quoteRejected?: boolean }>(
       `/api/tickers/quote?symbol=${encodeURIComponent(sym)}&type=${type}`,
       { signal: AbortSignal.timeout(8_000) }
     );
+    if (res.ok && res.data?.quoteRejected) {
+      return { price: 0, stale: false, label: res.data.label || "Price unavailable, enter price manually.", rejected: true };
+    }
     const price = res.ok ? res.data?.price : null;
-    if (!(price && price > 0)) return null;
-    return { price, stale: !!res.data?.stale, label: res.data?.label || null };
+    if (price && price > 0) return { price, stale: !!res.data?.stale, label: res.data?.label || null };
+    if (type === "crypto" && carried && carried > 0) return { price: carried, stale: false, label: null };
+    return null;
   }
 
   /** Lock the "paid for" field to today's live price (or unlock for manual entry). */
@@ -174,6 +177,12 @@ export function StockDialog({ open, onOpenChange, editing, onSaved, defaultAsset
     setStaleNote(null);
     const live = await fetchLivePrice(sym, type, carried);
     setPriceLoading(false);
+    if (live?.rejected) {
+      setLiveUnavailable(true);
+      setPricePrefilled(false);
+      setStaleNote(live.label || "Price unavailable, enter price manually.");
+      return;
+    }
     if (live != null && live.stale) {
       setPurchasePrice(String(live.price));
       setPricePrefilled(true);

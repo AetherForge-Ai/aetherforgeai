@@ -14,7 +14,7 @@
  */
 
 /** Same text as public/build-version.txt. Do not bump it here. */
-export const BUILD_RELEASE_ID = "v3-b103-2026-11-15";
+export const BUILD_RELEASE_ID = "v3-b104-2026-11-27";
 
 const RELEASE_MARKER = /^v3-b\d+-20\d\d-\d\d-\d\d$/;
 
