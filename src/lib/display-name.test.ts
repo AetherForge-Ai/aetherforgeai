@@ -151,11 +151,69 @@ describe("sanitizeDisplayName", () => {
     }
   });
 
+  it("N1 refuses a short host disguised as an initial", () => {
+    for (const name of ["t. me/afnz_help", "x. com/", "m. me/", "j. mp/", "t. me", "Ana/Lee", "Ana\\Lee"]) {
+      expect(validateDisplayName(name).ok, name).toBe(false);
+      expect(sanitizeDisplayName(name), name).toBe(DISPLAY_NAME_FALLBACK);
+    }
+    for (const name of ["J. Smith", "J. de Vries", "Juan C. de la Cruz", "J. R. R. Tolkien", "Anna T. To", "Wei K. Ng"]) {
+      expect(validateDisplayName(name), name).toEqual({ ok: true, name });
+    }
+  });
+
+  it("N2 refuses IPv4 and IPv6 addresses", () => {
+    expect(sanitizeDisplayName("203.0.113.10")).toBe(DISPLAY_NAME_FALLBACK);
+    expect(validateDisplayName("203.0.113.10").ok).toBe(false);
+    expect(sanitizeDisplayName("203\u30020\u3002113\u300210")).toBe(DISPLAY_NAME_FALLBACK);
+    expect(validateDisplayName("2001:db8::1").ok).toBe(false);
+    expect(validateDisplayName("fe80::1").ok).toBe(false);
+    expect(sanitizeDisplayName("2001:db8:85a3::8a2e:370:7334")).toBe(DISPLAY_NAME_FALLBACK);
+  });
+
+  it("N3 refuses an Arabic-Indic zero used as a dot", () => {
+    expect(validateDisplayName("evil\u0660com").ok).toBe(false);
+    expect(sanitizeDisplayName("evil\u0660com")).toBe(DISPLAY_NAME_FALLBACK);
+    expect(validateDisplayName("evil\u06F0com").ok).toBe(false);
+    expect(sanitizeDisplayName("evil\u06F0com")).toBe(DISPLAY_NAME_FALLBACK);
+  });
+
+  it("N4 allows a trailing Jr. or Sr.", () => {
+    for (const name of ["Martin Luther King Jr.", "Sammy Davis Sr.", "Martin Luther King Jr", "Sammy Davis Sr"]) {
+      expect(validateDisplayName(name), name).toEqual({ ok: true, name });
+      expect(sanitizeDisplayName(name), name).toBe(name);
+    }
+  });
+
+  it("N5 refuses angle brackets", () => {
+    expect(validateDisplayName("<script>alert(1)</script>").ok).toBe(false);
+    expect(sanitizeDisplayName("<script>alert(1)</script>")).toBe(DISPLAY_NAME_FALLBACK);
+    expect(validateDisplayName("Ann < Lee").ok).toBe(false);
+    expect(validateDisplayName("Ann > Lee").ok).toBe(false);
+  });
+
+  it("N8 refuses enclosed letters used as a host", () => {
+    const enclosed = validateDisplayName("🅴🅵🅸🅻.🅲🅾🅼");
+    expect(enclosed.ok).toBe(false);
+    if (!enclosed.ok) expect(enclosed.error).toBe(DISPLAY_NAME_ERROR);
+    expect(sanitizeDisplayName("🅴🅵🅸🅻.🅲🅾🅼")).toBe(DISPLAY_NAME_FALLBACK);
+    const marked = validateDisplayName("evil\u0307.\u0307com");
+    expect(marked.ok).toBe(false);
+    if (!marked.ok) expect(marked.error).toBe(DISPLAY_NAME_ERROR);
+    expect(validateDisplayName("Ho\u0304ne Wiremu")).toEqual({ ok: true, name: "Hōne Wiremu" });
+  });
+
+  it("N9 strips U+08E2 and U+110CD", () => {
+    expect(validateDisplayName("Hōne\u08E2 Wiremu")).toEqual({ ok: true, name: "Hōne Wiremu" });
+    expect(validateDisplayName("Tāne\u{110CD}")).toEqual({ ok: true, name: "Tāne" });
+    expect(validateDisplayName("evil\u08E2.com").ok).toBe(false);
+    expect(validateDisplayName("evil\u{110CD}.com").ok).toBe(false);
+  });
+
   it("rejects every listed dot-like character next to a letter", () => {
     const dots = [
       "\u00B7", "\u2024", "\u2027", "\u2E31", "\u2E33", "\u0701", "\u0702", "\uA60E",
       "\u{10A50}", "\u1427", "\uFF0E", "\uFE52", "\u3002", "\uFF61", "\u0589", "\u06D4",
-      "\u30FB", "\u2219", "\u22C5", "\u2022", ".",
+      "\u30FB", "\u2219", "\u22C5", "\u2022", ".", "\u0660", "\u06F0",
     ];
     for (const dot of dots) {
       expect(validateDisplayName(`a${dot}b`).ok, `U+${dot.codePointAt(0)?.toString(16)}`).toBe(false);
