@@ -19,7 +19,7 @@ import { isProPlan, limitScope, resolveTickerLimit } from "@/lib/entitlements";
 import { billingPortalReady, hasLiveSubscription, paidPlanNextStep } from "@/lib/billing-guard";
 import { formatDisplayDate, formatUsdWithRate, type FxRatesToNZD } from "@/lib/currency";
 import { resolveDisplayName } from "@/lib/user-display";
-import { sanitizeDisplayName, sanitizeRenderedName } from "@/lib/display-name";
+import { DISPLAY_NAME_ERROR, sanitizeRenderedName, validateDisplayName } from "@/lib/display-name";
 import { useFxRates } from "@/hooks/useFxRates";
 import { COUNTRIES } from "@/lib/countries";
 import { SettingsSectionNav } from "@/components/settings/SettingsSectionNav";
@@ -250,13 +250,15 @@ export function SettingsClient({
     if (secondaryEmail.trim() && !secondaryEmail.includes("@")) {
       return toast.error("Enter a valid backup email, or leave it blank.");
     }
+    const safeFirst = validateDisplayName(firstName);
+    const safeLast = validateDisplayName(lastName);
+    if (safeFirst.ok !== true) return toast.error(DISPLAY_NAME_ERROR);
+    if (safeLast.ok !== true) return toast.error(DISPLAY_NAME_ERROR);
     setSavingProfile(true);
     console.log("[settings] Saving profile…");
-    const safeFirst = sanitizeDisplayName(firstName);
-    const safeLast = sanitizeDisplayName(lastName);
     const res = await api.put("/api/profile", {
-      first_name: safeFirst,
-      last_name: safeLast,
+      first_name: safeFirst.name,
+      last_name: safeLast.name,
       country: country.trim(),
       phone: phone.trim() || null,
       secondary_email: secondaryEmail.trim() || null,
@@ -264,8 +266,8 @@ export function SettingsClient({
     });
     setSavingProfile(false);
     if (res.ok) {
-      setFirstName(safeFirst);
-      setLastName(safeLast);
+      setFirstName(safeFirst.name);
+      setLastName(safeLast.name);
       toast.success("Profile updated");
     } else {
       console.error("[settings] Profile save failed:", res.error);

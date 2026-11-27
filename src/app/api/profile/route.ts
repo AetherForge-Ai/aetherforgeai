@@ -3,7 +3,7 @@ import { privateJson } from "@/lib/account-response";
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/session";
 import { totalumSdk } from "@/lib/totalum";
-import { presentAccountNames, sanitizeDisplayName } from "@/lib/display-name";
+import { DisplayNameError, acceptedDisplayName, presentAccountNames } from "@/lib/display-name";
 
 const imageSchema = z
   .string()
@@ -55,9 +55,11 @@ export async function PUT(req: Request) {
       return NextResponse.json({ ok: false, error: parsed.error.flatten() }, { status: 400 });
     }
 
+    const taken = (value: string): string => acceptedDisplayName(value);
+
     const patch: Record<string, unknown> = {};
-    if (parsed.data.first_name !== undefined) patch.first_name = sanitizeDisplayName(parsed.data.first_name);
-    if (parsed.data.last_name !== undefined) patch.last_name = sanitizeDisplayName(parsed.data.last_name);
+    if (parsed.data.first_name !== undefined) patch.first_name = taken(parsed.data.first_name);
+    if (parsed.data.last_name !== undefined) patch.last_name = taken(parsed.data.last_name);
     if (parsed.data.country !== undefined) patch.country = parsed.data.country.trim();
     if (parsed.data.phone !== undefined) patch.phone = (parsed.data.phone || "").trim() || null;
     if (parsed.data.secondary_email !== undefined) {
@@ -68,10 +70,10 @@ export async function PUT(req: Request) {
     const first = (patch.first_name as string | undefined) ?? user.first_name ?? "";
     const last = (patch.last_name as string | undefined) ?? user.last_name ?? "";
     if (parsed.data.name !== undefined) {
-      patch.name = sanitizeDisplayName(parsed.data.name);
+      patch.name = taken(parsed.data.name);
     } else if (parsed.data.first_name !== undefined || parsed.data.last_name !== undefined) {
       const combined = `${first} ${last}`.trim();
-      if (combined) patch.name = sanitizeDisplayName(combined);
+      if (combined) patch.name = taken(combined);
     }
 
     if (Object.keys(patch).length > 0) {
@@ -81,6 +83,9 @@ export async function PUT(req: Request) {
 
     return NextResponse.json({ ok: true, data: presentAccountNames({ ...user, ...patch }) });
   } catch (err: any) {
+    if (err instanceof DisplayNameError) {
+      return NextResponse.json({ ok: false, error: err.message }, { status: 400 });
+    }
     console.error("[api/profile] PUT error:", err);
     return NextResponse.json({ ok: false, error: err?.message || "Failed to update profile" }, { status: 500 });
   }

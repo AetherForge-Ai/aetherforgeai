@@ -24,7 +24,6 @@ import { BrandLogo } from "@/components/BrandLogo";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { openRecordTransaction } from "@/lib/open-transaction";
-import { sanitizeRenderedName } from "@/lib/display-name";
 import {
   Home,
   LayoutDashboard,
@@ -521,7 +520,7 @@ export function TopNav() {
           {pending ? (
             <div className="h-9 w-24 animate-pulse rounded-full bg-muted/60" />
           ) : loggedIn && user ? (
-            <AccountMenu user={{ ...user, name: sanitizeRenderedName(user.name) || user.name }} />
+            <AccountMenu user={user} />
           ) : (
             <>
               <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">

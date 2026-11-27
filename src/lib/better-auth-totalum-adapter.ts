@@ -5,7 +5,7 @@ import { createAdapterFactory } from "better-auth/adapters";
 import { sessionWriteResult } from "@/lib/trade-commit-session";
 import { createUserWithConsentFallback } from "@/lib/signup-consent";
 import { coerceUserRow } from "@/lib/totalum-user-row";
-import { sanitizeNameFields } from "@/lib/display-name";
+import { normalizeNameFields } from "@/lib/display-name";
 
 // ==================== Type Definitions ====================
 
@@ -74,7 +74,7 @@ function isTotalumAutoField(field: string): boolean {
 /** Last line of defence for every Better Auth user write, including a future OAuth profile. */
 function sanitizeUserWrite<T extends Record<string, any>>(model: string, data: T): T {
   if (model !== "user" || !data || typeof data !== "object") return data;
-  return sanitizeNameFields(data);
+  return normalizeNameFields(data);
 }
 
 function objectToSnakeCase(obj: Record<string, any>): Record<string, any> {

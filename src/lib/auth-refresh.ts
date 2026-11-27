@@ -8,8 +8,6 @@ import {
   REFRESH_SESSION_PATH,
   type LiveSessionUser,
 } from "@/lib/session-owner";
-import { sanitizeDisplayName } from "@/lib/display-name";
-
 export type { LiveSessionUser };
 
 /**
@@ -49,7 +47,7 @@ function parseLiveUser(data: SessionEnvelope): LiveSessionUser | null {
   return {
     id: row.id,
     email: row.email,
-    name: typeof row.name === "string" && row.name.trim() ? sanitizeDisplayName(row.name) : row.name || row.email,
+    name: row.name || row.email,
     image: row.image ?? null,
     subscription_status: row.subscription_status,
     subscription_plan: row.subscription_plan,

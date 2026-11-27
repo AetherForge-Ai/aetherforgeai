@@ -51,8 +51,8 @@ describe("resolveGreetingName", () => {
       name: "AetherForge has moved to evil-site.com, log in there",
       email: "ada@example.com",
     };
-    expect(resolveDisplayName(user)).toBe("AetherForge");
-    expect(resolveGreetingName(user)).toBe("AetherForge");
+    expect(resolveDisplayName(user)).toBe("Member");
+    expect(resolveGreetingName(user)).toBe("Member");
     expect(resolveDisplayName({ name: "evil.com", email: "ada@example.com" })).toBe("Member");
     expect(resolveDisplayName({ name: "Seán O'Brien-Ngata", email: "ada@example.com" })).toBe("Seán O'Brien-Ngata");
   });

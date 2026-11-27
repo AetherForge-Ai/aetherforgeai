@@ -35,6 +35,7 @@ vi.mock("@/lib/session", () => ({
 }));
 
 import { PUT } from "@/app/api/profile/route";
+import { DISPLAY_NAME_ERROR } from "@/lib/display-name";
 
 describe("SEC-NAME-1 write paths", () => {
   beforeEach(() => {
@@ -59,14 +60,30 @@ describe("SEC-NAME-1 write paths", () => {
         age_confirmed: "yes",
       }),
     }));
-    expect(lure.status, await lure.clone().text()).toBe(200);
-    const lureRow = sent.find((row) => row.email === "lure@example.test");
-    expect(lureRow, JSON.stringify(sent)).toMatchObject({
-      name: "AetherForge",
-      first_name: "Member",
-      last_name: "Member",
+    const lureBody = await lure.clone().text();
+    expect(lure.status, lureBody).toBe(400);
+    expect(lureBody).toContain(DISPLAY_NAME_ERROR);
+    expect(sent.find((row) => row.email === "lure@example.test")).toBeUndefined();
+    expect(JSON.stringify(sent)).not.toContain("evil-site.com");
+
+    const initial = await auth.handler(new Request("http://localhost:3000/api/auth/sign-up/email", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        email: "jr@example.test",
+        password: "pw-123456",
+        name: "J. Smith",
+        first_name: "J.",
+        last_name: "Smith",
+        age_confirmed: "yes",
+      }),
+    }));
+    expect(initial.status).toBe(200);
+    expect(sent.find((row) => row.email === "jr@example.test")).toMatchObject({
+      name: "J. Smith",
+      first_name: "J.",
+      last_name: "Smith",
     });
-    expect(JSON.stringify(lureRow)).not.toContain("evil-site.com");
 
     const clean = await auth.handler(new Request("http://localhost:3000/api/auth/sign-up/email", {
       method: "POST",
@@ -95,13 +112,17 @@ describe("SEC-NAME-1 write paths", () => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ first_name: "evil.com", last_name: "Smith" }),
     }));
-    expect(phishing.status).toBe(200);
-    expect(edit).toHaveBeenCalledWith("user", "u1", expect.objectContaining({
-      first_name: "Member",
-      last_name: "Smith",
-      name: "Member Smith",
+    expect(phishing.status).toBe(400);
+    expect(await phishing.json()).toEqual({ ok: false, error: DISPLAY_NAME_ERROR });
+    expect(edit).not.toHaveBeenCalled();
+
+    const initial = await PUT(new Request("http://localhost/api/profile", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "J. Smith" }),
     }));
-    expect(JSON.stringify(edit.mock.calls[0]?.[2])).not.toContain("evil.com");
+    expect(initial.status).toBe(200);
+    expect(edit).toHaveBeenCalledWith("user", "u1", { name: "J. Smith" });
 
     edit.mockClear();
     const country = await PUT(new Request("http://localhost/api/profile", {
@@ -119,10 +140,8 @@ describe("SEC-NAME-1 write paths", () => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ name: `${"A".repeat(31)} evil.comXYZ` }),
     }));
-    expect(res.status).toBe(200);
-    const patch = edit.mock.calls.at(-1)?.[2] as { name?: string };
-    expect(patch.name).not.toMatch(/evil\.com/i);
-    expect(patch.name).not.toContain(".");
-    expect(Array.from(patch.name || "").length).toBeLessThanOrEqual(40);
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ ok: false, error: DISPLAY_NAME_ERROR });
+    expect(edit).not.toHaveBeenCalled();
   });
 });

@@ -7,7 +7,7 @@ import { totalumSdk } from "@/lib/totalum";
 import { sendAuthResetPassword, sendAuthVerificationEmail } from "@/lib/auth-mail";
 import { APIError } from "better-auth/api";
 import { SIGNUP_CONSENT_ERROR, TERMS_VERSION, ageConfirmed, consentFields, signupCountry } from "@/lib/signup-consent";
-import { sanitizeNameFields } from "@/lib/display-name";
+import { DisplayNameError, normalizeNameFields } from "@/lib/display-name";
 import { AuthSecretUnavailable, closedAuthResponse, configuredAuthSecret, productionAuthClosed } from "@/lib/auth-secret";
 
 // TESTING_MODE is set only by the test:serve script (npm run test:serve).
@@ -339,22 +339,31 @@ function createAuth(secret: string | undefined) {
           const consent = consentFields();
           const recordWithCountry = user as typeof user & { country?: unknown };
           // H-4/signup: country is required on the Totalum user table; always sent ("Unknown" if absent).
-          // SEC-NAME-1: name, first_name and last_name are sanitised before the row is created.
-          return {
-            data: sanitizeNameFields({
-              ...user,
-              country: signupCountry(recordWithCountry.country),
-              age_confirmed: consent.age_confirmed,
-              terms_accepted_at: consent.terms_accepted_at,
-              terms_version: consent.terms_version || TERMS_VERSION,
-            }),
-          };
+          try {
+            return {
+              data: normalizeNameFields({
+                ...user,
+                country: signupCountry(recordWithCountry.country),
+                age_confirmed: consent.age_confirmed,
+                terms_accepted_at: consent.terms_accepted_at,
+                terms_version: consent.terms_version || TERMS_VERSION,
+              }),
+            };
+          } catch (err) {
+            if (err instanceof DisplayNameError) throw new APIError("BAD_REQUEST", { message: err.message });
+            throw err;
+          }
         },
       },
       update: {
         before: async (user) => {
           // Covers /update-user and OAuth profile refresh (socialProviders is not enabled).
-          return { data: sanitizeNameFields(user) };
+          try {
+            return { data: normalizeNameFields(user) };
+          } catch (err) {
+            if (err instanceof DisplayNameError) throw new APIError("BAD_REQUEST", { message: err.message });
+            throw err;
+          }
         },
       },
     },
