@@ -151,6 +151,36 @@ describe("sanitizeDisplayName", () => {
     }
   });
 
+  it("S1 refuses lookalike slashes", () => {
+    const probes = [
+      "AetherForge help T. Me\u2215afnz_help",
+      "X. Com\u2044aetherforge",
+      "St. Com\u2215x",
+      "A\u29F8B",
+      "A\u2571B",
+      "A\uFF0FB",
+      "A\u29F9B",
+      "A\u2216B",
+      "A\uFE68B",
+      "A\uFF3CB",
+      "A\u2572B",
+    ];
+    for (const name of probes) {
+      expect(validateDisplayName(name).ok, name).toBe(false);
+      expect(sanitizeDisplayName(name), name).toBe(DISPLAY_NAME_FALLBACK);
+    }
+    for (const name of ["O'Brien", "J. de Vries", "Martin Luther King Jr.", "J. R. R. Tolkien", "Anna T. To"]) {
+      expect(validateDisplayName(name), name).toEqual({ ok: true, name });
+    }
+  });
+
+  it("S2 refuses a dotted IP with spaces or lookalike dots", () => {
+    for (const name of ["203 . 0 . 113 . 10", "203. 0. 113. 10", "203 \u3002 0 \u3002 113 \u3002 10"]) {
+      expect(validateDisplayName(name).ok, name).toBe(false);
+      expect(sanitizeDisplayName(name), name).toBe(DISPLAY_NAME_FALLBACK);
+    }
+  });
+
   it("N1 refuses a short host disguised as an initial", () => {
     for (const name of ["t. me/afnz_help", "x. com/", "m. me/", "j. mp/", "t. me", "Ana/Lee", "Ana\\Lee"]) {
       expect(validateDisplayName(name).ok, name).toBe(false);

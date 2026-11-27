@@ -21,6 +21,20 @@ const KEEP_FORMAT = new Set([0x200c, 0x200d]);
 
 const TITLES = new Set(["mr", "mrs", "ms", "dr", "jr", "sr", "st", "prof"]);
 
+/** Solidus and reverse-solidus lookalikes. Mapped to "/" before the slash check. */
+const SLASH_LIKE = new Set<number>([
+  0x2215, // ∕ division slash
+  0x2044, // ⁄ fraction slash
+  0x29f8, // ⧸ big solidus
+  0x2571, // ╱ box drawings light diagonal
+  0xff0f, // ／ fullwidth solidus
+  0x29f9, // ⧹ big reverse solidus
+  0x2216, // ∖ set minus
+  0xfe68, // ﹨ small reverse solidus
+  0xff3c, // ＼ fullwidth reverse solidus
+  0x2572, // ╲ box drawings light diagonal
+]);
+
 /** A letter-dot is an initial only when the next word is one of these, or starts with a capital. */
 const PARTICLES = new Set([
   "de", "da", "del", "della", "van", "von", "der", "den", "le", "la", "du", "di",
@@ -217,8 +231,13 @@ function dotAllowed(view: string[], original: string[], index: number): boolean 
   return TITLES.has(token) && next === " ";
 }
 
+function isDigit(ch: string): boolean {
+  return /\p{Nd}/u.test(ch);
+}
+
 function hasIp(view: string): boolean {
-  if (/(?:^|[^0-9])(?:\d{1,3}\.){3}\d{1,3}(?![0-9])/.test(view)) return true;
+  const collapsed = view.replace(/\s*\.\s*/g, ".");
+  if (/(?:^|[^0-9])(?:\d{1,3}\.){3}\d{1,3}(?![0-9])/.test(collapsed)) return true;
   if (view.includes("::")) return true;
   return /(?:^|[^0-9a-f])(?:[0-9a-f]{1,4}:){2,}[0-9a-f]{0,4}(?![0-9a-f])/.test(view);
 }
@@ -229,13 +248,17 @@ function hasIllegalDot(view: string[], original: string[]): boolean {
     if (dotAllowed(view, original, i)) continue;
     const left = nearestNonSpace(view, i, -1);
     const right = nearestNonSpace(view, i, 1);
+    if (isDigit(left) && isDigit(right)) return true;
     if (isLetter(left) || isLetter(right)) return true;
   }
   return false;
 }
 
 function violates(cleaned: string): boolean {
-  if (/[<>/\\]/.test(cleaned)) return true;
+  const slashed = codePoints(cleaned)
+    .map((ch) => (SLASH_LIKE.has(ch.codePointAt(0) ?? 0) ? "/" : ch))
+    .join("");
+  if (/[<>/\\]/.test(slashed)) return true;
   const original = codePoints(cleaned);
   const view = original.map(checkChar);
   const text = view.join("");
