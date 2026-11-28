@@ -5,6 +5,7 @@ import { headmasterDepth } from "@/lib/entitlements";
 import { BOT_GUIDES } from "@/lib/bot-guides";
 import { AppShell } from "@/components/AppShell";
 import { TotalumConsole } from "@/components/totalum/TotalumConsole";
+import { sanitizeRenderedName } from "@/lib/display-name";
 
 export const dynamic = "force-dynamic";
 
@@ -51,7 +52,7 @@ export default async function HeadmasterPage() {
       }}
     >
       <div className="p-4 md:p-8">
-        <TotalumConsole entitled={entitled} depth={depth} memberName={user.name} plan={user.subscription_plan} />
+        <TotalumConsole entitled={entitled} depth={depth} memberName={sanitizeRenderedName(user.name) || "Member"} plan={user.subscription_plan} />
       </div>
     </AppShell>
   );

@@ -18,6 +18,7 @@ import {
 } from "@/lib/headmaster-trust";
 import { fullBookSentence, type FullBookParts } from "@/lib/book-log";
 import { HEADMASTER_BOT_LABEL } from "@/lib/report-language";
+import { sanitizeRenderedName } from "@/lib/display-name";
 
 function nzd(v: number): string {
   return nzdWhole(v);
@@ -238,7 +239,7 @@ export function renderTotalumReport(
       <div class="tag">Portfolio Planning and Strategies</div>
     </div>
     <div style="text-align:right">
-      <div class="muted">${esc(opts.memberName || "Member")}</div>
+      <div class="muted">${esc(sanitizeRenderedName(opts.memberName) || "Member")}</div>
       <div class="muted">${esc(date)}</div>
       <div class="muted">Spot ${s.metalsLive ? "live" : "est."} · base currency NZD</div>
       <div style="margin-top:6px"><span style="display:inline-block;padding:3px 10px;border-radius:999px;background:#eef2ff;color:#6366f1;font-size:11px;font-weight:700">⚡ ${esc(opts.engine || HEADMASTER_BOT_LABEL)}</span></div>

@@ -11,6 +11,7 @@
  */
 
 import { LEGAL_ENTITY_NAME } from "@/lib/company";
+import { sanitizeRenderedName } from "@/lib/display-name";
 import type {
   TrialReport,
   TrialTickerAnalysis,
@@ -383,7 +384,7 @@ export function renderTrialReportHtml(report: TrialReport, opts: { userName?: st
         </div>
         <h1 style="font-size:24px;margin:16px 0 4px;color:${INK};line-height:1.2">${esc(report.title)}</h1>
         <div style="font-size:12px;color:${MUTE}">${esc(report.marketLabel)} · ${esc(report.scopeLabel)}</div>
-        <div style="font-size:11px;color:${FAINT};margin-top:2px">${esc(report.generatedAtLabel)}${opts.userName ? ` · Prepared for ${esc(opts.userName)}` : ""}</div>
+        <div style="font-size:11px;color:${FAINT};margin-top:2px">${esc(report.generatedAtLabel)}${sanitizeRenderedName(opts.userName) ? ` · Prepared for ${esc(sanitizeRenderedName(opts.userName))}` : ""}</div>
       </div>
 
       <div style="padding:22px 28px">

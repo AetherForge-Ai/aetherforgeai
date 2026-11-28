@@ -9,6 +9,7 @@ import { normalizePlanKey } from "@/lib/entitlements";
 import { bookNotBeforeFromCookie } from "@/lib/book-write-mark";
 import { cookieValue, sessionExpiresInFuture, verifySignedSessionToken } from "@/lib/session-token";
 import { AuthSecretUnavailable } from "@/lib/auth-secret";
+import { presentAccountNames } from "@/lib/display-name";
 
 export type BotAccessValue = "stock" | "crypto" | "both" | "none";
 
@@ -332,7 +333,7 @@ async function loadCurrentUser(opts: { fresh?: boolean } = {}): Promise<AppUser 
       record = null;
     }
 
-    return {
+    return presentAccountNames({
       _id: userId,
       id: userId,
       email: session.user.email,
@@ -359,7 +360,7 @@ async function loadCurrentUser(opts: { fresh?: boolean } = {}): Promise<AppUser 
       phone: record?.phone ?? (session.user as any).phone ?? null,
       secondary_email: record?.secondary_email ?? (session.user as any).secondary_email ?? null,
       identityConflict,
-    };
+    });
   }
 }
 

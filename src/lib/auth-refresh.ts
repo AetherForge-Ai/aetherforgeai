@@ -8,7 +8,6 @@ import {
   REFRESH_SESSION_PATH,
   type LiveSessionUser,
 } from "@/lib/session-owner";
-
 export type { LiveSessionUser };
 
 /**

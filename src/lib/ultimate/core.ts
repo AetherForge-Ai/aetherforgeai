@@ -5,6 +5,8 @@
  * Totalum tables in docs/ultimate-tables-spec.md before the flag goes on.
  */
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { sanitizeDisplayName } from "@/lib/display-name";
+import { escapeHtml } from "@/lib/transactional-mail";
 
 export type SeatRole = "owner" | "viewer";
 
@@ -125,14 +127,15 @@ export function rateLimitStep(
 
 /** Seat invite email: template only. Nothing in the build or tests sends it. */
 export function seatInviteEmail(input: { ownerName: string; portfolioName: string; role: SeatRole; acceptUrl: string }) {
+  const ownerName = sanitizeDisplayName(input.ownerName);
   const access = input.role === "viewer" ? "view (you cannot change anything)" : "manage";
-  return {
-    subject: `${input.ownerName} invited you to a portfolio on AetherForge AI`,
-    text: [
-      `${input.ownerName} has invited you to ${access} the portfolio "${input.portfolioName}" on AetherForge AI.`,
-      `Accept the invite: ${input.acceptUrl}`,
-      "If you were not expecting this, ignore this email. Nothing changes until you accept.",
-      "AetherForge AI is general information only, not financial advice.",
-    ].join("\n\n"),
-  };
+  const subject = `${ownerName} invited you to a portfolio on AetherForge AI`;
+  const text = [
+    `${ownerName} has invited you to ${access} the portfolio "${input.portfolioName}" on AetherForge AI.`,
+    `Accept the invite: ${input.acceptUrl}`,
+    "If you were not expecting this, ignore this email. Nothing changes until you accept.",
+    "AetherForge AI is general information only, not financial advice.",
+  ].join("\n\n");
+  const html = `<p>${escapeHtml(ownerName)} has invited you to ${escapeHtml(access)} the portfolio &quot;${escapeHtml(input.portfolioName)}&quot; on AetherForge AI.</p><p><a href="${escapeHtml(input.acceptUrl)}">Accept the invite</a></p>`;
+  return { subject, text, html };
 }

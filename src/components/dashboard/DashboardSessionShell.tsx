@@ -12,6 +12,7 @@ import { confirmDashboardSessionStrict, invalidateLiveSessionProbe } from "@/lib
 import { prefetchDashboardBook } from "@/lib/dashboard-book-prefetch";
 import { warmPublicFeeds } from "@/lib/public-feed-cache";
 import type { DashboardSessionUser } from "@/lib/dashboard-session";
+import { sanitizeRenderedName } from "@/lib/display-name";
 
 /**
  * The paper book mounts only after GET /api/session for a member document.
@@ -118,7 +119,7 @@ export function DashboardSessionShell({
       view={view}
       initialQuota={initialQuota}
       userId={session.id}
-      userName={session.name && !session.name.includes("@") ? session.name : session.greetingName}
+      userName={sanitizeRenderedName(session.name && !session.name.includes("@") ? session.name : session.greetingName)}
       subscription={session.subscription}
       metalsEntitled={session.metalsEntitled}
       nzTaxPreview={nzTaxPreview}

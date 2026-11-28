@@ -54,7 +54,7 @@ export function parseDashboardSessionUser(data: unknown): DashboardSessionUser |
   return {
     id: row.id,
     email: row.email,
-    name: typeof row.name === "string" && row.name ? row.name : row.email,
+    name: typeof row.name === "string" && row.name.trim() ? row.name : row.email,
     image: typeof row.image === "string" ? row.image : null,
     subscription_status: typeof row.subscription_status === "string" ? row.subscription_status : status,
     subscription_plan: typeof row.subscription_plan === "string" ? row.subscription_plan : plan,

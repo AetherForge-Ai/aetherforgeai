@@ -1,3 +1,5 @@
+import { sanitizeRenderedName } from "@/lib/display-name";
+
 /**
  * Bodies for Totalum `email.sendEmail`.
  *
@@ -57,7 +59,7 @@ export function escapeHtml(value: string): string {
 }
 
 function plainName(name?: string | null): string {
-  return (name || "").replace(/\s+/g, " ").trim();
+  return sanitizeRenderedName(name);
 }
 
 /** Drop inline style attributes. Keep `<style>` blocks, classes, and text. */

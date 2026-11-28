@@ -16,6 +16,7 @@ import { checkoutStripe } from "@/lib/stripe-mode";
 import { alreadySubscribedMessage, billingPortalReady, hasLiveSubscription, paidPlanNextStep } from "@/lib/billing-guard";
 import { HOLDING_CAPS_V2 } from "@/lib/feature-flags";
 import { trialPaymentCollection } from "@/lib/holding-caps";
+import { sanitizeDisplayName } from "@/lib/display-name";
 
 /** b80 CR-6b: shown when the site is in test mode and the member is not an allow-listed test account. */
 export const CHECKOUT_UNAVAILABLE = "Checkout is not available right now. Please try again later.";
@@ -91,7 +92,7 @@ export async function createPlanCheckout(opts: { user: AppUser; plan: PlanDef; b
   const priceId = slot ? await ensurePublicPrice(slot.key) : plan.priceId;
   let customerId = user.stripe_customer_id || undefined;
   if (!customerId) {
-    const customer = await client.customers.create({ email: user.email, name: user.name, metadata: { userId: user._id } });
+    const customer = await client.customers.create({ email: user.email, name: sanitizeDisplayName(user.name || ""), metadata: { userId: user._id } });
     customerId = customer.id;
     await totalumSdk.crud.editRecordById("user", user._id, { stripe_customer_id: customerId });
   }
